@@ -60,7 +60,17 @@ final class ProcessMonitor {
         }
 
         previousSampleTime = now
-        return result.sorted { $0.cpuPercent > $1.cpuPercent }
+        let sorted = result.sorted { $0.cpuPercent > $1.cpuPercent }
+        return sorted.enumerated().map { idx, proc in
+            guard idx < 50 else { return proc }
+            return ProcessInfo2(
+                id: proc.id,
+                name: proc.name,
+                cpuPercent: proc.cpuPercent,
+                memoryMB: proc.memoryMB,
+                ports: listeningPorts(for: proc.id)
+            )
+        }
     }
 
     func listeningPorts(for pid: Int32) -> [UInt16] {
