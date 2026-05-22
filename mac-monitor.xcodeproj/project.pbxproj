@@ -10,6 +10,7 @@
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
 		6ED711C9F9766810A7AD76B2 /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */; };
+		8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */; };
 		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
 		7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */; };
 		87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */; };
@@ -46,6 +47,7 @@
 		DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
 		E83F9C0E81B668992898B960 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
+		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +81,7 @@
 				AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */,
 				E83F9C0E81B668992898B960 /* ProcessRowView.swift */,
 				DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */,
+				9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -217,6 +220,7 @@
 				E71FEFA784128F6BA5465B4F /* ProcessRowView.swift in Sources */,
 				6ED711C9F9766810A7AD76B2 /* ProcessListView.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,
+				8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
