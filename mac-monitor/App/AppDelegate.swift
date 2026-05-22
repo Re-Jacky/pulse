@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         p.makeKeyAndOrderFront(nil)
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
@@ -79,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func closePanel() {
         panel?.orderOut(nil)
         panel = nil
+        NSApp.setActivationPolicy(.accessory)
         if let m = eventMonitor {
             NSEvent.removeMonitor(m)
             eventMonitor = nil
