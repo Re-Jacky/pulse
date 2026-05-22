@@ -55,6 +55,18 @@ open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path
 
 > **Note:** On first build you may need to run `sudo xcodebuild -runFirstLaunch` if Xcode tools aren't initialized.
 
+### Option 3: Build a DMG for distribution
+
+```bash
+bash scripts/build-dmg.sh
+```
+
+This builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew or external dependencies required).
+
+Output: `dist/mac-monitor-1.0.0.dmg`
+
+To install: open the DMG, drag `mac-monitor.app` to the **Applications** folder shortcut inside it.
+
 ---
 
 ## Running
