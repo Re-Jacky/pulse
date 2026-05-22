@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -8,9 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.animates = true
         return p
     }()
+    private let monitor = SystemMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        popover.contentViewController = NSHostingController(
+            rootView: PopoverView().environmentObject(monitor)
+        )
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
