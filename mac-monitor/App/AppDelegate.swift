@@ -75,6 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.accessory)
+        }
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
@@ -94,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makePanel() -> InputPanel {
         let p = InputPanel(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
-            styleMask: [.titled, .resizable, .fullSizeContentView],
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -102,16 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .transient]
         p.isMovableByWindowBackground = false
-        p.titleVisibility = .hidden
-        p.titlebarAppearsTransparent = true
         p.isReleasedWhenClosed = false
         p.hidesOnDeactivate = false
         p.minSize = NSSize(width: 280, height: 320)
         p.appearance = NSAppearance(named: .darkAqua)
-
-        p.standardWindowButton(.closeButton)?.isHidden = true
-        p.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        p.standardWindowButton(.zoomButton)?.isHidden = true
 
         let vc = NSHostingController(rootView: PopoverView().environmentObject(monitor))
         vc.view.appearance = NSAppearance(named: .darkAqua)
