@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 import Combine
 
+private final class InputPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private var panel: NSPanel?
@@ -64,9 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             p.setFrameOrigin(NSPoint(x: clamped, y: y))
         }
 
-        p.makeKeyAndOrderFront(nil)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        p.makeKeyAndOrderFront(nil)
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             if let settingsWin = self?.settingsWindow, settingsWin.isVisible,
@@ -88,18 +93,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makePanel() -> NSPanel {
-        let p = NSPanel(
+        let p = InputPanel(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
-            styleMask: [.resizable, .fullSizeContentView],
+            styleMask: [.titled, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         p.isFloatingPanel = true
-        p.level = .popUpMenu
+        p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .transient]
         p.isMovableByWindowBackground = false
         p.titleVisibility = .hidden
         p.titlebarAppearsTransparent = true
+        p.isReleasedWhenClosed = false
+        p.hidesOnDeactivate = false
         p.minSize = NSSize(width: 280, height: 320)
         p.appearance = themeManager.currentTheme.nsAppearance
 
