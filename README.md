@@ -10,6 +10,15 @@ Built because existing tools like [Stats](https://github.com/exelban/stats) are 
 
 ---
 
+## Preview
+
+<p align="center">
+  <img src="docs/images/pulse-overview.png" width="300" alt="Overview tab — CPU, Memory, GPU bars" />
+  <img src="docs/images/pulse-processes.png" width="300" alt="Processes tab — live process list" />
+</p>
+
+---
+
 ## Features
 
 - **Menu bar icon** — left-click opens/closes the panel; right-click shows a context menu
