@@ -109,10 +109,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.hidesOnDeactivate = false
         p.minSize = NSSize(width: 280, height: 320)
         p.appearance = NSAppearance(named: .darkAqua)
+        p.backgroundColor = .clear
+        p.isOpaque = false
 
         let vc = NSHostingController(rootView: PopoverView().environmentObject(monitor))
         vc.view.appearance = NSAppearance(named: .darkAqua)
         p.contentViewController = vc
+
+        if let contentView = p.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 12
+            contentView.layer?.masksToBounds = true
+        }
         return p
     }
 
