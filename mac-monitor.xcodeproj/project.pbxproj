@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		AA000001000000000000001A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000001B /* AppDelegate.swift */; };
 		AA000001000000000000002A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000002B /* main.swift */; };
+		AA000002000000000000001A /* CPUMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001B /* CPUMonitor.swift */; };
+		AA000002000000000000002A /* SystemMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000002B /* SystemMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -16,6 +18,8 @@
 		AA000001000000000000002B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AA000001000000000000003B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000001000000000000004B /* mac-monitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "mac-monitor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000002000000000000001B /* CPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitor.swift; sourceTree = "<group>"; };
+		AA000002000000000000002B /* SystemMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,10 +50,20 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		AA000002000000000000003A /* Monitors */ = {
+			isa = PBXGroup;
+			children = (
+				AA000002000000000000001B /* CPUMonitor.swift */,
+				AA000002000000000000002B /* SystemMonitor.swift */,
+			);
+			path = Monitors;
+			sourceTree = "<group>";
+		};
 		AA000001000000000000008A /* mac-monitor */ = {
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000007A /* App */,
+				AA000002000000000000003A /* Monitors */,
 				AA000001000000000000003B /* Info.plist */,
 			);
 			path = "mac-monitor";
@@ -133,6 +147,8 @@
 			files = (
 				AA000001000000000000001A /* AppDelegate.swift in Sources */,
 				AA000001000000000000002A /* main.swift in Sources */,
+				AA000002000000000000001A /* CPUMonitor.swift in Sources */,
+				AA000002000000000000002A /* SystemMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
