@@ -131,27 +131,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openPreferences() {
-        if let win = settingsWindow, win.isVisible {
-            win.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        if settingsWindow == nil {
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 260, height: 130),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            win.title = "Preferences"
+            win.isReleasedWhenClosed = false
+            win.center()
+            win.appearance = themeManager.currentTheme.nsAppearance
+            win.contentViewController = NSHostingController(
+                rootView: SettingsView(onDone: { [weak win] in win?.close() })
+                    .environmentObject(themeManager)
+            )
+            settingsWindow = win
         }
-        let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 260, height: 130),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        win.title = "Preferences"
-        win.isReleasedWhenClosed = false
-        win.center()
-        win.appearance = themeManager.currentTheme.nsAppearance
-        win.contentViewController = NSHostingController(
-            rootView: SettingsView(onDone: { [weak win] in win?.close() })
-                .environmentObject(themeManager)
-        )
-        settingsWindow = win
-        win.makeKeyAndOrderFront(nil)
+        settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 }
