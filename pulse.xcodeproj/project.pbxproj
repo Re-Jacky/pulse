@@ -35,7 +35,7 @@
 		AA000001000000000000001B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AA000001000000000000002B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AA000001000000000000003B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA000001000000000000004B /* mac-monitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "mac-monitor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000001000000000000004B /* pulse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pulse.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000002000000000000001B /* CPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitor.swift; sourceTree = "<group>"; };
 		AA000002000000000000002B /* SystemMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMonitor.swift; sourceTree = "<group>"; };
 		AA000003000000000000001B /* MemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMonitor.swift; sourceTree = "<group>"; };
@@ -92,7 +92,7 @@
 		AA000001000000000000006A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA000001000000000000004B /* mac-monitor.app */,
+				AA000001000000000000004B /* pulse.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -106,7 +106,7 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		AA000001000000000000008A /* mac-monitor */ = {
+		AA000001000000000000008A /* pulse */ = {
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000007A /* App */,
@@ -116,13 +116,13 @@
 				5FBA87F2FBD639833E1B72BD /* Managers */,
 				AA0000AA000000000000001B /* Assets.xcassets */,
 			);
-			path = "mac-monitor";
+			path = "pulse";
 			sourceTree = "<group>";
 		};
 		AA000001000000000000009A = {
 			isa = PBXGroup;
 			children = (
-				AA000001000000000000008A /* mac-monitor */,
+				AA000001000000000000008A /* pulse */,
 				AA000001000000000000006A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -142,9 +142,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AA00000100000000000000AA /* mac-monitor */ = {
+		AA00000100000000000000AA /* pulse */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AA00000100000000000000BA /* Build configuration list for PBXNativeTarget "mac-monitor" */;
+			buildConfigurationList = AA00000100000000000000BA /* Build configuration list for PBXNativeTarget "pulse" */;
 			buildPhases = (
 				AA00000100000000000000CA /* Sources */,
 				AA000001000000000000005A /* Frameworks */,
@@ -154,9 +154,9 @@
 			);
 			dependencies = (
 			);
-			name = "mac-monitor";
-			productName = "mac-monitor";
-			productReference = AA000001000000000000004B /* mac-monitor.app */;
+			name = "pulse";
+			productName = "pulse";
+			productReference = AA000001000000000000004B /* pulse.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -174,7 +174,7 @@
 					};
 				};
 			};
-			buildConfigurationList = AA00000100000000000000FA /* Build configuration list for PBXProject "mac-monitor" */;
+			buildConfigurationList = AA00000100000000000000FA /* Build configuration list for PBXProject "pulse" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -187,7 +187,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AA00000100000000000000AA /* mac-monitor */,
+				AA00000100000000000000AA /* pulse */,
 			);
 		};
 /* End PBXProject section */
@@ -358,7 +358,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mac-monitor/Info.plist";
+				INFOPLIST_FILE = "pulse/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -382,7 +382,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "mac-monitor/Info.plist";
+				INFOPLIST_FILE = "pulse/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -399,7 +399,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AA00000100000000000000BA /* Build configuration list for PBXNativeTarget "mac-monitor" */ = {
+		AA00000100000000000000BA /* Build configuration list for PBXNativeTarget "pulse" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA00000100000000000000BD /* Debug */,
@@ -408,7 +408,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AA00000100000000000000FA /* Build configuration list for PBXProject "mac-monitor" */ = {
+		AA00000100000000000000FA /* Build configuration list for PBXProject "pulse" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AA00000100000000000000BB /* Debug */,
