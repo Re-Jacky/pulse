@@ -21,6 +21,9 @@ xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Deb
 
 # Launch
 open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path '*/Debug/*' | head -1)"
+
+# Build DMG (Release)
+bash scripts/build-dmg.sh
 ```
 
 **Always build after any change.** A clean build is the only verification that counts.
@@ -30,9 +33,9 @@ open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path
 ## Architecture
 
 ```
-AppDelegate (NSStatusItem + NSPopover)
+AppDelegate (NSStatusItem + InputPanel)
   └── PopoverView (SwiftUI root, tab switcher)
-        ├── OverviewView   (CPU / Memory / GPU bars)
+        ├── OverviewView    (CPU / Memory / GPU bars)
         └── ProcessListView (search / sort / kill)
 
 SystemMonitor (ObservableObject, 2s Timer)
@@ -42,7 +45,7 @@ SystemMonitor (ObservableObject, 2s Timer)
   └── ProcessMonitor  → BSD proc APIs + kill(2)
 ```
 
-`SystemMonitor` is the single source of truth. It's instantiated once in `AppDelegate` and injected via `.environmentObject(monitor)`. All views read from it via `@EnvironmentObject`.
+`SystemMonitor` is the single source of truth. Instantiated once in `AppDelegate`, injected via `.environmentObject(monitor)`. All views read it via `@EnvironmentObject`.
 
 ---
 
@@ -50,7 +53,7 @@ SystemMonitor (ObservableObject, 2s Timer)
 
 | File | Purpose |
 |------|---------|
-| `App/AppDelegate.swift` | NSStatusItem setup, NSPopover toggle |
+| `App/AppDelegate.swift` | NSStatusItem, InputPanel lifecycle, context menu |
 | `App/main.swift` | AppKit entry point |
 | `Monitors/SystemMonitor.swift` | ObservableObject, refresh timer |
 | `Monitors/CPUMonitor.swift` | CPU usage % + core count + chip name |
@@ -60,9 +63,23 @@ SystemMonitor (ObservableObject, 2s Timer)
 | `Views/Colors.swift` | Color(hex:) + brand palette |
 | `Views/MetricRowView.swift` | Animated gradient bar (reusable) |
 | `Views/OverviewView.swift` | Three metric rows |
-| `Views/PopoverView.swift` | Root view + NSVisualEffectView |
+| `Views/PopoverView.swift` | Root view, tab switcher, NSVisualEffectView |
 | `Views/ProcessListView.swift` | Filterable, sortable process table |
 | `Views/ProcessRowView.swift` | Single process row + kill context menu |
+| `scripts/build-dmg.sh` | hdiutil-based DMG packager |
+
+---
+
+## Panel Architecture (important — not a standard NSPopover)
+
+The main window is `InputPanel`, a custom `NSPanel` subclass in `AppDelegate.swift`:
+
+- **styleMask**: `.borderless + .resizable + .fullSizeContentView` — no title bar, no traffic lights
+- **canBecomeKey / canBecomeMain**: overridden to `true` — required for SwiftUI TextField focus
+- **Rounded corners**: `contentView.layer?.cornerRadius = 12` + `masksToBounds`, window is transparent/non-opaque
+- **Activation**: opens with `setActivationPolicy(.regular)` → `activate` → `makeKeyAndOrderFront`, then immediately reverts to `.accessory` via `DispatchQueue.main.async` — keyboard works, no Dock icon appears
+- **Zoom**: overrides `zoom(_:)` to scale 1.5× width / 2× height instead of going fullscreen
+- **Dismiss**: global `NSEvent` monitor closes panel on outside click
 
 ---
 
@@ -75,14 +92,15 @@ SystemMonitor (ObservableObject, 2s Timer)
 
 ### SwiftUI patterns
 - No `@StateObject` in views — `SystemMonitor` flows down as `@EnvironmentObject`
-- `NSHostingController` bridges AppKit → SwiftUI at the popover boundary
+- `NSHostingController` bridges AppKit → SwiftUI at the panel boundary
 - `VisualEffectView` is an `NSViewRepresentable` wrapping `NSVisualEffectView`
+- Tab switching uses `.opacity` + `.allowsHitTesting` (not `if/else`) so the tab bar never shifts position
 
 ### No-gos (hard constraints)
 - **No external dependencies** — no SPM packages, no CocoaPods
-- **No `as any`, `@ts-ignore` equivalents** — no `as! AnyObject` force casts to suppress errors
+- **No force casts** — no `as! AnyObject` to suppress errors
 - **No disk/network/battery monitoring** — scope is CPU + Memory + GPU + Processes only
-- **No Dock icon / menu bar app switcher** — `LSUIElement = true` must stay
+- **No Dock icon** — `LSUIElement = true` must stay; activation policy trick must not leave `.regular` permanently
 
 ---
 
@@ -101,9 +119,12 @@ In `SystemMonitor.init()`:
 timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { ... }
 ```
 
-### Change popover size
+### Change panel default size
 
-In `PopoverView.swift`, adjust `.frame(width:height:)`.
+In `AppDelegate.makePanel()`, adjust the `contentRect`:
+```swift
+contentRect: NSRect(x: 0, y: 0, width: 300, height: 420)
+```
 
 ### Change the menu bar icon
 
@@ -113,6 +134,13 @@ button.image = NSImage(systemSymbolName: "cpu", ...)
 ```
 Any SF Symbol name works. Keep `isTemplate = true` so macOS handles dark/light tinting.
 
+### Change rounded corner radius
+
+In `AppDelegate.makePanel()`:
+```swift
+contentView.layer?.cornerRadius = 12
+```
+
 ---
 
 ## What Was Intentionally Left Out
@@ -121,4 +149,5 @@ Any SF Symbol name works. Keep `isTemplate = true` so macOS handles dark/light t
 - No persistence (UserDefaults, CoreData)
 - No network or disk I/O monitoring
 - No Dock presence
-- No sparkle / auto-update
+- No auto-update / Sparkle
+- No theme switching (always dark)

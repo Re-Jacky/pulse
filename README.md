@@ -2,7 +2,7 @@
 
 A beautiful macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-in process manager.
 
-Built because existing tools like [Stats](https://github.com/exelban/stats) are functional but ugly. This one prioritizes aesthetics: frosted glass popover, color-coded animated bars, clean typography.
+Built because existing tools like [Stats](https://github.com/exelban/stats) are functional but ugly. This one prioritizes aesthetics: dark frosted-glass panel, color-coded animated bars, clean typography.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
 ![Language](https://img.shields.io/badge/language-Swift-orange)
@@ -12,11 +12,13 @@ Built because existing tools like [Stats](https://github.com/exelban/stats) are 
 
 ## Features
 
-- **Menu bar icon** — click the chip icon to open/close the popover
-- **Overview tab** — animated gradient bars for CPU, Memory, and GPU usage with chip name and core count
-- **Processes tab** — live process list with CPU%, memory, and listening ports; filter by name or port; kill any process
-- **Frosted glass UI** — native `NSVisualEffectView` with `.hudWindow` material
-- **Zero dependencies** — pure Apple APIs (Mach, IOKit, BSD proc)
+- **Menu bar icon** — left-click opens/closes the panel; right-click shows a context menu
+- **Overview tab** — animated gradient bars for CPU, Memory, and GPU with chip name and core count
+- **Processes tab** — live process list with CPU%, memory, listening ports; filter by name or port; kill any process
+- **Dark UI** — always-dark frosted glass panel (`NSVisualEffectView`) with rounded corners
+- **Resizable panel** — drag any edge to resize; green button zooms to 1.5× width / 2× height
+- **DMG distribution** — one-command build to a drag-to-install `.dmg`
+- **Zero dependencies** — pure Apple APIs only (Mach, IOKit, BSD proc)
 
 ---
 
@@ -39,17 +41,11 @@ No package manager, no CocoaPods, no Swift packages required.
 2. Select the `mac-monitor` scheme and your Mac as the destination
 3. Press **⌘R** to build and run
 
-### Option 2: Command Line
+### Option 2: Command Line (Debug)
 
 ```bash
-# Build (Debug)
 xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build
 
-# Build and find the .app
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build \
-  | grep "BUILD SUCCEEDED"
-
-# Launch the built app
 open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path '*/Debug/*' | head -1)"
 ```
 
@@ -61,25 +57,24 @@ open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path
 bash scripts/build-dmg.sh
 ```
 
-This builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew or external dependencies required).
+Builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew required).
 
 Output: `dist/mac-monitor-1.0.0.dmg`
 
-To install: open the DMG, drag `mac-monitor.app` to the **Applications** folder shortcut inside it.
+To install: open the DMG, drag `mac-monitor.app` to the **Applications** shortcut inside it.
 
 ---
 
 ## Running
 
-After launching:
-
-1. A **chip icon** (⬡) appears in your menu bar
-2. **Click** the icon to open the monitoring popover
+1. A **chip icon** appears in your menu bar
+2. **Left-click** the icon to open the panel
 3. **Overview tab** — CPU / Memory / GPU bars refresh every 2 seconds
-4. **Processes tab** — type in the search box to filter by process name or port number; click **Kill** on any row to terminate it (confirmation required)
-5. **Click anywhere outside** the popover to dismiss it
+4. **Processes tab** — type in the search box to filter by name or port; right-click any row to kill it
+5. **Click anywhere outside** the panel to dismiss it
+6. **Right-click** the menu bar icon for Open/Close and Quit
 
-The app runs as a background accessory (`LSUIElement = true`) — it won't appear in the Dock or ⌘-Tab switcher.
+The app runs as a background accessory (`LSUIElement = true`) — no Dock icon, no ⌘-Tab entry.
 
 ---
 
@@ -89,20 +84,25 @@ The app runs as a background accessory (`LSUIElement = true`) — it won't appea
 mac-monitor/
 ├── App/
 │   ├── main.swift              # AppKit entry point
-│   └── AppDelegate.swift       # NSStatusItem + NSPopover setup
+│   └── AppDelegate.swift       # NSStatusItem, InputPanel, context menu
+├── Managers/
+│   └── ThemeManager.swift      # AppTheme enum (unused currently, kept for reference)
 ├── Monitors/
 │   ├── SystemMonitor.swift     # ObservableObject, 2s timer, coordinates all monitors
 │   ├── CPUMonitor.swift        # Mach host_processor_info
 │   ├── MemoryMonitor.swift     # host_statistics64
 │   ├── GPUMonitor.swift        # IOKit IOAccelerator
-│   └── ProcessMonitor.swift   # BSD proc APIs, port detection, kill
-└── Views/
-    ├── Colors.swift            # Color(hex:) extension + palette
-    ├── MetricRowView.swift     # Animated gradient bar component
-    ├── OverviewView.swift      # CPU / Memory / GPU overview
-    ├── PopoverView.swift       # Root view, tab switcher, NSVisualEffectView
-    ├── ProcessListView.swift   # Search, sort, kill list
-    └── ProcessRowView.swift    # Per-process row with context menu
+│   └── ProcessMonitor.swift    # BSD proc APIs, port detection, kill
+├── Views/
+│   ├── Colors.swift            # Color(hex:) extension + palette
+│   ├── MetricRowView.swift     # Animated gradient bar component
+│   ├── OverviewView.swift      # CPU / Memory / GPU overview
+│   ├── PopoverView.swift       # Root view, tab switcher, NSVisualEffectView
+│   ├── ProcessListView.swift   # Filterable, sortable process table
+│   ├── ProcessRowView.swift    # Per-process row with kill context menu
+│   └── SettingsView.swift      # Unused — kept for future theme support
+└── scripts/
+    └── build-dmg.sh            # hdiutil-based DMG packager
 ```
 
 ---
@@ -120,9 +120,21 @@ mac-monitor/
 
 ---
 
+## Panel Behavior
+
+The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the standard `NSPopover`:
+
+- **Resizable** — drag any edge/corner
+- **Rounded corners** — 12pt radius via `CALayer`, window background is transparent
+- **Always dark** — `NSAppearance(named: .darkAqua)` forced on all views
+- **Keyboard focus** — `canBecomeKey` overridden to `true`; activation policy briefly switches to `.regular` on open then back to `.accessory` (no Dock icon)
+- **Dismiss on outside click** — global `NSEvent` monitor closes the panel on any click outside it
+
+---
+
 ## Permissions
 
-Killing processes owned by other users requires elevated privileges. The app will silently fail to kill processes it doesn't have permission for — this is intentional and safe.
+Killing processes owned by other users requires elevated privileges. The app will silently fail on processes it doesn't own — this is intentional and safe.
 
 ---
 
