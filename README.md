@@ -1,8 +1,6 @@
 # Pulse
 
-A beautiful macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-in process manager.
-
-Built because existing tools like [Stats](https://github.com/exelban/stats) are functional but ugly. This one prioritizes aesthetics: dark frosted-glass panel, color-coded animated bars, clean typography.
+A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-in process manager.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
 ![Language](https://img.shields.io/badge/language-Swift-orange)
