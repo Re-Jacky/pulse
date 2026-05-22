@@ -5,7 +5,7 @@ struct PopoverView: View {
 
     var body: some View {
         ZStack {
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+            VisualEffectView(material: .underWindowBackground, blendingMode: .withinWindow)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {

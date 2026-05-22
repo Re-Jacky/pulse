@@ -88,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makePanel() -> NSPanel {
         let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
-            styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
+            styleMask: [.resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
