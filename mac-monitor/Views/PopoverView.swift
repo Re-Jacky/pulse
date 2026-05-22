@@ -16,16 +16,24 @@ struct PopoverView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
-                .padding(.bottom, 4)
+                .padding(.bottom, 10)
 
-                if selectedTab == 0 {
+                Divider()
+                    .background(Color.white.opacity(0.08))
+
+                ZStack {
                     OverviewView()
-                } else {
+                        .opacity(selectedTab == 0 ? 1 : 0)
+                        .allowsHitTesting(selectedTab == 0)
+
                     ProcessListView()
+                        .opacity(selectedTab == 1 ? 1 : 0)
+                        .allowsHitTesting(selectedTab == 1)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(width: 300)
+        .frame(minWidth: 300, minHeight: 360)
     }
 }
 

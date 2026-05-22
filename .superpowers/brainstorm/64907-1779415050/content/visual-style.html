@@ -1,0 +1,96 @@
+<h2>What's the visual vibe?</h2>
+<p class="subtitle">You said Stats is "too ugly" — which direction feels right for you?</p>
+
+<div class="cards">
+  <div class="card" data-choice="minimal-dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a0a;padding:20px;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center;">
+      <div style="background:#111;border-radius:12px;padding:20px 24px;border:1px solid #1f1f1f;min-width:220px;box-shadow:0 8px 32px rgba(0,0,0,0.6)">
+        <div style="color:#333;font-size:9px;font-family:monospace;letter-spacing:2px;margin-bottom:14px;text-transform:uppercase">System</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="color:#555;font-size:11px;font-family:monospace">CPU</span>
+              <span style="color:#e8e8e8;font-size:11px;font-family:monospace">34%</span>
+            </div>
+            <div style="background:#1a1a1a;border-radius:2px;height:2px"><div style="background:#e8e8e8;width:34%;height:100%;border-radius:2px"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="color:#555;font-size:11px;font-family:monospace">MEM</span>
+              <span style="color:#e8e8e8;font-size:11px;font-family:monospace">6.2 GB</span>
+            </div>
+            <div style="background:#1a1a1a;border-radius:2px;height:2px"><div style="background:#e8e8e8;width:62%;height:100%;border-radius:2px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Minimal Dark</h3>
+      <p>Black/near-black background, near-white text, ultra-thin progress bars. Monospace font. No color noise — pure data.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="glassy-accent" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#0f0f1a 0%,#0a0a14 100%);padding:20px;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center;">
+      <div style="background:rgba(255,255,255,0.04);backdrop-filter:blur(20px);border-radius:14px;padding:20px 24px;border:1px solid rgba(255,255,255,0.08);min-width:220px;box-shadow:0 8px 40px rgba(0,0,0,0.5)">
+        <div style="color:rgba(255,255,255,0.25);font-size:9px;font-family:-apple-system,sans-serif;letter-spacing:2px;margin-bottom:14px;text-transform:uppercase">System</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="color:rgba(255,255,255,0.5);font-size:11px;font-family:-apple-system,sans-serif">CPU</span>
+              <span style="color:#60d394;font-size:11px;font-family:-apple-system,sans-serif;font-weight:500">34%</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.06);border-radius:3px;height:3px"><div style="background:linear-gradient(90deg,#60d394,#4ade80);width:34%;height:100%;border-radius:3px"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="color:rgba(255,255,255,0.5);font-size:11px;font-family:-apple-system,sans-serif">MEM</span>
+              <span style="color:#60a5fa;font-size:11px;font-family:-apple-system,sans-serif;font-weight:500">6.2 GB</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.06);border-radius:3px;height:3px"><div style="background:linear-gradient(90deg,#60a5fa,#818cf8);width:62%;height:100%;border-radius:3px"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="color:rgba(255,255,255,0.5);font-size:11px;font-family:-apple-system,sans-serif">GPU</span>
+              <span style="color:#f472b6;font-size:11px;font-family:-apple-system,sans-serif;font-weight:500">12%</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.06);border-radius:3px;height:3px"><div style="background:linear-gradient(90deg,#f472b6,#e879f9);width:12%;height:100%;border-radius:3px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Glassy + Accents</h3>
+      <p>Frosted glass popover, subtle dark background. Each metric gets a distinct accent color (green/blue/pink). SF Pro font. Feels native macOS.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="nerdy-terminal" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:20px;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center;">
+      <div style="background:#0d1117;border-radius:8px;padding:16px 20px;border:1px solid #30363d;min-width:220px;font-family:'SF Mono',monospace">
+        <div style="color:#58a6ff;font-size:10px;margin-bottom:12px">● system.monitor — live</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:#8b949e;width:32px">cpu</span>
+            <span style="color:#3fb950">████████░░░░░░░░░░░░</span>
+            <span style="color:#e6edf3">34%</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:#8b949e;width:32px">mem</span>
+            <span style="color:#58a6ff">████████████░░░░░░░░</span>
+            <span style="color:#e6edf3">6.2G</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:#8b949e;width:32px">gpu</span>
+            <span style="color:#bc8cff">███░░░░░░░░░░░░░░░░░</span>
+            <span style="color:#e6edf3">12%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Terminal / Nerdy</h3>
+      <p>GitHub Dark style, block character progress bars, monospace everything. Lean into the developer aesthetic. Minimal decorative chrome.</p>
+    </div>
+  </div>
+</div>

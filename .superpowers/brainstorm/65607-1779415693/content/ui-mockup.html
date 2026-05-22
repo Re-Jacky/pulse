@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mac Monitor — UI Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    gap: 60px;
+    flex-wrap: wrap;
+    padding: 40px;
+  }
+
+  .scene-label {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Menu bar mockup */
+  .menubar-scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .menubar-label {
+    color: rgba(255,255,255,0.3);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .menubar {
+    background: rgba(30,30,30,0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 8px;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .menubar-item {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+  }
+
+  .menubar-icon {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: rgba(255,255,255,0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+    cursor: pointer;
+  }
+
+  .menubar-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Popover */
+  .popover-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .popover-arrow {
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid rgba(255,255,255,0.06);
+    z-index: 10;
+  }
+
+  .popover {
+    width: 300px;
+    background: rgba(28, 28, 35, 0.85);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow:
+      0 24px 64px rgba(0,0,0,0.6),
+      0 0 0 0.5px rgba(255,255,255,0.06) inset;
+    overflow: hidden;
+  }
+
+  .popover-inner {
+    padding: 14px 16px 16px;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 18px;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 5px 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.2px;
+  }
+
+  .tab.active {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.92);
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  /* Metric rows */
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .metric-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    width: 36px;
+    flex-shrink: 0;
+  }
+
+  .metric-bar-track {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease-in-out;
+  }
+
+  .metric-value {
+    font-size: 12px;
+    font-weight: 600;
+    width: 44px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .metric-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.28);
+    padding-left: 44px;
+  }
+
+  .cpu-fill { background: linear-gradient(90deg, #60d394, #4ade80); }
+  .cpu-val { color: #60d394; }
+
+  .mem-fill { background: linear-gradient(90deg, #60a5fa, #818cf8); }
+  .mem-val { color: #60a5fa; }
+
+  .gpu-fill { background: linear-gradient(90deg, #f472b6, #e879f9); }
+  .gpu-val { color: #f472b6; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 16px 0;
+  }
+
+  /* Process tab */
+  .process-tab-content { display: none; }
+  .process-tab-content.visible { display: block; }
+  .overview-content.hidden { display: none; }
+
+  .search-field {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    padding: 6px 10px;
+    color: rgba(255,255,255,0.8);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 12px;
+  }
+
+  .search-field::placeholder {
+    color: rgba(255,255,255,0.25);
+  }
+
+  .search-field:focus {
+    border-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.09);
+  }
+
+  .process-header {
+    display: flex;
+    padding: 0 4px 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 4px;
+  }
+
+  .process-header span {
+    font-size: 9px;
+    color: rgba(255,255,255,0.25);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+  }
+
+  .process-header .ph-name { flex: 1; }
+  .process-header .ph-cpu { width: 38px; text-align: right; }
+  .process-header .ph-mem { width: 44px; text-align: right; }
+
+  .process-list {
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .process-list::-webkit-scrollbar { display: none; }
+
+  .process-row {
+    display: flex;
+    align-items: center;
+    padding: 7px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    cursor: default;
+    border-radius: 5px;
+    transition: background 0.15s;
+  }
+
+  .process-row:hover {
+    background: rgba(255,255,255,0.05);
+  }
+
+  .process-info { flex: 1; min-width: 0; }
+
+  .process-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.82);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .process-pid {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 1px;
+  }
+
+  .process-cpu {
+    font-size: 11px;
+    font-weight: 600;
+    width: 38px;
+    text-align: right;
+  }
+
+  .process-mem {
+    font-size: 10px;
+    color: rgba(255,255,255,0.38);
+    width: 44px;
+    text-align: right;
+  }
+
+  .cpu-low { color: #60d394; }
+  .cpu-med { color: #f59e0b; }
+  .cpu-high { color: #ef4444; }
+
+  /* Context menu hint */
+  .hint {
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    text-align: center;
+    margin-top: 10px;
+    letter-spacing: 0.3px;
+  }
+
+  /* Side by side layout */
+  .mockup-container {
+    display: flex;
+    gap: 48px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .scene-title {
+    color: rgba(255,255,255,0.25);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-container">
+
+  <!-- Overview Tab -->
+  <div class="scene">
+    <div class="scene-title">Overview Tab</div>
+    <div class="popover-wrapper">
+      <div class="popover-arrow"></div>
+      <div class="popover">
+        <div class="popover-inner">
+          <div class="tab-bar">
+            <div class="tab active">Overview</div>
+            <div class="tab">Processes</div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top">
+                <span class="metric-label">CPU</span>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill cpu-fill" style="width:34%"></div>
+                </div>
+                <span class="metric-value cpu-val">34%</span>
+              </div>
+              <div class="metric-sub">10-core · Apple M3 Pro</div>
+            </div>
+
+            <div class="metric">
+              <div class="metric-top">
+                <span class="metric-label">MEM</span>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill mem-fill" style="width:62%"></div>
+                </div>
+                <span class="metric-value mem-val">9.9G</span>
+              </div>
+              <div class="metric-sub">9.9 / 16 GB used</div>
+            </div>
+
+            <div class="metric">
+              <div class="metric-top">
+                <span class="metric-label">GPU</span>
+                <div class="metric-bar-track">
+                  <div class="metric-bar-fill gpu-fill" style="width:12%"></div>
+                </div>
+                <span class="metric-value gpu-val">12%</span>
+              </div>
+              <div class="metric-sub">16-core · Apple M3 Pro</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Processes Tab -->
+  <div class="scene">
+    <div class="scene-title">Processes Tab</div>
+    <div class="popover-wrapper">
+      <div class="popover-arrow"></div>
+      <div class="popover">
+        <div class="popover-inner">
+          <div class="tab-bar">
+            <div class="tab">Overview</div>
+            <div class="tab active">Processes</div>
+          </div>
+
+          <input class="search-field" placeholder="Filter by name or port…" value="" />
+
+          <div class="process-header">
+            <span class="ph-name">Name</span>
+            <span class="ph-cpu">CPU ↓</span>
+            <span class="ph-mem">MEM</span>
+          </div>
+
+          <div class="process-list">
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">Xcode</div>
+                <div class="process-pid">PID 1842</div>
+              </div>
+              <div class="process-cpu cpu-high">18.4%</div>
+              <div class="process-mem">1.2 GB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">node</div>
+                <div class="process-pid">PID 3201 · :3000</div>
+              </div>
+              <div class="process-cpu cpu-med">7.1%</div>
+              <div class="process-mem">284 MB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">Safari</div>
+                <div class="process-pid">PID 892</div>
+              </div>
+              <div class="process-cpu cpu-low">3.2%</div>
+              <div class="process-mem">510 MB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">Finder</div>
+                <div class="process-pid">PID 401</div>
+              </div>
+              <div class="process-cpu cpu-low">1.1%</div>
+              <div class="process-mem">62 MB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">WindowServer</div>
+                <div class="process-pid">PID 228</div>
+              </div>
+              <div class="process-cpu cpu-low">0.8%</div>
+              <div class="process-mem">320 MB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">postgres</div>
+                <div class="process-pid">PID 5512 · :5432</div>
+              </div>
+              <div class="process-cpu cpu-low">0.4%</div>
+              <div class="process-mem">44 MB</div>
+            </div>
+            <div class="process-row">
+              <div class="process-info">
+                <div class="process-name">Slack</div>
+                <div class="process-pid">PID 2201</div>
+              </div>
+              <div class="process-cpu cpu-low">0.3%</div>
+              <div class="process-mem">418 MB</div>
+            </div>
+          </div>
+
+          <div class="hint">Right-click a process to kill it</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
