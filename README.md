@@ -37,14 +37,14 @@ No package manager, no CocoaPods, no Swift packages required.
 
 ### Option 1: Xcode GUI
 
-1. Open `mac-monitor.xcodeproj` in Xcode
-2. Select the `mac-monitor` scheme and your Mac as the destination
+1. Open `pulse.xcodeproj` in Xcode
+2. Select the `pulse` scheme and your Mac as the destination
 3. Press **⌘R** to build and run
 
 ### Option 2: Command Line (Debug)
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
 
 open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Pulse.app' -path '*/Debug/*' | head -1)"
 ```
@@ -81,7 +81,7 @@ The app runs as a background accessory (`LSUIElement = true`) — no Dock icon, 
 ## Project Structure
 
 ```
-mac-monitor/
+pulse/
 ├── App/
 │   ├── main.swift              # AppKit entry point
 │   └── AppDelegate.swift       # NSStatusItem, InputPanel, context menu

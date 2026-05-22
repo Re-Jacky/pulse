@@ -1,4 +1,4 @@
-# AGENTS.md — mac-monitor
+# AGENTS.md — pulse
 
 Agent configuration and codebase context for AI assistants working on this project.
 
@@ -9,7 +9,7 @@ Agent configuration and codebase context for AI assistants working on this proje
 - **Type**: macOS menu bar app (AppKit + SwiftUI hybrid)
 - **Language**: Swift 5.9+, macOS 13+ target
 - **Dependencies**: None — pure Apple frameworks only (AppKit, SwiftUI, IOKit, Foundation)
-- **Entry point**: `mac-monitor/App/main.swift` → `AppDelegate`
+- **Entry point**: `pulse/App/main.swift` → `AppDelegate`
 
 ---
 
@@ -17,10 +17,10 @@ Agent configuration and codebase context for AI assistants working on this proje
 
 ```bash
 # Build
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | tail -5
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | tail -5
 
 # Launch
-open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path '*/Debug/*' | head -1)"
+open "$(find ~/Library/Developer/Xcode/DerivedData -name 'pulse.app' -path '*/Debug/*' | head -1)"
 
 # Build DMG (Release)
 bash scripts/build-dmg.sh

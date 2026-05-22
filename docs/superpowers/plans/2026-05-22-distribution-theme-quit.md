@@ -14,9 +14,9 @@
 
 | Action | File |
 |--------|------|
-| Create | `mac-monitor/Managers/ThemeManager.swift` |
-| Create | `mac-monitor/Views/SettingsView.swift` |
-| Modify | `mac-monitor/App/AppDelegate.swift` |
+| Create | `pulse/Managers/ThemeManager.swift` |
+| Create | `pulse/Views/SettingsView.swift` |
+| Modify | `pulse/App/AppDelegate.swift` |
 | Create | `scripts/build-dmg.sh` |
 
 ---
@@ -24,7 +24,7 @@
 ### Task 1: ThemeManager
 
 **Files:**
-- Create: `mac-monitor/Managers/ThemeManager.swift`
+- Create: `pulse/Managers/ThemeManager.swift`
 
 - [ ] **Step 1: Create ThemeManager.swift**
 
@@ -73,7 +73,7 @@ final class ThemeManager: ObservableObject {
 - [ ] **Step 2: Build to verify no errors**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | tail -5
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | tail -5
 ```
 
 Expected: `BUILD SUCCEEDED`
@@ -81,7 +81,7 @@ Expected: `BUILD SUCCEEDED`
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Managers/ThemeManager.swift
+git add pulse/Managers/ThemeManager.swift
 git commit -m "feat: add ThemeManager with UserDefaults persistence"
 ```
 
@@ -90,7 +90,7 @@ git commit -m "feat: add ThemeManager with UserDefaults persistence"
 ### Task 2: SettingsView
 
 **Files:**
-- Create: `mac-monitor/Views/SettingsView.swift`
+- Create: `pulse/Views/SettingsView.swift`
 
 - [ ] **Step 1: Create SettingsView.swift**
 
@@ -126,7 +126,7 @@ struct SettingsView: View {
 - [ ] **Step 2: Build to verify**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | tail -5
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | tail -5
 ```
 
 Expected: `BUILD SUCCEEDED`
@@ -134,7 +134,7 @@ Expected: `BUILD SUCCEEDED`
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Views/SettingsView.swift
+git add pulse/Views/SettingsView.swift
 git commit -m "feat: add SettingsView with theme picker"
 ```
 
@@ -143,7 +143,7 @@ git commit -m "feat: add SettingsView with theme picker"
 ### Task 3: Wire AppDelegate — theme + settings window + context menu
 
 **Files:**
-- Modify: `mac-monitor/App/AppDelegate.swift`
+- Modify: `pulse/App/AppDelegate.swift`
 
 - [ ] **Step 1: Replace AppDelegate.swift entirely**
 
@@ -231,7 +231,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit mac-monitor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit pulse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
@@ -270,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 - [ ] **Step 2: Build to verify**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | tail -5
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | tail -5
 ```
 
 Expected: `BUILD SUCCEEDED`
@@ -278,7 +278,7 @@ Expected: `BUILD SUCCEEDED`
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/App/AppDelegate.swift
+git add pulse/App/AppDelegate.swift
 git commit -m "feat: wire theme manager, right-click context menu, preferences window"
 ```
 
@@ -295,10 +295,10 @@ git commit -m "feat: wire theme manager, right-click context menu, preferences w
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="mac-monitor"
+APP_NAME="pulse"
 VERSION="1.0.0"
-SCHEME="mac-monitor"
-PROJECT="mac-monitor.xcodeproj"
+SCHEME="pulse"
+PROJECT="pulse.xcodeproj"
 CONFIG="Release"
 DIST_DIR="dist"
 STAGING_DIR="/tmp/${APP_NAME}-dmg-staging"
@@ -358,7 +358,7 @@ chmod +x scripts/build-dmg.sh
 bash scripts/build-dmg.sh
 ```
 
-Expected: `==> Done: dist/mac-monitor-1.0.0.dmg`
+Expected: `==> Done: dist/pulse-1.0.0.dmg`
 
 - [ ] **Step 4: Commit**
 

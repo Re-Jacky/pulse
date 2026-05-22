@@ -1,10 +1,10 @@
 require 'xcodeproj'
-project_path = 'mac-monitor.xcodeproj'
+project_path = 'pulse.xcodeproj'
 project = Xcodeproj::Project.open(project_path)
 target = project.targets.first
 
 # Find the Views group
-app_group = project.main_group.children.find { |g| g.display_name == 'mac-monitor' || g.name == 'mac-monitor' }
+app_group = project.main_group.children.find { |g| g.display_name == 'pulse' || g.name == 'pulse' }
 views_group = app_group.children.find { |g| g.display_name == 'Views' || g.name == 'Views' }
 
 unless views_group

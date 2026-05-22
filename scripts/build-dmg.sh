@@ -3,8 +3,8 @@ set -euo pipefail
 
 APP_NAME="Pulse"
 VERSION="1.0.0"
-SCHEME="mac-monitor"
-PROJECT="mac-monitor.xcodeproj"
+SCHEME="pulse"
+PROJECT="pulse.xcodeproj"
 CONFIG="Release"
 DIST_DIR="dist"
 STAGING_DIR="/tmp/${APP_NAME}-dmg-staging"

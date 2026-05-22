@@ -2,7 +2,7 @@
 
 ## Summary
 
-Three features to add to mac-monitor:
+Three features to add to pulse:
 
 1. **DMG distribution** — a shell script that builds a Release `.app` and packages it into a `.dmg` using only `hdiutil` (no external tools)
 2. **Theme switching** — a Preferences window with System / Dark / Light options, persisted via `UserDefaults`, applied live to the popover
@@ -12,7 +12,7 @@ Three features to add to mac-monitor:
 
 ## Feature 1: DMG Build Script
 
-**Goal:** `scripts/build-dmg.sh` produces `dist/mac-monitor-<version>.dmg` suitable for drag-to-install distribution.
+**Goal:** `scripts/build-dmg.sh` produces `dist/pulse-<version>.dmg` suitable for drag-to-install distribution.
 
 **Approach:**
 - `xcodebuild` builds the Release configuration
@@ -61,7 +61,7 @@ Open / Close
 ──────────────
 Preferences…
 ──────────────
-Quit mac-monitor
+Quit pulse
 ```
 
 ### Implementation

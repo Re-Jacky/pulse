@@ -187,9 +187,9 @@ Each metric (CPU, Memory, GPU) follows this layout:
 ## File Structure (Planned)
 
 ```
-mac-monitor/
-├── mac-monitor.xcodeproj
-└── mac-monitor/
+pulse/
+├── pulse.xcodeproj
+└── pulse/
     ├── App/
     │   └── AppDelegate.swift
     ├── Monitors/

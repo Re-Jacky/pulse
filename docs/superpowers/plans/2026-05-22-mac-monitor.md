@@ -20,24 +20,24 @@
 ## Task 1: Create the Xcode Project
 
 **Files:**
-- Create: `mac-monitor.xcodeproj` (via Xcode UI)
-- Create: `mac-monitor/App/AppDelegate.swift`
+- Create: `pulse.xcodeproj` (via Xcode UI)
+- Create: `pulse/App/AppDelegate.swift`
 - Delete: generated `ContentView.swift`, `mac_monitorApp.swift` (SwiftUI lifecycle — we use AppKit)
 
 - [ ] **Step 1: Create project**
 
 Open Xcode → New Project → macOS → App.
-- Product Name: `mac-monitor`
+- Product Name: `pulse`
 - Interface: **SwiftUI** (we still want SwiftUI views — just not the lifecycle)
 - Language: Swift
 - Uncheck "Include Tests" for now
-- Save to `/Users/zyao/Desktop/mac-monitor/`
+- Save to `/Users/zyao/Desktop/pulse/`
 
 - [ ] **Step 2: Switch to AppKit lifecycle**
 
-In `mac-monitor/` target, delete `mac_monitorApp.swift` and `ContentView.swift`.
+In `pulse/` target, delete `mac_monitorApp.swift` and `ContentView.swift`.
 
-Create `mac-monitor/App/AppDelegate.swift`:
+Create `pulse/App/AppDelegate.swift`:
 
 ```swift
 import AppKit
@@ -97,7 +97,7 @@ _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
 - [ ] **Step 4: Build to confirm it compiles**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
 ```
 
 Expected: `BUILD SUCCEEDED` (will have errors about missing types — that's fine, we'll add them next)
@@ -115,12 +115,12 @@ git commit -m "feat: create Xcode project with AppKit lifecycle"
 ## Task 2: SystemMonitor + CPUMonitor
 
 **Files:**
-- Create: `mac-monitor/Monitors/SystemMonitor.swift`
-- Create: `mac-monitor/Monitors/CPUMonitor.swift`
+- Create: `pulse/Monitors/SystemMonitor.swift`
+- Create: `pulse/Monitors/CPUMonitor.swift`
 
 - [ ] **Step 1: Create CPUMonitor**
 
-Create `mac-monitor/Monitors/CPUMonitor.swift`:
+Create `pulse/Monitors/CPUMonitor.swift`:
 
 ```swift
 import Foundation
@@ -200,7 +200,7 @@ final class CPUMonitor {
 
 - [ ] **Step 2: Create SystemMonitor**
 
-Create `mac-monitor/Monitors/SystemMonitor.swift`:
+Create `pulse/Monitors/SystemMonitor.swift`:
 
 ```swift
 import Foundation
@@ -258,7 +258,7 @@ Note: `ProcessInfo2` is used to avoid collision with Foundation's `ProcessInfo`.
 - [ ] **Step 3: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|warning:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|warning:|BUILD"
 ```
 
 Expected: errors only about missing `MemoryMonitor`, `GPUMonitor`, `ProcessMonitor`, `ProcessInfo2` — not about `CPUMonitor` or `SystemMonitor`.
@@ -266,7 +266,7 @@ Expected: errors only about missing `MemoryMonitor`, `GPUMonitor`, `ProcessMonit
 - [ ] **Step 4: Commit**
 
 ```bash
-git add mac-monitor/Monitors/
+git add pulse/Monitors/
 git commit -m "feat: add CPUMonitor and SystemMonitor scaffold"
 ```
 
@@ -275,11 +275,11 @@ git commit -m "feat: add CPUMonitor and SystemMonitor scaffold"
 ## Task 3: MemoryMonitor
 
 **Files:**
-- Create: `mac-monitor/Monitors/MemoryMonitor.swift`
+- Create: `pulse/Monitors/MemoryMonitor.swift`
 
 - [ ] **Step 1: Create MemoryMonitor**
 
-Create `mac-monitor/Monitors/MemoryMonitor.swift`:
+Create `pulse/Monitors/MemoryMonitor.swift`:
 
 ```swift
 import Foundation
@@ -323,7 +323,7 @@ final class MemoryMonitor {
 - [ ] **Step 2: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Expected: errors only about missing `GPUMonitor`, `ProcessMonitor`, `ProcessInfo2`.
@@ -331,7 +331,7 @@ Expected: errors only about missing `GPUMonitor`, `ProcessMonitor`, `ProcessInfo
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Monitors/MemoryMonitor.swift
+git add pulse/Monitors/MemoryMonitor.swift
 git commit -m "feat: add MemoryMonitor using host_statistics64"
 ```
 
@@ -340,11 +340,11 @@ git commit -m "feat: add MemoryMonitor using host_statistics64"
 ## Task 4: GPUMonitor
 
 **Files:**
-- Create: `mac-monitor/Monitors/GPUMonitor.swift`
+- Create: `pulse/Monitors/GPUMonitor.swift`
 
 - [ ] **Step 1: Create GPUMonitor**
 
-Create `mac-monitor/Monitors/GPUMonitor.swift`:
+Create `pulse/Monitors/GPUMonitor.swift`:
 
 ```swift
 import Foundation
@@ -412,12 +412,12 @@ final class GPUMonitor {
 
 - [ ] **Step 2: Add IOKit framework to target**
 
-In Xcode: Target → `mac-monitor` → General → Frameworks and Libraries → `+` → `IOKit.framework`
+In Xcode: Target → `pulse` → General → Frameworks and Libraries → `+` → `IOKit.framework`
 
 - [ ] **Step 3: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Expected: errors only about missing `ProcessMonitor`, `ProcessInfo2`.
@@ -425,7 +425,7 @@ Expected: errors only about missing `ProcessMonitor`, `ProcessInfo2`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add mac-monitor/Monitors/GPUMonitor.swift
+git add pulse/Monitors/GPUMonitor.swift
 git commit -m "feat: add GPUMonitor using IOKit IOAccelerator"
 ```
 
@@ -434,11 +434,11 @@ git commit -m "feat: add GPUMonitor using IOKit IOAccelerator"
 ## Task 5: ProcessMonitor
 
 **Files:**
-- Create: `mac-monitor/Monitors/ProcessMonitor.swift`
+- Create: `pulse/Monitors/ProcessMonitor.swift`
 
 - [ ] **Step 1: Create ProcessMonitor**
 
-Create `mac-monitor/Monitors/ProcessMonitor.swift`:
+Create `pulse/Monitors/ProcessMonitor.swift`:
 
 ```swift
 import Foundation
@@ -540,7 +540,7 @@ final class ProcessMonitor {
 - [ ] **Step 2: Build — expect clean compile**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Expected: `BUILD SUCCEEDED` (or only linker warnings about missing views).
@@ -548,7 +548,7 @@ Expected: `BUILD SUCCEEDED` (or only linker warnings about missing views).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Monitors/ProcessMonitor.swift
+git add pulse/Monitors/ProcessMonitor.swift
 git commit -m "feat: add ProcessMonitor with CPU%, memory, port detection, and kill"
 ```
 
@@ -557,12 +557,12 @@ git commit -m "feat: add ProcessMonitor with CPU%, memory, port detection, and k
 ## Task 6: Color helpers + MetricRowView
 
 **Files:**
-- Create: `mac-monitor/Views/Colors.swift`
-- Create: `mac-monitor/Views/MetricRowView.swift`
+- Create: `pulse/Views/Colors.swift`
+- Create: `pulse/Views/MetricRowView.swift`
 
 - [ ] **Step 1: Create Colors.swift**
 
-Create `mac-monitor/Views/Colors.swift`:
+Create `pulse/Views/Colors.swift`:
 
 ```swift
 import SwiftUI
@@ -582,7 +582,7 @@ extension Color {
 
 - [ ] **Step 2: Create MetricRowView**
 
-Create `mac-monitor/Views/MetricRowView.swift`:
+Create `pulse/Views/MetricRowView.swift`:
 
 ```swift
 import SwiftUI
@@ -644,13 +644,13 @@ struct MetricRowView: View {
 - [ ] **Step 2: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Views/Colors.swift mac-monitor/Views/MetricRowView.swift
+git add pulse/Views/Colors.swift pulse/Views/MetricRowView.swift
 git commit -m "feat: add Color(hex:) helper and MetricRowView with animated gradient bar"
 ```
 
@@ -659,11 +659,11 @@ git commit -m "feat: add Color(hex:) helper and MetricRowView with animated grad
 ## Task 7: OverviewView
 
 **Files:**
-- Create: `mac-monitor/Views/OverviewView.swift`
+- Create: `pulse/Views/OverviewView.swift`
 
 - [ ] **Step 1: Create OverviewView**
 
-Create `mac-monitor/Views/OverviewView.swift`:
+Create `pulse/Views/OverviewView.swift`:
 
 ```swift
 import SwiftUI
@@ -705,13 +705,13 @@ struct OverviewView: View {
 - [ ] **Step 2: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Views/OverviewView.swift
+git add pulse/Views/OverviewView.swift
 git commit -m "feat: add OverviewView with CPU/Memory/GPU metric rows"
 ```
 
@@ -720,12 +720,12 @@ git commit -m "feat: add OverviewView with CPU/Memory/GPU metric rows"
 ## Task 8: ProcessListView + ProcessRowView
 
 **Files:**
-- Create: `mac-monitor/Views/ProcessRowView.swift`
-- Create: `mac-monitor/Views/ProcessListView.swift`
+- Create: `pulse/Views/ProcessRowView.swift`
+- Create: `pulse/Views/ProcessListView.swift`
 
 - [ ] **Step 1: Create ProcessRowView**
 
-Create `mac-monitor/Views/ProcessRowView.swift`:
+Create `pulse/Views/ProcessRowView.swift`:
 
 ```swift
 import SwiftUI
@@ -793,7 +793,7 @@ struct ProcessRowView: View {
 
 - [ ] **Step 2: Create ProcessListView**
 
-Create `mac-monitor/Views/ProcessListView.swift`:
+Create `pulse/Views/ProcessListView.swift`:
 
 ```swift
 import SwiftUI
@@ -926,13 +926,13 @@ struct ProcessListView: View {
 - [ ] **Step 3: Build**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add mac-monitor/Views/ProcessRowView.swift mac-monitor/Views/ProcessListView.swift
+git add pulse/Views/ProcessRowView.swift pulse/Views/ProcessListView.swift
 git commit -m "feat: add ProcessListView with search, sort, and kill"
 ```
 
@@ -941,11 +941,11 @@ git commit -m "feat: add ProcessListView with search, sort, and kill"
 ## Task 9: PopoverView (root + tab switcher)
 
 **Files:**
-- Create: `mac-monitor/Views/PopoverView.swift`
+- Create: `pulse/Views/PopoverView.swift`
 
 - [ ] **Step 1: Create PopoverView**
 
-Create `mac-monitor/Views/PopoverView.swift`:
+Create `pulse/Views/PopoverView.swift`:
 
 ```swift
 import SwiftUI
@@ -1001,7 +1001,7 @@ struct VisualEffectView: NSViewRepresentable {
 - [ ] **Step 2: Build — expect BUILD SUCCEEDED**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Expected: `BUILD SUCCEEDED`
@@ -1009,7 +1009,7 @@ Expected: `BUILD SUCCEEDED`
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Views/PopoverView.swift
+git add pulse/Views/PopoverView.swift
 git commit -m "feat: add PopoverView with tab switcher and visual effect background"
 ```
 
@@ -1018,7 +1018,7 @@ git commit -m "feat: add PopoverView with tab switcher and visual effect backgro
 ## Task 10: Wire up AppDelegate + first run
 
 **Files:**
-- Modify: `mac-monitor/App/AppDelegate.swift`
+- Modify: `pulse/App/AppDelegate.swift`
 
 - [ ] **Step 1: Update popover size to auto-size by tab**
 
@@ -1032,13 +1032,13 @@ Update `AppDelegate.swift` to resize the popover when tab changes. The `PopoverV
 - [ ] **Step 2: Build and run**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Then run the app from Xcode (⌘R) or:
 
 ```bash
-open ~/Library/Developer/Xcode/DerivedData/mac-monitor-*/Build/Products/Debug/mac-monitor.app
+open ~/Library/Developer/Xcode/DerivedData/pulse-*/Build/Products/Debug/pulse.app
 ```
 
 Expected: CPU chip icon appears in menu bar. Click it → popover opens with Overview and Processes tabs.
@@ -1068,7 +1068,7 @@ git commit -m "feat: wire up AppDelegate, app fully functional"
 The `ProcessMonitor.listeningPorts()` method exists but isn't called during `read()` (it's expensive per-process). Wire it up for a lightweight port scan on each refresh.
 
 **Files:**
-- Modify: `mac-monitor/Monitors/ProcessMonitor.swift`
+- Modify: `pulse/Monitors/ProcessMonitor.swift`
 
 - [ ] **Step 1: Call listeningPorts during read for top processes only**
 
@@ -1098,7 +1098,7 @@ return sorted.enumerated().map { idx, proc in
 - [ ] **Step 2: Build and verify**
 
 ```bash
-xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Run the app. If you have a local server running on a known port (e.g. `:3000`), it should appear in the process list alongside the PID.
@@ -1106,6 +1106,6 @@ Run the app. If you have a local server running on a known port (e.g. `:3000`), 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add mac-monitor/Monitors/ProcessMonitor.swift
+git add pulse/Monitors/ProcessMonitor.swift
 git commit -m "feat: enrich top 50 processes with listening port info"
 ```
