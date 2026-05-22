@@ -11,6 +11,7 @@
 		AA000001000000000000002A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000002B /* main.swift */; };
 		AA000002000000000000001A /* CPUMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001B /* CPUMonitor.swift */; };
 		AA000002000000000000002A /* SystemMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000002B /* SystemMonitor.swift */; };
+		AA000003000000000000001A /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003000000000000001B /* MemoryMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,7 @@
 		AA000001000000000000004B /* mac-monitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "mac-monitor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000002000000000000001B /* CPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUMonitor.swift; sourceTree = "<group>"; };
 		AA000002000000000000002B /* SystemMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMonitor.swift; sourceTree = "<group>"; };
+		AA000003000000000000001B /* MemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +57,7 @@
 			children = (
 				AA000002000000000000001B /* CPUMonitor.swift */,
 				AA000002000000000000002B /* SystemMonitor.swift */,
+				AA000003000000000000001B /* MemoryMonitor.swift */,
 			);
 			path = Monitors;
 			sourceTree = "<group>";
@@ -149,6 +152,7 @@
 				AA000001000000000000002A /* main.swift in Sources */,
 				AA000002000000000000001A /* CPUMonitor.swift in Sources */,
 				AA000002000000000000002A /* SystemMonitor.swift in Sources */,
+				AA000003000000000000001A /* MemoryMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
