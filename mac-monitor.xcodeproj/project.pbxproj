@@ -13,11 +13,14 @@
 		AA000002000000000000002A /* SystemMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000002B /* SystemMonitor.swift */; };
 		AA000003000000000000001A /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003000000000000001B /* MemoryMonitor.swift */; };
 		AA000004000000000000001A /* GPUMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000000000000001B /* GPUMonitor.swift */; };
-		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
 		AA000004000000000000002A /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000004000000000000002B /* IOKit.framework */; };
+		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
+		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
+		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		AA000001000000000000001B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AA000001000000000000002B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AA000001000000000000003B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -26,8 +29,9 @@
 		AA000002000000000000002B /* SystemMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMonitor.swift; sourceTree = "<group>"; };
 		AA000003000000000000001B /* MemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMonitor.swift; sourceTree = "<group>"; };
 		AA000004000000000000001B /* GPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUMonitor.swift; sourceTree = "<group>"; };
-		AA000005000000000000001B /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
 		AA000004000000000000002B /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		AA000005000000000000001B /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
+		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -42,6 +46,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A38A27BDCD6368AA1E404A13 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */,
+				F2862347E446D893F932051E /* MetricRowView.swift */,
+			);
+			name = Views;
+			path = Views;
+			sourceTree = "<group>";
+		};
 		AA000001000000000000006A /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -59,6 +73,25 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		AA000001000000000000008A /* mac-monitor */ = {
+			isa = PBXGroup;
+			children = (
+				AA000001000000000000007A /* App */,
+				AA000002000000000000003A /* Monitors */,
+				AA000001000000000000003B /* Info.plist */,
+				A38A27BDCD6368AA1E404A13 /* Views */,
+			);
+			path = "mac-monitor";
+			sourceTree = "<group>";
+		};
+		AA000001000000000000009A = {
+			isa = PBXGroup;
+			children = (
+				AA000001000000000000008A /* mac-monitor */,
+				AA000001000000000000006A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
 		AA000002000000000000003A /* Monitors */ = {
 			isa = PBXGroup;
 			children = (
@@ -69,24 +102,6 @@
 				AA000005000000000000001B /* ProcessMonitor.swift */,
 			);
 			path = Monitors;
-			sourceTree = "<group>";
-		};
-		AA000001000000000000008A /* mac-monitor */ = {
-			isa = PBXGroup;
-			children = (
-				AA000001000000000000007A /* App */,
-				AA000002000000000000003A /* Monitors */,
-				AA000001000000000000003B /* Info.plist */,
-			);
-			path = "mac-monitor";
-			sourceTree = "<group>";
-		};
-		AA000001000000000000009A /* MainGroup */ = {
-			isa = PBXGroup;
-			children = (
-				AA000001000000000000008A /* mac-monitor */,
-				AA000001000000000000006A /* Products */,
-			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -132,7 +147,7 @@
 				en,
 				Base,
 			);
-			mainGroup = AA000001000000000000009A /* MainGroup */;
+			mainGroup = AA000001000000000000009A;
 			productRefGroup = AA000001000000000000006A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -164,6 +179,8 @@
 				AA000003000000000000001A /* MemoryMonitor.swift in Sources */,
 				AA000004000000000000001A /* GPUMonitor.swift in Sources */,
 				AA000005000000000000001A /* ProcessMonitor.swift in Sources */,
+				D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */,
+				F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -302,12 +319,12 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.example.mac-monitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
 			};
 			name = Debug;
 		};
@@ -326,12 +343,12 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.example.mac-monitor";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
 			};
 			name = Release;
 		};
@@ -357,7 +374,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = AA00000100000000000000EA /* Project object */;
 }
