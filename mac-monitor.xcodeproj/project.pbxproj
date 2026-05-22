@@ -13,6 +13,7 @@
 		AA000002000000000000002A /* SystemMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000002B /* SystemMonitor.swift */; };
 		AA000003000000000000001A /* MemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003000000000000001B /* MemoryMonitor.swift */; };
 		AA000004000000000000001A /* GPUMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000000000000001B /* GPUMonitor.swift */; };
+		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
 		AA000004000000000000002A /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000004000000000000002B /* IOKit.framework */; };
 /* End PBXBuildFile section */
 
@@ -25,6 +26,7 @@
 		AA000002000000000000002B /* SystemMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMonitor.swift; sourceTree = "<group>"; };
 		AA000003000000000000001B /* MemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMonitor.swift; sourceTree = "<group>"; };
 		AA000004000000000000001B /* GPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUMonitor.swift; sourceTree = "<group>"; };
+		AA000005000000000000001B /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
 		AA000004000000000000002B /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -64,6 +66,7 @@
 				AA000002000000000000002B /* SystemMonitor.swift */,
 				AA000003000000000000001B /* MemoryMonitor.swift */,
 				AA000004000000000000001B /* GPUMonitor.swift */,
+				AA000005000000000000001B /* ProcessMonitor.swift */,
 			);
 			path = Monitors;
 			sourceTree = "<group>";
@@ -160,6 +163,7 @@
 				AA000002000000000000002A /* SystemMonitor.swift in Sources */,
 				AA000003000000000000001A /* MemoryMonitor.swift in Sources */,
 				AA000004000000000000001A /* GPUMonitor.swift in Sources */,
+				AA000005000000000000001A /* ProcessMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
