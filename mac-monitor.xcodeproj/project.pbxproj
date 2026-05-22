@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
+		7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */; };
+		87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */; };
 		AA000001000000000000001A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000001B /* AppDelegate.swift */; };
 		AA000001000000000000002A /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000000000000002B /* main.swift */; };
 		AA000002000000000000001A /* CPUMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001B /* CPUMonitor.swift */; };
@@ -17,10 +20,10 @@
 		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
-		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		AA000001000000000000001B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AA000001000000000000002B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -32,8 +35,9 @@
 		AA000004000000000000001B /* GPUMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUMonitor.swift; sourceTree = "<group>"; };
 		AA000004000000000000002B /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		AA000005000000000000001B /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
+		D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
+		D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
-		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,8 +57,10 @@
 			children = (
 				7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */,
 				F2862347E446D893F932051E /* MetricRowView.swift */,
-							74B9298B2AA19B4C00000002 /* OverviewView.swift */,
-);
+				74B9298B2AA19B4C00000002 /* OverviewView.swift */,
+				D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */,
+				D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */,
+			);
 			name = Views;
 			path = Views;
 			sourceTree = "<group>";
@@ -184,8 +190,10 @@
 				AA000005000000000000001A /* ProcessMonitor.swift in Sources */,
 				D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */,
 				F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */,
-							74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */,
-);
+				74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */,
+				7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */,
+				87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
