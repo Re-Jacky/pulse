@@ -13,4 +13,12 @@ views_group = project.main_group.find_subpath(File.join('mac-monitor', 'Views'),
   target.add_file_references([file_ref])
 end
 
+managers_group = project.main_group.find_subpath(File.join('mac-monitor', 'Managers'), true)
+[
+  'mac-monitor/Managers/ThemeManager.swift'
+].each do |file_path|
+  file_ref = managers_group.new_reference(File.basename(file_path))
+  target.add_file_references([file_ref])
+end
+
 project.save

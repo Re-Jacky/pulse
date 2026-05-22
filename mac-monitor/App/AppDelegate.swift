@@ -1,27 +1,36 @@
 import AppKit
 import SwiftUI
-import Combine
 
 private final class InputPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func zoom(_ sender: Any?) {
+        guard let screen = screen ?? NSScreen.main else { return }
+        let current = frame
+        let target = NSRect(
+            x: current.origin.x,
+            y: screen.visibleFrame.maxY - current.height * 2,
+            width: current.width * 1.5,
+            height: current.height * 2
+        )
+        let isZoomed = abs(frame.width - target.width) < 2 && abs(frame.height - target.height) < 2
+        if isZoomed {
+            setFrame(NSRect(x: current.origin.x, y: screen.visibleFrame.maxY - 420, width: 300, height: 420), display: true, animate: true)
+        } else {
+            setFrame(target, display: true, animate: true)
+        }
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private var panel: NSPanel?
+    private var panel: InputPanel?
     private var eventMonitor: Any?
     private let monitor = SystemMonitor()
-    private let themeManager = ThemeManager()
-    private var settingsWindow: NSWindow?
-    private var themeCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-
-        themeCancellable = themeManager.$currentTheme.sink { [weak self] theme in
-            self?.applyTheme(theme)
-        }
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
@@ -30,12 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-    }
-
-    private func applyTheme(_ theme: AppTheme) {
-        panel?.appearance = theme.nsAppearance
-        panel?.contentViewController?.view.appearance = theme.nsAppearance
-        settingsWindow?.appearance = theme.nsAppearance
     }
 
     @objc private func handleClick() {
@@ -73,11 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
 
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            if let settingsWin = self?.settingsWindow, settingsWin.isVisible,
-               let eventWindow = event.window, eventWindow == settingsWin {
-                return
-            }
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
         }
     }
@@ -92,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func makePanel() -> NSPanel {
+    private func makePanel() -> InputPanel {
         let p = InputPanel(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
             styleMask: [.titled, .resizable, .fullSizeContentView],
@@ -108,14 +107,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         p.isReleasedWhenClosed = false
         p.hidesOnDeactivate = false
         p.minSize = NSSize(width: 280, height: 320)
-        p.appearance = themeManager.currentTheme.nsAppearance
+        p.appearance = NSAppearance(named: .darkAqua)
 
-        let vc = NSHostingController(
-            rootView: PopoverView()
-                .environmentObject(monitor)
-                .environmentObject(themeManager)
-        )
-        vc.view.appearance = themeManager.currentTheme.nsAppearance
+        p.standardWindowButton(.closeButton)?.isHidden = true
+        p.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        p.standardWindowButton(.zoomButton)?.isHidden = true
+
+        let vc = NSHostingController(rootView: PopoverView().environmentObject(monitor))
+        vc.view.appearance = NSAppearance(named: .darkAqua)
         p.contentViewController = vc
         return p
     }
@@ -127,37 +126,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openItem.target = self
         menu.addItem(openItem)
         menu.addItem(.separator())
-        let prefsItem = NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
-        prefsItem.target = self
-        menu.addItem(prefsItem)
-        menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit mac-monitor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
-    }
-
-    @objc private func openPreferences() {
-        if settingsWindow == nil {
-            let win = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 260, height: 130),
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
-            win.title = "Preferences"
-            win.isReleasedWhenClosed = false
-            win.center()
-            win.appearance = themeManager.currentTheme.nsAppearance
-            win.contentViewController = NSHostingController(
-                rootView: SettingsView(onDone: { [weak win] in win?.close() })
-                    .environmentObject(themeManager)
-            )
-            settingsWindow = win
-        }
-        settingsWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 }

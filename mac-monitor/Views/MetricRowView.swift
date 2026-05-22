@@ -40,7 +40,7 @@ struct MetricRowView: View {
                 Text(value)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(fillColors.first ?? .white)
-                    .frame(width: 56, alignment: .trailing)
+                    .frame(width: 80, alignment: .trailing)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
