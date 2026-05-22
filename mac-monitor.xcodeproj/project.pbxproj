@@ -25,6 +25,7 @@
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
 		E71FEFA784128F6BA5465B4F /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83F9C0E81B668992898B960 /* ProcessRowView.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
+		AA0000AA000000000000001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000AA000000000000001B /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +49,7 @@
 		E83F9C0E81B668992898B960 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA0000AA000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +114,7 @@
 				AA000001000000000000003B /* Info.plist */,
 				A38A27BDCD6368AA1E404A13 /* Views */,
 				5FBA87F2FBD639833E1B72BD /* Managers */,
+				AA0000AA000000000000001B /* Assets.xcassets */,
 			);
 			path = "mac-monitor";
 			sourceTree = "<group>";
@@ -194,6 +197,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA0000AA000000000000001A /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -361,8 +365,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.mac-monitor";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.example.pulse";
+				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -385,8 +389,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.example.mac-monitor";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.example.pulse";
+				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

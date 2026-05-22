@@ -1,4 +1,4 @@
-# mac-monitor
+# Pulse
 
 A beautiful macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-in process manager.
 
@@ -46,7 +46,7 @@ No package manager, no CocoaPods, no Swift packages required.
 ```bash
 xcodebuild -project mac-monitor.xcodeproj -scheme mac-monitor -configuration Debug build
 
-open "$(find ~/Library/Developer/Xcode/DerivedData -name 'mac-monitor.app' -path '*/Debug/*' | head -1)"
+open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Pulse.app' -path '*/Debug/*' | head -1)"
 ```
 
 > **Note:** On first build you may need to run `sudo xcodebuild -runFirstLaunch` if Xcode tools aren't initialized.
@@ -59,9 +59,9 @@ bash scripts/build-dmg.sh
 
 Builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew required).
 
-Output: `dist/mac-monitor-1.0.0.dmg`
+Output: `dist/Pulse-1.0.0.dmg`
 
-To install: open the DMG, drag `mac-monitor.app` to the **Applications** shortcut inside it.
+To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut inside it.
 
 ---
 

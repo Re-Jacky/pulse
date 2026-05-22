@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="mac-monitor"
+APP_NAME="Pulse"
 VERSION="1.0.0"
 SCHEME="mac-monitor"
 PROJECT="mac-monitor.xcodeproj"
