@@ -24,6 +24,15 @@ struct ProcessRowView: View {
         return "PID \(process.id)\(portStr)"
     }
 
+    private var cwdText: String? {
+        let dir = process.workingDir
+        guard !dir.isEmpty else { return nil }
+        if let home = ProcessInfo.processInfo.environment["HOME"], dir.hasPrefix(home) {
+            return "~" + dir.dropFirst(home.count)
+        }
+        return dir
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 1) {
@@ -32,9 +41,21 @@ struct ProcessRowView: View {
                     .foregroundColor(.white.opacity(0.82))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(pidText)
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.30))
+                HStack(spacing: 4) {
+                    Text(pidText)
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.30))
+                    if let cwd = cwdText {
+                        Text("·")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.20))
+                        Text(cwd)
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.28))
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

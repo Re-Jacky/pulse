@@ -6,6 +6,7 @@ struct ProcessInfo2: Identifiable {
     var cpuPercent: Double
     var memoryMB: Double
     var ports: [UInt16]
+    var workingDir: String
 }
 
 final class ProcessMonitor {
@@ -38,6 +39,18 @@ final class ProcessMonitor {
                 ? "[\(pid)]"
                 : (fullPath as NSString).lastPathComponent
 
+            var vnodeInfo = proc_vnodepathinfo()
+            let vnodeSize = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+            let workingDir: String
+            if proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vnodeInfo, vnodeSize) == vnodeSize {
+                workingDir = withUnsafeBytes(of: &vnodeInfo.pvi_cdir.vip_path) { rawBuf in
+                    let ptr = rawBuf.bindMemory(to: CChar.self).baseAddress!
+                    return String(cString: ptr)
+                }
+            } else {
+                workingDir = ""
+            }
+
             let cpuTime = info.pti_total_user + info.pti_total_system
             let elapsed = now > previousSampleTime ? now - previousSampleTime : 1
             let cpuDelta = previousCPUTimes[pid].map { cpuTime > $0 ? cpuTime - $0 : 0 } ?? 0
@@ -55,7 +68,8 @@ final class ProcessMonitor {
                 name: name,
                 cpuPercent: cpuPercent,
                 memoryMB: memMB,
-                ports: []
+                ports: [],
+                workingDir: workingDir
             ))
         }
 
@@ -68,7 +82,8 @@ final class ProcessMonitor {
                 name: proc.name,
                 cpuPercent: proc.cpuPercent,
                 memoryMB: proc.memoryMB,
-                ports: listeningPorts(for: proc.id)
+                ports: listeningPorts(for: proc.id),
+                workingDir: proc.workingDir
             )
         }
     }
