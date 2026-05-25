@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="Pulse"
-VERSION="1.0.0"
+VERSION="1.1.0"
 SCHEME="pulse"
 PROJECT="pulse.xcodeproj"
 CONFIG="Release"
