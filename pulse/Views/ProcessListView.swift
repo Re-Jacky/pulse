@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ProcessListView: View {
     @EnvironmentObject var monitor: SystemMonitor
-    @State private var searchText = ""
+    @AppStorage("processSearchText") private var searchText = ""
     @State private var sortByColumn: SortColumn = .cpu
     @State private var sortAscending = false
     @State private var processToKill: ProcessInfo2? = nil
@@ -19,10 +19,12 @@ struct ProcessListView: View {
         if trimmed.isEmpty {
             base = monitor.processes
         } else if let port = UInt16(trimmed) {
-            base = monitor.processes.filter { $0.ports.contains(port) }
+            let matchingPids = processMonitor.pidsListening(on: port)
+            base = monitor.processes.filter { matchingPids.contains($0.id) }
         } else {
             base = monitor.processes.filter {
-                $0.name.localizedCaseInsensitiveContains(trimmed)
+                $0.name.localizedCaseInsensitiveContains(trimmed) ||
+                $0.workingDir.localizedCaseInsensitiveContains(trimmed)
             }
         }
 
