@@ -88,6 +88,23 @@ final class ProcessMonitor {
         }
     }
 
+    func pidsListening(on port: UInt16) -> Set<Int32> {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [Int32](repeating: 0, count: Int(count) + 16)
+        let actual = proc_listallpids(&pids, Int32(pids.count) * Int32(MemoryLayout<Int32>.size))
+        guard actual > 0 else { return [] }
+        var result = Set<Int32>()
+        for i in 0..<Int(actual) {
+            let pid = pids[i]
+            guard pid > 0 else { continue }
+            if listeningPorts(for: pid).contains(port) {
+                result.insert(pid)
+            }
+        }
+        return result
+    }
+
     func listeningPorts(for pid: Int32) -> [UInt16] {
         var fdInfo = [proc_fdinfo](repeating: proc_fdinfo(), count: 1024)
         let bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fdInfo, Int32(fdInfo.count * MemoryLayout<proc_fdinfo>.size))
@@ -101,9 +118,10 @@ final class ProcessMonitor {
             var sockInfo = socket_fdinfo()
             let sz = proc_pidfdinfo(pid, fdInfo[i].proc_fd, PROC_PIDFDSOCKETINFO, &sockInfo, Int32(MemoryLayout<socket_fdinfo>.size))
             guard sz == Int32(MemoryLayout<socket_fdinfo>.size) else { continue }
-            let sinfo = sockInfo.psi.soi_proto.pri_tcp.tcpsi_ini
-            let localPort = UInt16(bigEndian: UInt16(sinfo.insi_lport & 0xFFFF))
-            if localPort > 0 && sockInfo.psi.soi_state & 0x0002 != 0 {
+            guard sockInfo.psi.soi_kind == 2 else { continue }
+            guard sockInfo.psi.soi_proto.pri_tcp.tcpsi_state == 1 else { continue }
+            let localPort = UInt16(bigEndian: UInt16(sockInfo.psi.soi_proto.pri_tcp.tcpsi_ini.insi_lport & 0xFFFF))
+            if localPort > 0 {
                 ports.append(localPort)
             }
         }
