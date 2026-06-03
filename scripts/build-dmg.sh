@@ -2,8 +2,9 @@
 set -euo pipefail
 
 APP_NAME="Pulse"
-VERSION="1.1.0"
 SCHEME="pulse"
+PROJECT="pulse.xcodeproj"
+VERSION=$(grep -m1 'MARKETING_VERSION' "${PROJECT}/project.pbxproj" | sed 's/.*= *//;s/;//')
 PROJECT="pulse.xcodeproj"
 CONFIG="Release"
 DIST_DIR="dist"
