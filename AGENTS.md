@@ -143,10 +143,34 @@ contentView.layer?.cornerRadius = 12
 
 ---
 
+## Versioning
+
+Version is defined in `pulse.xcodeproj/project.pbxproj` (`MARKETING_VERSION`). `scripts/build-dmg.sh` reads it automatically — no manual sync needed there.
+
+**Bump the version whenever you add a feature or fix a bug:**
+
+```bash
+# Check current version
+grep -m1 'MARKETING_VERSION' pulse.xcodeproj/project.pbxproj
+
+# Bump via sed (example: 1.1.1 → 1.2.0)
+sed -i '' 's/MARKETING_VERSION = .*/MARKETING_VERSION = 1.2.0;/' pulse.xcodeproj/project.pbxproj
+```
+
+| Change type | Version segment to bump |
+|-------------|------------------------|
+| New feature | minor (`1.1.x` → `1.2.0`) |
+| Bug fix | patch (`1.1.0` → `1.1.1`) |
+| Breaking change | major (`1.x.x` → `2.0.0`) |
+
+**Rule:** Any commit with `feat:` prefix → bump minor. Any commit with `fix:` prefix → bump patch. Commit the version bump in the same PR/branch as the feature or fix.
+
+---
+
 ## What Was Intentionally Left Out
 
 - No history / charts over time
-- No persistence (UserDefaults, CoreData)
+- No persistence beyond UI state (tab selection + search text use `@AppStorage`; no CoreData)
 - No network or disk I/O monitoring
 - No Dock presence
 - No auto-update / Sparkle
