@@ -18,9 +18,10 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-
 
 ## Features
 
+- **Lightweight & focused** — no bloat, only what you need for system monitoring and process management
 - **Menu bar icon** — left-click opens/closes the panel; right-click shows a context menu
 - **Overview tab** — animated gradient bars for CPU, Memory, and GPU with chip name and core count
-- **Processes tab** — live process list with CPU%, memory, listening ports; filter by name or port; kill any process
+- **Processes tab** — live process list with CPU%, memory, and listening ports; search by **name, working directory, or port**; kill any process
 - **Dark UI** — always-dark frosted glass panel (`NSVisualEffectView`) with rounded corners
 - **Resizable panel** — drag any edge to resize; green button zooms to 1.5× width / 2× height
 - **DMG distribution** — one-command build to a drag-to-install `.dmg`
