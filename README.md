@@ -1,6 +1,6 @@
 # Pulse
 
-A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-in process manager.
+A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in process manager and theme switching.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue)
 ![Language](https://img.shields.io/badge/language-Swift-orange)
@@ -29,11 +29,13 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-
 ## Features
 
 - **Lightweight & focused** — no bloat, only what you need for system monitoring and process management
-- **Menu bar icon** — left-click opens/closes the panel; right-click shows a context menu
+- **Menu bar icon** — left-click opens/closes the panel; right-click shows a context menu with Open, Settings, and Quit
 - **Overview tab** — animated gradient bars for CPU, Memory, and GPU with chip name and core count
-- **Processes tab** — live process list with CPU%, memory, and listening ports; search by **name, working directory, or port**; kill any process
-- **Dark UI** — always-dark frosted glass panel (`NSVisualEffectView`) with rounded corners
-- **Resizable panel** — drag any edge to resize; green button zooms to 1.5× width / 2× height
+- **Processes tab** — live process list with CPU%, memory, and listening ports; search by **name, working directory, or port**; sort by name, CPU, or memory; kill any process
+- **Theme switching** — choose **System**, **Dark**, or **Light** in Settings; the preference is persisted in `UserDefaults`
+- **Settings window** — reusable native macOS settings window, available from the menu or `Cmd+,`
+- **Frosted glass panel** — `NSVisualEffectView` background with rounded corners and semantic colors for both dark and light appearance
+- **Resizable panel** — drag any edge to resize; green button zooms to 1.5x width / 2x height
 - **DMG distribution** — one-command build to a drag-to-install `.dmg`
 - **Zero dependencies** — pure Apple APIs only (Mach, IOKit, BSD proc)
 
@@ -43,8 +45,8 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-
 
 | Tool | Version |
 |------|---------|
-| macOS | 13.0 Ventura or later |
-| Xcode | 14 or later |
+| macOS | 14.0 Sonoma or later |
+| Xcode | 15 or later |
 
 No package manager, no CocoaPods, no Swift packages required.
 
@@ -76,7 +78,7 @@ bash scripts/build-dmg.sh
 
 Builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew required).
 
-Output: `dist/Pulse-1.0.0.dmg`
+Output: `dist/Pulse-1.3.1.dmg`
 
 To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut inside it.
 
@@ -87,9 +89,10 @@ To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut insi
 1. A **chip icon** appears in your menu bar
 2. **Left-click** the icon to open the panel
 3. **Overview tab** — CPU / Memory / GPU bars refresh every 2 seconds
-4. **Processes tab** — type in the search box to filter by name or port; right-click any row to kill it
+4. **Processes tab** — type in the search box to filter by name, path, or port; click column headers to sort; right-click any row to kill it
 5. **Click anywhere outside** the panel to dismiss it
-6. **Right-click** the menu bar icon for Open/Close and Quit
+6. **Right-click** the menu bar icon for Open/Close, Settings, and Quit
+7. Open **Settings** to switch between System, Dark, and Light themes
 
 The app runs as a background accessory (`LSUIElement = true`) — no Dock icon, no ⌘-Tab entry.
 
@@ -103,7 +106,8 @@ pulse/
 │   ├── main.swift              # AppKit entry point
 │   └── AppDelegate.swift       # NSStatusItem, InputPanel, context menu
 ├── Managers/
-│   └── ThemeManager.swift      # AppTheme enum (unused currently, kept for reference)
+│   ├── AppVersionInfo.swift    # Formats app and macOS version strings for Settings
+│   └── ThemeManager.swift      # AppTheme enum + persisted theme preference
 ├── Monitors/
 │   ├── SystemMonitor.swift     # ObservableObject, 2s timer, coordinates all monitors
 │   ├── CPUMonitor.swift        # Mach host_processor_info
@@ -117,7 +121,7 @@ pulse/
 │   ├── PopoverView.swift       # Root view, tab switcher, NSVisualEffectView
 │   ├── ProcessListView.swift   # Filterable, sortable process table
 │   ├── ProcessRowView.swift    # Per-process row with kill context menu
-│   └── SettingsView.swift      # Unused — kept for future theme support
+│   └── SettingsView.swift      # Native settings window with theme selector and version info
 └── scripts/
     └── build-dmg.sh            # hdiutil-based DMG packager
 ```
@@ -143,9 +147,18 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
 
 - **Resizable** — drag any edge/corner
 - **Rounded corners** — 12pt radius via `CALayer`, window background is transparent
-- **Always dark** — `NSAppearance(named: .darkAqua)` forced on all views
+- **Theme-aware** — follows the selected app theme (`System`, `Dark`, or `Light`) across the panel and settings window
 - **Keyboard focus** — `canBecomeKey` overridden to `true`; activation policy briefly switches to `.regular` on open then back to `.accessory` (no Dock icon)
 - **Dismiss on outside click** — global `NSEvent` monitor closes the panel on any click outside it
+
+---
+
+## Settings
+
+- Open **Settings...** from the menu bar icon's right-click menu or press `Cmd+,`
+- Choose between **System**, **Dark**, and **Light** themes
+- Theme changes are applied to both the main panel and the settings window immediately
+- The selected theme is persisted between launches
 
 ---
 
