@@ -10,11 +10,19 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU — with a built-
 
 ## Preview
 
-<p align="center">
-  <img src="docs/images/preview-overview.png" width="800" alt="Pulse — Overview tab" />
-  <img src="docs/images/preview-processes.png" width="800" alt="Pulse — Processes tab" />
-  <img src="docs/images/preview-settings.png" width="800" alt="Pulse — Settings tab" />
-</p>
+<table align="center">
+  <tr>
+    <td valign="middle">
+      <img src="docs/images/preview-overview.png" width="300" alt="Pulse — Overview tab" />
+    </td>
+    <td valign="middle">
+      <img src="docs/images/preview-processes.png" width="300" alt="Pulse — Processes tab" />
+    </td>
+    <td valign="middle">
+      <img src="docs/images/preview-settings.png" width="300" alt="Pulse — Settings tab" />
+    </td>
+  </tr>
+</table>
 
 ---
 
