@@ -6,7 +6,7 @@ struct ProcessRowView: View {
 
     private var cpuColor: Color {
         switch process.cpuPercent {
-        case ..<5: return .white.opacity(0.6)
+        case ..<5: return .appSecondaryText
         case 5..<70: return Color(hex: "#60d394")
         case 70..<90: return Color(hex: "#f59e0b")
         default: return Color(hex: "#ef4444")
@@ -38,20 +38,20 @@ struct ProcessRowView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(process.name)
                     .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.82))
+                    .foregroundColor(.appPrimaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack(spacing: 4) {
                     Text(pidText)
                         .font(.system(size: 10))
-                        .foregroundColor(.white.opacity(0.30))
+                        .foregroundColor(.appTertiaryText)
                     if let cwd = cwdText {
                         Text("·")
                             .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.20))
+                            .foregroundColor(.appQuaternaryText)
                         Text(cwd)
                             .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.28))
+                            .foregroundColor(.appSecondaryText)
                             .lineLimit(1)
                             .truncationMode(.head)
                     }
@@ -65,7 +65,7 @@ struct ProcessRowView: View {
                     .foregroundColor(cpuColor)
                 Text(memText)
                     .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.38))
+                    .foregroundColor(.appSecondaryText)
             }
             .frame(width: 60, alignment: .trailing)
         }

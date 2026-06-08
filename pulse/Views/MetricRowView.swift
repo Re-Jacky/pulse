@@ -14,13 +14,13 @@ struct MetricRowView: View {
                     .font(.system(size: 10, weight: .regular))
                     .textCase(.uppercase)
                     .tracking(1.2)
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(.appSecondaryText)
                     .frame(width: 36, alignment: .leading)
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.white.opacity(0.08))
+                            .fill(Color.appTrackBackground)
                             .frame(height: 4)
 
                         RoundedRectangle(cornerRadius: 2)
@@ -47,7 +47,7 @@ struct MetricRowView: View {
 
             Text(subtext)
                 .font(.system(size: 10))
-                .foregroundColor(.white.opacity(0.28))
+                .foregroundColor(.appTertiaryText)
                 .padding(.leading, 44)
         }
     }

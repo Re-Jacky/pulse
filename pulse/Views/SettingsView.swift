@@ -2,25 +2,68 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    var onDone: () -> Void
+    @State private var selectedSection: Section = .theme
+
+    private enum Section: Hashable {
+        case theme
+    }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Appearance")
-                .font(.headline)
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Settings")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.appSecondaryText)
 
-            Picker("Theme", selection: $themeManager.currentTheme) {
-                ForEach(AppTheme.allCases, id: \.self) { theme in
-                    Text(theme.label).tag(theme)
+                Button {
+                    selectedSection = .theme
+                } label: {
+                    HStack {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .font(.system(size: 12))
+                        Text("Theme")
+                            .font(.system(size: 13, weight: .medium))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(selectedSection == .theme ? Color.accentColor.opacity(0.14) : .clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+                .buttonStyle(.plain)
 
-            Button("Done") { onDone() }
-                .keyboardShortcut(.defaultAction)
+                Spacer()
+            }
+            .padding(16)
+            .frame(width: 140, alignment: .topLeading)
+            .background(Color.appSidebarBackground)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Theme")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Choose whether Pulse follows the system appearance or always uses a specific theme.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Picker("Theme", selection: $themeManager.currentTheme) {
+                    ForEach(AppTheme.allCases, id: \.self) { theme in
+                        Text(theme.label).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+
+                Spacer()
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(20)
-        .frame(width: 260, height: 110)
+        .frame(minWidth: 520, minHeight: 280)
+        .id(themeManager.currentTheme)
     }
 }

@@ -42,11 +42,11 @@ struct ProcessListView: View {
             TextField("Filter by name or port…", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.appPrimaryText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.white.opacity(0.07))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.white.opacity(0.10), lineWidth: 1))
+                .background(Color.appFieldBackground)
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.appFieldBorder, lineWidth: 1))
                 .cornerRadius(7)
                 .padding(.bottom, 10)
 
@@ -61,7 +61,7 @@ struct ProcessListView: View {
             .padding(.horizontal, 4)
             .padding(.bottom, 4)
 
-            Divider().background(Color.white.opacity(0.06))
+            Divider().background(Color.appDivider)
 
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
@@ -70,14 +70,14 @@ struct ProcessListView: View {
                             processToKill = process
                             showKillConfirm = true
                         }
-                        Divider().background(Color.white.opacity(0.04))
+                        Divider().background(Color.appDivider)
                     }
                 }
             }
 
             Text("Right-click a process to kill it")
                 .font(.system(size: 10))
-                .foregroundColor(.white.opacity(0.20))
+                .foregroundColor(.appQuaternaryText)
                 .padding(.top, 8)
         }
         .padding(16)
@@ -114,11 +114,11 @@ struct ProcessListView: View {
                     .font(.system(size: 9, weight: .regular))
                     .textCase(.uppercase)
                     .tracking(1.0)
-                    .foregroundColor(.white.opacity(sortByColumn == column ? 0.6 : 0.25))
+                    .foregroundColor(sortByColumn == column ? .appSecondaryText : .appTertiaryText)
                 if sortByColumn == column {
                     Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
                         .font(.system(size: 7))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.appSecondaryText)
                 }
             }
         }

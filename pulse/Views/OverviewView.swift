@@ -2,6 +2,15 @@ import SwiftUI
 
 struct OverviewView: View {
     @EnvironmentObject var monitor: SystemMonitor
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var cpuFillColors: [Color] {
+        if colorScheme == .light {
+            return [Color(hex: "#2f855a"), Color(hex: "#38a169")]
+        }
+
+        return [Color(hex: "#60d394"), Color(hex: "#4ade80")]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -10,7 +19,7 @@ struct OverviewView: View {
                 value: String(format: "%.0f%%", monitor.cpuUsage),
                 subtext: "\(monitor.cpuCoreCount)-core · \(monitor.cpuChipName)",
                 percent: monitor.cpuUsage,
-                fillColors: [Color(hex: "#60d394"), Color(hex: "#4ade80")]
+                fillColors: cpuFillColors
             )
 
             MetricRowView(

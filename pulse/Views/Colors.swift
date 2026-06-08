@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension Color {
@@ -10,4 +11,14 @@ extension Color {
         let b = Double(int & 0xFF) / 255
         self.init(red: r, green: g, blue: b)
     }
+
+    static var appPrimaryText: Color { Color(NSColor.labelColor) }
+    static var appSecondaryText: Color { Color(NSColor.secondaryLabelColor) }
+    static var appTertiaryText: Color { Color(NSColor.tertiaryLabelColor) }
+    static var appQuaternaryText: Color { Color(NSColor.quaternaryLabelColor) }
+    static var appDivider: Color { Color(NSColor.separatorColor) }
+    static var appFieldBackground: Color { Color(NSColor.controlBackgroundColor) }
+    static var appFieldBorder: Color { Color(NSColor.quaternaryLabelColor) }
+    static var appTrackBackground: Color { Color(NSColor.quaternaryLabelColor).opacity(0.35) }
+    static var appSidebarBackground: Color { Color(NSColor.controlBackgroundColor).opacity(0.7) }
 }

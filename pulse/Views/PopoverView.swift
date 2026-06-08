@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PopoverView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         ZStack {
@@ -19,7 +20,7 @@ struct PopoverView: View {
                 .padding(.bottom, 10)
 
                 Divider()
-                    .background(Color.white.opacity(0.08))
+                    .background(Color.appDivider)
 
                 ZStack {
                     OverviewView()
@@ -34,6 +35,7 @@ struct PopoverView: View {
             }
         }
         .frame(minWidth: 300, minHeight: 360)
+        .id(themeManager.currentTheme)
     }
 }
 
