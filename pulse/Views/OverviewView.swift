@@ -3,6 +3,7 @@ import SwiftUI
 struct OverviewView: View {
     @EnvironmentObject var monitor: SystemMonitor
     @Environment(\.colorScheme) private var colorScheme
+    private let versionInfo = AppVersionInfo()
 
     private var cpuFillColors: [Color] {
         if colorScheme == .light {
@@ -37,6 +38,24 @@ struct OverviewView: View {
                 percent: monitor.gpuUsage,
                 fillColors: [Color(hex: "#f472b6"), Color(hex: "#e879f9")]
             )
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 6) {
+                Divider()
+                    .background(Color.appDivider)
+
+                Text(versionInfo.appDisplayVersion)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.appPrimaryText)
+                    .multilineTextAlignment(.center)
+
+                Text(versionInfo.systemDisplayVersion)
+                    .font(.system(size: 11))
+                    .foregroundColor(.appSecondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding(16)
     }

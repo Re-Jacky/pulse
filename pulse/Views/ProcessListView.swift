@@ -39,7 +39,7 @@ struct ProcessListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Filter by name or port…", text: $searchText)
+            TextField("Filter by name / port / path…", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundColor(.appPrimaryText)

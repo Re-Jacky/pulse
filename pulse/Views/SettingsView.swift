@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var selectedSection: Section = .theme
+    private let versionInfo = AppVersionInfo()
 
     private enum Section: Hashable {
         case theme
@@ -59,6 +60,24 @@ struct SettingsView: View {
                 .frame(maxWidth: 320)
 
                 Spacer()
+
+                VStack(spacing: 10) {
+                    Divider()
+
+                    VStack(spacing: 4) {
+                        Text(versionInfo.appDisplayVersion)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.appPrimaryText)
+                            .multilineTextAlignment(.center)
+
+                        Text(versionInfo.systemDisplayVersion)
+                            .font(.system(size: 12))
+                            .foregroundColor(.appSecondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
