@@ -9,20 +9,20 @@ PROJECT="pulse.xcodeproj"
 CONFIG="Release"
 DIST_DIR="dist"
 STAGING_DIR="/tmp/${APP_NAME}-dmg-staging"
+DERIVED_DATA_DIR="/tmp/${APP_NAME}-dmg-derived-data"
 
 echo "==> Building ${APP_NAME} (${CONFIG})..."
+rm -rf "${DERIVED_DATA_DIR}"
 xcodebuild \
   -project "${PROJECT}" \
   -scheme "${SCHEME}" \
   -configuration "${CONFIG}" \
+  -derivedDataPath "${DERIVED_DATA_DIR}" \
   build
 
-APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData \
-  -name "${APP_NAME}.app" \
-  -path "*/${CONFIG}/*" \
-  | head -1)
+APP_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIG}/${APP_NAME}.app"
 
-if [ -z "${APP_PATH}" ]; then
+if [ ! -d "${APP_PATH}" ]; then
   echo "ERROR: Could not find built .app" >&2
   exit 1
 fi
@@ -49,5 +49,6 @@ hdiutil create \
 
 mv "${DMG_TMP}" "${DMG_OUT}"
 rm -rf "${STAGING_DIR}"
+rm -rf "${DERIVED_DATA_DIR}"
 
 echo "==> Done: ${DMG_OUT}"
