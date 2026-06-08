@@ -7,7 +7,7 @@ Agent configuration and codebase context for AI assistants working on this proje
 ## Project Identity
 
 - **Type**: macOS menu bar app (AppKit + SwiftUI hybrid)
-- **Language**: Swift 5.9+, macOS 13+ target
+- **Language**: Swift 5.9+, macOS 14.0+ target (Sonoma; `MACOSX_DEPLOYMENT_TARGET = 14.0` in pbxproj)
 - **Dependencies**: None — pure Apple frameworks only (AppKit, SwiftUI, IOKit, Foundation)
 - **Entry point**: `pulse/App/main.swift` → `AppDelegate`
 
@@ -47,6 +47,10 @@ SystemMonitor (ObservableObject, 2s Timer)
 
 `SystemMonitor` is the single source of truth. Instantiated once in `AppDelegate`, injected via `.environmentObject(monitor)`. All views read it via `@EnvironmentObject`.
 
+`ThemeManager` is a second `ObservableObject` instantiated in `AppDelegate` and injected the same way — views receive it via `@EnvironmentObject var themeManager: ThemeManager`. It persists the selected `AppTheme` (.system/.dark/.light) to `UserDefaults` under key `"appTheme"`.
+
+Settings are managed separately from the main panel: `AppDelegate` owns a reusable `NSWindow` for `SettingsView`. The app temporarily uses `.regular` activation while that window is open so standard window behavior works (`Cmd+W`, focus, resize), then returns to `.accessory` when both the settings window and main panel are closed.
+
 ---
 
 ## Key Files
@@ -66,6 +70,8 @@ SystemMonitor (ObservableObject, 2s Timer)
 | `Views/PopoverView.swift` | Root view, tab switcher, NSVisualEffectView |
 | `Views/ProcessListView.swift` | Filterable, sortable process table |
 | `Views/ProcessRowView.swift` | Single process row + kill context menu |
+| `Views/SettingsView.swift` | Two-pane settings window content (left sidebar, right detail pane) |
+| `Managers/ThemeManager.swift` | `AppTheme` enum + `ObservableObject` persisting theme choice |
 | `scripts/build-dmg.sh` | hdiutil-based DMG packager |
 
 ---
@@ -81,6 +87,23 @@ The main window is `InputPanel`, a custom `NSPanel` subclass in `AppDelegate.swi
 - **Zoom**: overrides `zoom(_:)` to scale 1.5× width / 2× height instead of going fullscreen
 - **Dismiss**: global `NSEvent` monitor closes panel on outside click
 
+## Settings Window
+
+- Opened from the menu bar right-click context menu via `Settings...`
+- Also registered in the app menu with `Cmd+,`
+- Backed by a reusable `NSWindow` in `AppDelegate` — reopening should reuse and bring the same window forward
+- **Resizable**: window min size is `520x280`; `SettingsView` must not hard-code a fixed outer width/height or horizontal resizing breaks
+- The app must stay `.regular` while the settings window is open; reverting to `.accessory` too early causes the window to flash to front and immediately fall behind
+- `Cmd+W` works through the `Window` menu wired in `AppDelegate.setupMainMenu()`; avoid adding the same `NSMenuItem` to multiple menus or AppKit will crash with `NSInternalInconsistencyException`
+
+---
+
+## Adding Files to the Xcode Project
+
+When adding new Swift files, use `add_files.rb` (at repo root) or manually add entries to `project.pbxproj`. Do **not** just create the file on disk — Xcode will not compile it unless it appears in the Sources build phase.
+
+The `project.pbxproj` currently has duplicate `PBXFileReference` entries for `ProcessRowView.swift` and `ProcessListView.swift` (two UUIDs each). Only the first UUID in the Sources phase is compiled. This is benign but do not replicate the pattern.
+
 ---
 
 ## Conventions
@@ -95,6 +118,8 @@ The main window is `InputPanel`, a custom `NSPanel` subclass in `AppDelegate.swi
 - `NSHostingController` bridges AppKit → SwiftUI at the panel boundary
 - `VisualEffectView` is an `NSViewRepresentable` wrapping `NSVisualEffectView`
 - Tab switching uses `.opacity` + `.allowsHitTesting` (not `if/else`) so the tab bar never shifts position
+- Theme changes force SwiftUI refresh at the root via `.id(themeManager.currentTheme)` on the main panel/settings root views; without that, AppKit appearance can update but SwiftUI content may not redraw until the panel is recreated
+- Use semantic colors from `Views/Colors.swift` (`appPrimaryText`, `appDivider`, etc.) instead of hard-coded `.white.opacity(...)` so light mode stays readable
 
 ### No-gos (hard constraints)
 - **No external dependencies** — no SPM packages, no CocoaPods
@@ -141,6 +166,16 @@ In `AppDelegate.makePanel()`:
 contentView.layer?.cornerRadius = 12
 ```
 
+### Change settings window default size
+
+In `AppDelegate.makeSettingsWindow()`:
+```swift
+contentRect: NSRect(x: 0, y: 0, width: 520, height: 280)
+window.minSize = NSSize(width: 520, height: 280)
+```
+
+If resizing feels capped, check `SettingsView` for fixed outer frames before changing AppKit code.
+
 ---
 
 ## Versioning
@@ -174,4 +209,3 @@ sed -i '' 's/MARKETING_VERSION = .*/MARKETING_VERSION = 1.2.0;/' pulse.xcodeproj
 - No network or disk I/O monitoring
 - No Dock presence
 - No auto-update / Sparkle
-- No theme switching (always dark)
