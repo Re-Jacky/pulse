@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		100000000000000000000001 /* AppVersionInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* AppVersionInfoTests.swift */; };
 		100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* OpenCodeUsageModelsTests.swift */; };
+		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
+		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000010 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* AppVersionInfo.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
@@ -44,6 +46,8 @@
 /* Begin PBXFileReference section */
 		100000000000000000000002 /* AppVersionInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionInfoTests.swift; sourceTree = "<group>"; };
 		100000000000000000000013 /* OpenCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageModelsTests.swift; sourceTree = "<group>"; };
+		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
+		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000011 /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AppVersionInfo.swift; sourceTree = "<group>"; };
 		100000000000000000000004 /* pulseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
@@ -91,7 +95,9 @@
 		5FBA87F2FBD639833E1B72BD /* Managers */ = {
 			isa = PBXGroup;
 			children = (
+				100000000000000000000015 /* AgentUsageSettings.swift */,
 				100000000000000000000011 /* AppVersionInfo.swift */,
+				100000000000000000000017 /* OpenCodeUsageModels.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
 			);
 			name = Managers;
@@ -298,7 +304,9 @@
 				525A1EB1F76074255369A695 /* PopoverView.swift in Sources */,
 				E71FEFA784128F6BA5465B4F /* ProcessRowView.swift in Sources */,
 				6ED711C9F9766810A7AD76B2 /* ProcessListView.swift in Sources */,
+				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,
+				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,
 				8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */,
 			);
