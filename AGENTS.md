@@ -10,7 +10,7 @@ Agent configuration and codebase context for AI assistants working on this proje
 - **Language**: Swift 5.9+, macOS 14.0+ target (Sonoma; `MACOSX_DEPLOYMENT_TARGET = 14.0` in pbxproj)
 - **Dependencies**: None — pure Apple frameworks only (AppKit, SwiftUI, IOKit, Foundation)
 - **Entry point**: `pulse/App/main.swift` → `AppDelegate`
-- **Optional feature**: Agent Usage panel for local OpenCode token analysis
+- **Optional feature**: Agent Usage panel for local OpenCode and Codex token analysis
 
 ---
 
@@ -38,7 +38,7 @@ AppDelegate (NSStatusItem + InputPanel)
   └── PopoverView (SwiftUI root, tab switcher)
         ├── OverviewView    (CPU / Memory / GPU bars)
         └── ProcessListView (search / sort / kill)
-        └── AgentUsageView  (OpenCode usage filters + analysis cards)
+└── AgentUsageView (OpenCode + Codex usage, source picker, combined All summary)
 
 SystemMonitor (ObservableObject, 2s Timer)
   ├── CPUMonitor      → host_processor_info
@@ -46,17 +46,18 @@ SystemMonitor (ObservableObject, 2s Timer)
   ├── GPUMonitor      → IOKit IOAccelerator
   └── ProcessMonitor  → BSD proc APIs + kill(2)
 
-OpenCodeUsageStore (ObservableObject, manual refresh)
-  ├── DB path auto-detection
-  ├── SQLite reads from local OpenCode session DB
-  └── Aggregates global / project / session token usage
+AgentUsageStore (ObservableObject, manual refresh)
+├── DB path auto-detection (OpenCode + Codex)
+├── SQLite reads from local OpenCode session DB
+├── SQLite reads from local Codex threads DB
+└── Aggregates global / project / session token usage (per-source or combined via All)
 ```
 
 `SystemMonitor` is the single source of truth. Instantiated once in `AppDelegate`, injected via `.environmentObject(monitor)`. All views read it via `@EnvironmentObject`.
 
 `ThemeManager` is a second `ObservableObject` instantiated in `AppDelegate` and injected the same way — views receive it via `@EnvironmentObject var themeManager: ThemeManager`. It persists the selected `AppTheme` (.system/.dark/.light) to `UserDefaults` under key `"appTheme"`.
 
-`OpenCodeUsageStore` is also instantiated once in `AppDelegate` and injected as an `@EnvironmentObject`. It is refresh-on-open / refresh-on-demand only; there is no background polling.
+`AgentUsageStore` is an `ObservableObject` instantiated once in `AppDelegate` and injected as an `@EnvironmentObject`. It is refresh-on-open / refresh-on-demand only; there is no background polling. The source picker (`AgentSourcePicker`) lets users switch between **All**, **OpenCode**, and **Codex** views. **All** mode merges summaries from both sources via `AgentUsageSummary.merge()`, shows a unioned project list, and hides session selector / context / by-model sections.
 
 Settings are managed separately from the main panel: `AppDelegate` owns a reusable `NSWindow` for `SettingsView`. The app temporarily uses `.regular` activation while that window is open so standard window behavior works (`Cmd+W`, focus, resize), then returns to `.accessory` when both the settings window and main panel are closed.
 
@@ -73,12 +74,18 @@ Settings are managed separately from the main panel: `AppDelegate` owns a reusab
 | `Monitors/MemoryMonitor.swift` | Memory used/total in GB |
 | `Monitors/GPUMonitor.swift` | GPU usage % via IOKit |
 | `Monitors/ProcessMonitor.swift` | Process list, port enrichment, kill |
-| `Managers/OpenCodeUsageModels.swift` | Agent usage scopes, summaries, time ranges, model breakdowns |
-| `Managers/OpenCodeUsageStore.swift` | SQLite-backed OpenCode usage loader + DB path detection |
+| `Managers/AgentUsageModels.swift` | Shared types — `AgentSource`, `AgentTimeRange`, `AgentScope`, `AgentUsageSummary`, `merge()` |
+| `Managers/AgentUsageStore.swift` | Enum-routed `ObservableObject` combining both sources |
+| `Managers/OpenCodeUsageModels.swift` | OpenCode-specific session records, snapshot, model breakdown |
+| `Managers/OpenCodeUsageStore.swift` | `OpenCodeUsageQuery` enum — SQLite queries + DB path detection |
+| `Managers/CodexUsageModels.swift` | Codex-specific session records, snapshot, subagent edges, goals |
+| `Managers/CodexUsageQuery.swift` | Codex SQLite queries + DB path detection (scans `state_*.sqlite`) |
 | `Views/Colors.swift` | Color(hex:) + brand palette |
 | `Views/MetricRowView.swift` | Animated gradient bar (reusable) |
 | `Views/OverviewView.swift` | Three metric rows |
-| `Views/AgentUsageView.swift` | OpenCode usage UI, filters, cards, model breakdown |
+| `Views/AgentUsageView.swift` | OpenCode + Codex usage UI, filters, cards, model breakdown |
+| `Views/AgentSourcePicker.swift` | Three-way capsule toggle (All / OpenCode / Codex) |
+| `Views/CodexSessionDetailView.swift` | Subagent edges + goals for a Codex session |
 | `Views/PopoverView.swift` | Root view, tab switcher, NSVisualEffectView |
 | `Views/ProcessListView.swift` | Filterable, sortable process table |
 | `Views/ProcessRowView.swift` | Single process row + kill context menu |
@@ -134,7 +141,7 @@ When adding new Swift files, use `add_files.rb` (at repo root) or manually add e
 - Tab switching uses `.opacity` + `.allowsHitTesting` (not `if/else`) so the tab bar never shifts position
 - Theme changes force SwiftUI refresh at the root via `.id(themeManager.currentTheme)` on the main panel/settings root views; without that, AppKit appearance can update but SwiftUI content may not redraw until the panel is recreated
 - Use semantic colors from `Views/Colors.swift` (`appPrimaryText`, `appDivider`, etc.) instead of hard-coded `.white.opacity(...)` so light mode stays readable
-- Agent Usage filter state is persisted with `@AppStorage` so the last project, session, and time range survive reopen
+- Agent Usage filter state is persisted with `@AppStorage` so the last source, project, session, and time range survive reopen
 
 ### No-gos (hard constraints)
 - **No external dependencies** — no SPM packages, no CocoaPods
@@ -194,18 +201,26 @@ window.minSize = NSSize(width: 520, height: 280)
 
 If resizing feels capped, check `SettingsView` for fixed outer frames before changing AppKit code.
 
-### Agent Usage data source
+### Agent Usage data sources
 
-- OpenCode usage is read from a local SQLite database
-- DB detection currently checks, in order:
-  - `OPENCODE_DB_PATH`
-  - `XDG_DATA_HOME/opencode/opencode.db`
-  - `~/.local/share/opencode/opencode.db`
-  - `~/Library/Application Support/opencode/opencode.db`
-- The most recently modified existing candidate is selected
+- **OpenCode** usage is read from a local SQLite database
+  - DB detection checks, in order:
+    - `OPENCODE_DB_PATH`
+    - `XDG_DATA_HOME/opencode/opencode.db`
+    - `~/.local/share/opencode/opencode.db`
+    - `~/Library/Application Support/opencode/opencode.db`
+  - The most recently modified existing candidate is selected
+- **Codex** usage is read from a local SQLite database
+  - DB detection checks, in order:
+    - `CODEX_DB_PATH` (must exist)
+    - Scans `~/.codex/` for `state_*.sqlite` files (e.g., `state_5.sqlite`, `state_6.sqlite`)
+    - Picks the file with the highest version number; ties broken by most recently modified
+  - Returns `nil` if no DB is found (Codex is optional)
+- **All** mode merges both sources in-memory via `AgentUsageSummary.merge()`
+  - Shows unioned project list, combined token totals, hidden session selector / context / by-model
 - Supported UI ranges are `All Time`, `Today`, `7 Days`, and `30 Days`
-- Supported scopes are global, project, and session
-- Model breakdown is shown for global and project scopes, not session scope
+- Supported scopes are global, project, and session (session not available in All mode)
+- Model breakdown is shown for global and project scopes, not session scope (and not in All mode)
 
 ---
 

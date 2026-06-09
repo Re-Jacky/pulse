@@ -1,6 +1,6 @@
 # Pulse
 
-A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in process manager, theme switching, and optional local agent usage analysis for OpenCode.
+A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in process manager, theme switching, and optional local agent usage analysis for OpenCode and Codex CLI.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Language](https://img.shields.io/badge/language-Swift-orange)
@@ -38,7 +38,7 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in 
 - **Overview tab** — animated gradient bars for CPU, Memory, and GPU with chip name and core count
 - **Processes tab** — live process list with CPU%, memory, and listening ports; search by **name, working directory, or port**; sort by name, CPU, or memory; kill any process
 - **Theme switching** — choose **System**, **Dark**, or **Light** in Settings; the preference is persisted in `UserDefaults`
-- **Agent Usage tab** — optional OpenCode token analysis with global, project, and session scopes; searchable selectors; `All Time`, `Today`, `7 Days`, and `30 Days` filters; model breakdown at global/project scope
+- **Agent Usage tab** — optional OpenCode and Codex CLI token analysis with **All**, **OpenCode**, and **Codex** source picker; global, project, and session scopes; searchable selectors; `All Time`, `Today`, `7 Days`, and `30 Days` filters; model breakdown at global/project scope (not available in All mode)
 - **Settings window** — reusable native macOS settings window, available from the menu or `Cmd+,`
 - **Agent Usage toggle** — disabled by default in Settings; enabling it adds the `Agent` tab and expands the panel for the denser layout
 - **Frosted glass panel** — `NSVisualEffectView` background with rounded corners and semantic colors for both dark and light appearance
@@ -98,7 +98,7 @@ To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut insi
 3. **Overview tab** — CPU / Memory / GPU bars refresh every 2 seconds
 4. **Processes tab** — type in the search box to filter by name, path, or port; click column headers to sort; right-click any row to kill it
 5. Open **Settings** to switch between System, Dark, and Light themes, and optionally enable **Agent Usage**
-6. If enabled, use the **Agent tab** to inspect OpenCode usage by time range, project, and session, or refresh the local DB snapshot manually
+6. If enabled, use the **Agent tab** to inspect agent usage across **All** sources or a specific source (OpenCode / Codex) by time range, project, and session, or refresh the local DB snapshot manually
 7. **Click anywhere outside** the panel to dismiss it
 8. **Right-click** the menu bar icon for Open/Close, Settings, and Quit
 
@@ -114,11 +114,15 @@ pulse/
 │   ├── main.swift              # AppKit entry point
 │   └── AppDelegate.swift       # NSStatusItem, InputPanel, context menu
 ├── Managers/
-│   ├── AppVersionInfo.swift    # Formats app and macOS version strings for Settings
-│   ├── AgentUsageSettings.swift # Persists whether Agent Usage is enabled
-│   ├── OpenCodeUsageModels.swift # Agent usage scopes, summaries, ranges, model breakdown
-│   ├── OpenCodeUsageStore.swift  # SQLite-backed OpenCode usage loader + DB detection
-│   └── ThemeManager.swift      # AppTheme enum + persisted theme preference
+│   ├── AppVersionInfo.swift          # Formats app and macOS version strings for Settings
+│   ├── AgentUsageSettings.swift      # Persists whether Agent Usage is enabled
+│   ├── AgentUsageModels.swift        # Shared types — AgentSource, AgentTimeRange, AgentScope, AgentUsageSummary
+│   ├── AgentUsageStore.swift         # Enum-routed ObservableObject combining both sources
+│   ├── OpenCodeUsageModels.swift     # OpenCode-specific session records, snapshot, model breakdown
+│   ├── OpenCodeUsageStore.swift      # OpenCodeUsageQuery enum — SQLite queries + DB path detection
+│   ├── CodexUsageModels.swift        # Codex-specific session records, snapshot, subagent edges, goals
+│   ├── CodexUsageQuery.swift         # Codex SQLite queries + DB path detection (scans state_*.sqlite)
+│   └── ThemeManager.swift            # AppTheme enum + persisted theme preference
 ├── Monitors/
 │   ├── SystemMonitor.swift     # ObservableObject, 2s timer, coordinates all monitors
 │   ├── CPUMonitor.swift        # Mach host_processor_info
@@ -129,8 +133,10 @@ pulse/
 │   ├── Colors.swift            # Color(hex:) extension + palette
 │   ├── MetricRowView.swift     # Animated gradient bar component
 │   ├── OverviewView.swift      # CPU / Memory / GPU overview
-│   ├── AgentUsageView.swift    # OpenCode usage UI
-│   ├── PopoverView.swift       # Root view, tab switcher, NSVisualEffectView
+│   ├── AgentUsageView.swift          # OpenCode + Codex usage UI, filters, cards, model breakdown
+│   ├── AgentSourcePicker.swift       # Three-way capsule toggle (All / OpenCode / Codex)
+│   ├── CodexSessionDetailView.swift  # Subagent edges + goals for a Codex session
+│   ├── PopoverView.swift             # Root view, tab switcher, NSVisualEffectView
 │   ├── ProcessListView.swift   # Filterable, sortable process table
 │   ├── ProcessRowView.swift    # Per-process row with kill context menu
 │   ├── SearchableSelectorView.swift # Searchable selector used by Agent Usage
@@ -197,18 +203,23 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
 
 ## Agent Usage
 
-- Currently supports **OpenCode** only
-- Reads usage from the local OpenCode SQLite database on demand
-- Auto-detects the DB path from:
+- Supports **OpenCode** and **Codex CLI** with a three-way source picker (**All** / **OpenCode** / **Codex**)
+- **All** mode merges usage from both sources in-memory, shows a combined summary and unioned project list, and hides session selector, context, and model breakdown
+- Reads usage from local SQLite databases on demand
+- **OpenCode** DB auto-detection (in order):
   - `OPENCODE_DB_PATH`
   - `XDG_DATA_HOME/opencode/opencode.db`
   - `~/.local/share/opencode/opencode.db`
   - `~/Library/Application Support/opencode/opencode.db`
-- Uses the most recently modified existing DB candidate
+  - Uses the most recently modified existing candidate
+- **Codex** DB auto-detection (in order):
+  - `CODEX_DB_PATH` (must exist)
+  - Scans `~/.codex/` for `state_*.sqlite` files — picks the highest version number, ties broken by most recently modified
+  - Returns `nil` if no DB is found (Codex is optional)
 - Supports these scopes:
   - `All Projects`
   - one selected project
-  - one selected session inside a project
+  - one selected session inside a project (not available in All mode)
 - Supports these time ranges:
   - `All Time`
   - `Today`
@@ -221,7 +232,8 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
   - reasoning
   - cache read
   - cache write
-- Includes a **By Model** breakdown for global and project scopes
+- Includes a **By Model** breakdown for global and project scopes (not available in All mode or session scope)
+- **Codex-specific**: subagent edge tracking, goal/budget display, reasoning effort
 - Does not auto-refresh in the background; load happens when the panel becomes visible or when you press **Refresh**
 
 ---
