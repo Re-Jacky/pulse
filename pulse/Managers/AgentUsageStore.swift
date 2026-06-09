@@ -41,21 +41,34 @@ final class AgentUsageStore: ObservableObject {
         self.codexDatabaseURL = codexURL
 
         var sources: [AgentSource] = []
+        var realSources: [AgentSource] = []
         if FileManager.default.fileExists(atPath: openCodeURL.path) {
-            sources.append(.openCode)
+            realSources.append(.openCode)
         }
         if let codexURL, FileManager.default.fileExists(atPath: codexURL.path) {
-            sources.append(.codex)
+            realSources.append(.codex)
         }
-        self.availableSources = sources.isEmpty ? [.openCode, .codex] : sources
+        if realSources.isEmpty {
+            realSources = [.openCode, .codex]
+        }
+        if realSources.count >= 2 {
+            sources = [.all] + realSources
+        } else {
+            sources = realSources
+        }
+        self.availableSources = sources
 
-        if availableSources.contains(.codex) && !availableSources.contains(.openCode) {
+        if realSources == [.codex] {
             selectedSource = .codex
+        } else if realSources.count >= 2 {
+            selectedSource = .all
         }
     }
 
     func refresh() {
         switch selectedSource {
+        case .all:
+            refreshAll()
         case .openCode:
             let firstLoad = openCodeHasLoaded == false
             if firstLoad { isLoading = true } else { isRefreshing = true }
@@ -99,8 +112,12 @@ final class AgentUsageStore: ObservableObject {
 
     func refreshIfNeeded() {
         switch selectedSource {
-        case .openCode where !openCodeHasLoaded: refresh()
-        case .codex where !codexHasLoaded: refresh()
+        case .all where !openCodeHasLoaded || !codexHasLoaded:
+            refreshAll()
+        case .openCode where !openCodeHasLoaded:
+            refresh()
+        case .codex where !codexHasLoaded:
+            refresh()
         default: break
         }
     }
@@ -108,16 +125,16 @@ final class AgentUsageStore: ObservableObject {
     func refreshAll() {
         if FileManager.default.fileExists(atPath: openCodeDatabaseURL.path) {
             let firstLoad = openCodeHasLoaded == false
-            if firstLoad && selectedSource == .openCode { isLoading = true }
-            else if selectedSource == .openCode { isRefreshing = true }
+        if firstLoad && (selectedSource == .openCode || selectedSource == .all) { isLoading = true }
+        else if selectedSource == .openCode || selectedSource == .all { isRefreshing = true }
 
             do {
                 openCodeSnapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: openCodeDatabaseURL)
-                if selectedSource == .openCode { lastError = nil }
+            if selectedSource == .openCode || selectedSource == .all { lastError = nil }
             } catch let error as OpenCodeUsageQuery.QueryError {
-                if selectedSource == .openCode { lastError = .openCode(error) }
+            if selectedSource == .openCode || selectedSource == .all { lastError = .openCode(error) }
             } catch {
-                if selectedSource == .openCode { lastError = .openCode(.queryStepFailed(message: error.localizedDescription)) }
+            if selectedSource == .openCode || selectedSource == .all { lastError = .openCode(.queryStepFailed(message: error.localizedDescription)) }
             }
 
             openCodeHasLoaded = true
@@ -166,6 +183,9 @@ final class AgentUsageStore: ObservableObject {
 
     var databasePath: String {
         switch selectedSource {
+        case .all:
+            let paths = [openCodeDatabaseURL.path, codexDatabaseURL?.path].compactMap { $0 }
+            return paths.joined(separator: " + ")
         case .openCode: return openCodeDatabaseURL.path
         case .codex: return codexDatabaseURL?.path ?? "Codex database not found"
         }
