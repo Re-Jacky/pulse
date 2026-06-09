@@ -19,6 +19,7 @@
 		100000000000000000000026 /* AgentUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000027 /* AgentUsageView.swift */; };
 		1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */; };
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
+		37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
 		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
@@ -83,6 +84,7 @@
 		AA000005000000000000001B /* ProcessMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMonitor.swift; sourceTree = "<group>"; };
 		AA0000AA000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexSessionDetailView.swift; sourceTree = "<group>"; };
 		D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageStore.swift; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 				100000000000000000000025 /* SearchableSelectorView.swift */,
 				9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */,
 				301784F7059433DCC99F2522 /* AgentSourcePicker.swift */,
+				B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -340,6 +343,7 @@
 				8C5A31BAE41545DC9F94B7F6 /* CodexUsageQuery.swift in Sources */,
 				BF2915F50115C7E2E9B4DEB8 /* AgentSourcePicker.swift in Sources */,
 				229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */,
+				37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
