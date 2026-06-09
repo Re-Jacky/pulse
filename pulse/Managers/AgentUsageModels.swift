@@ -1,6 +1,7 @@
 import Foundation
 
 enum AgentSource: String, CaseIterable, Identifiable {
+    case all = "all"
     case openCode = "opencode"
     case codex = "codex"
 
@@ -8,6 +9,7 @@ enum AgentSource: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .all: return "All"
         case .openCode: return "OpenCode"
         case .codex: return "Codex"
         }
@@ -57,4 +59,36 @@ struct AgentUsageSummary: Equatable {
     let sessionsCount: Int
     let cost: Double?
     let lastUpdated: Date?
+}
+
+extension AgentUsageSummary {
+    static func merge(_ a: AgentUsageSummary, _ b: AgentUsageSummary) -> AgentUsageSummary {
+        AgentUsageSummary(
+            totalTokens: a.totalTokens + b.totalTokens,
+            inputTokens: mergeOptional(a.inputTokens, b.inputTokens, +),
+            outputTokens: mergeOptional(a.outputTokens, b.outputTokens, +),
+            reasoningTokens: mergeOptional(a.reasoningTokens, b.reasoningTokens, +),
+            cacheReadTokens: mergeOptional(a.cacheReadTokens, b.cacheReadTokens, +),
+            cacheWriteTokens: mergeOptional(a.cacheWriteTokens, b.cacheWriteTokens, +),
+            sessionsCount: a.sessionsCount + b.sessionsCount,
+            cost: mergeOptional(a.cost, b.cost, +),
+            lastUpdated: {
+                switch (a.lastUpdated, b.lastUpdated) {
+                case let (a?, b?): return max(a, b)
+                case let (a?, nil): return a
+                case let (nil, b?): return b
+                case (nil, nil): return nil
+                }
+            }()
+        )
+    }
+
+    private static func mergeOptional<T: Numeric>(_ a: T?, _ b: T?, _ op: (T, T) -> T) -> T? {
+        switch (a, b) {
+        case let (a?, b?): return op(a, b)
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        case (nil, nil): return nil
+        }
+    }
 }
