@@ -14,10 +14,11 @@
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
+		100000000000000000000024 /* SearchableSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000025 /* SearchableSelectorView.swift */; };
+		100000000000000000000026 /* AgentUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000027 /* AgentUsageView.swift */; };
 		100000000000000000000010 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* AppVersionInfo.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
-		6ED711C9F9766810A7AD76B2 /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */; };
 		8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */; };
 		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
 		7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */; };
@@ -31,7 +32,6 @@
 		AA000004000000000000002A /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000004000000000000002B /* IOKit.framework */; };
 		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
-		E71FEFA784128F6BA5465B4F /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83F9C0E81B668992898B960 /* ProcessRowView.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 		AA0000AA000000000000001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000AA000000000000001B /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -54,6 +54,8 @@
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
+		100000000000000000000027 /* AgentUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageView.swift; sourceTree = "<group>"; };
 		100000000000000000000011 /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AppVersionInfo.swift; sourceTree = "<group>"; };
 		100000000000000000000004 /* pulseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
@@ -72,8 +74,6 @@
 		AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
-		DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
-		E83F9C0E81B668992898B960 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA0000AA000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,14 +114,14 @@
 		A38A27BDCD6368AA1E404A13 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				100000000000000000000027 /* AgentUsageView.swift */,
 				7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */,
 				F2862347E446D893F932051E /* MetricRowView.swift */,
 				74B9298B2AA19B4C00000002 /* OverviewView.swift */,
 				D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */,
 				D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */,
 				AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */,
-				E83F9C0E81B668992898B960 /* ProcessRowView.swift */,
-				DEF6E195363DBF0AC5F9C7A2 /* ProcessListView.swift */,
+				100000000000000000000025 /* SearchableSelectorView.swift */,
 				9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */,
 			);
 			name = Views;
@@ -309,11 +309,11 @@
 				D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */,
 				F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */,
 				74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */,
+				100000000000000000000026 /* AgentUsageView.swift in Sources */,
 				7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */,
 				87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */,
 				525A1EB1F76074255369A695 /* PopoverView.swift in Sources */,
-				E71FEFA784128F6BA5465B4F /* ProcessRowView.swift in Sources */,
-				6ED711C9F9766810A7AD76B2 /* ProcessListView.swift in Sources */,
+				100000000000000000000024 /* SearchableSelectorView.swift in Sources */,
 				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,
 				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
@@ -507,7 +507,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.example.pulse";
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -531,7 +531,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.4.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.example.pulse";
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;

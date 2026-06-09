@@ -1,5 +1,40 @@
 import Foundation
 
+enum OpenCodeTimeRange: String, CaseIterable, Identifiable {
+    case allTime = "all_time"
+    case today = "today"
+    case last7Days = "last_7_days"
+    case last30Days = "last_30_days"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .allTime:
+            return "All Time"
+        case .today:
+            return "Today"
+        case .last7Days:
+            return "7 Days"
+        case .last30Days:
+            return "30 Days"
+        }
+    }
+
+    func contains(_ date: Date, now: Date = Date()) -> Bool {
+        switch self {
+        case .allTime:
+            return true
+        case .today:
+            return Calendar.current.isDate(date, inSameDayAs: now)
+        case .last7Days:
+            return date >= now.addingTimeInterval(-7 * 24 * 60 * 60)
+        case .last30Days:
+            return date >= now.addingTimeInterval(-30 * 24 * 60 * 60)
+        }
+    }
+}
+
 enum OpenCodeScope: Equatable {
     case allProjects
     case project(directory: String)
@@ -75,6 +110,12 @@ struct OpenCodeUsageSnapshot: Equatable {
 
     init(sessions: [OpenCodeSessionRecord]) {
         self.sessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func filtered(to range: OpenCodeTimeRange, now: Date = Date()) -> OpenCodeUsageSnapshot {
+        OpenCodeUsageSnapshot(
+            sessions: sessions.filter { range.contains($0.updatedAt, now: now) }
+        )
     }
 
     var projectOptions: [OpenCodeProjectOption] {

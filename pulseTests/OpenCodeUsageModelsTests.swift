@@ -162,4 +162,98 @@ final class OpenCodeUsageModelsTests: XCTestCase {
         XCTAssertEqual(summary.cacheWriteTokens, 2)
         XCTAssertEqual(summary.sessionsCount, 1)
     }
+
+    func testTimeRangeFilteringKeepsOnlyRecentSessions() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let recent = OpenCodeSessionRecord(
+            id: "recent",
+            title: "Recent",
+            directory: "/Users/zyao/Desktop/pulse",
+            agent: "build",
+            modelProviderID: "opencode",
+            modelID: "model-a",
+            modelVariant: nil,
+            inputTokens: 10,
+            outputTokens: 5,
+            reasoningTokens: 1,
+            cacheReadTokens: 20,
+            cacheWriteTokens: 2,
+            cost: 0,
+            createdAt: now.addingTimeInterval(-2 * 24 * 60 * 60),
+            updatedAt: now.addingTimeInterval(-2 * 24 * 60 * 60)
+        )
+        let old = OpenCodeSessionRecord(
+            id: "old",
+            title: "Old",
+            directory: "/Users/zyao/Desktop/pulse",
+            agent: "build",
+            modelProviderID: "opencode",
+            modelID: "model-b",
+            modelVariant: nil,
+            inputTokens: 100,
+            outputTokens: 50,
+            reasoningTokens: 10,
+            cacheReadTokens: 200,
+            cacheWriteTokens: 20,
+            cost: 0,
+            createdAt: now.addingTimeInterval(-20 * 24 * 60 * 60),
+            updatedAt: now.addingTimeInterval(-20 * 24 * 60 * 60)
+        )
+
+        let snapshot = OpenCodeUsageSnapshot(sessions: [recent, old])
+        let filtered = snapshot.filtered(to: .last7Days, now: now)
+
+        XCTAssertEqual(filtered.sessions.map(\.id), ["recent"])
+        XCTAssertEqual(filtered.summary(for: .allProjects).totalTokens, recent.totalTokens)
+    }
+
+    func testTodayTimeRangeKeepsOnlySameCalendarDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let now = calendar.date(from: DateComponents(year: 2026, month: 6, day: 9, hour: 10, minute: 0))!
+        let sameDay = now.addingTimeInterval(-2 * 60 * 60)
+        let previousDay = calendar.date(byAdding: .day, value: -1, to: now)!
+
+        let todaySession = OpenCodeSessionRecord(
+            id: "today",
+            title: "Today",
+            directory: "/Users/zyao/Desktop/pulse",
+            agent: "build",
+            modelProviderID: "opencode",
+            modelID: "model-a",
+            modelVariant: nil,
+            inputTokens: 10,
+            outputTokens: 5,
+            reasoningTokens: 1,
+            cacheReadTokens: 20,
+            cacheWriteTokens: 2,
+            cost: 0,
+            createdAt: sameDay,
+            updatedAt: sameDay
+        )
+        let oldSession = OpenCodeSessionRecord(
+            id: "yesterday",
+            title: "Yesterday",
+            directory: "/Users/zyao/Desktop/pulse",
+            agent: "build",
+            modelProviderID: "opencode",
+            modelID: "model-b",
+            modelVariant: nil,
+            inputTokens: 100,
+            outputTokens: 50,
+            reasoningTokens: 10,
+            cacheReadTokens: 200,
+            cacheWriteTokens: 20,
+            cost: 0,
+            createdAt: previousDay,
+            updatedAt: previousDay
+        )
+
+        let snapshot = OpenCodeUsageSnapshot(sessions: [todaySession, oldSession])
+        let filtered = snapshot.filtered(to: .today, now: now)
+
+        XCTAssertEqual(filtered.sessions.map(\.id), ["today"])
+        XCTAssertEqual(filtered.summary(for: .allProjects).totalTokens, todaySession.totalTokens)
+    }
 }

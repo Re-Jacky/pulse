@@ -62,6 +62,46 @@ final class OpenCodeUsageStoreTests: XCTestCase {
         }
     }
 
+    func testResolveDatabaseURLPrefersExistingCandidate() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let appSupport = root.appendingPathComponent("Library/Application Support")
+        let localDB = home.appendingPathComponent(".local/share/opencode/opencode.db")
+        let appSupportDB = appSupport.appendingPathComponent("opencode/opencode.db")
+
+        try FileManager.default.createDirectory(at: localDB.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: appSupportDB.deletingLastPathComponent(), withIntermediateDirectories: true)
+        XCTAssertTrue(FileManager.default.createFile(atPath: localDB.path, contents: Data()))
+        XCTAssertTrue(FileManager.default.createFile(atPath: appSupportDB.path, contents: Data()))
+
+        let chosen = OpenCodeUsageStore.resolveDatabaseURL(
+            environment: [:],
+            fileManager: .default,
+            homeDirectoryURL: home,
+            applicationSupportDirectory: appSupport
+        )
+
+        XCTAssertEqual(chosen.path, appSupportDB.path)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testCandidateDatabaseURLsIncludeXDGAndCommonFallbacks() {
+        let home = URL(fileURLWithPath: "/tmp/home")
+        let appSupport = URL(fileURLWithPath: "/tmp/app-support")
+
+        let candidates = OpenCodeUsageStore.candidateDatabaseURLs(
+            environment: ["XDG_DATA_HOME": "/tmp/xdg-data"],
+            homeDirectoryURL: home,
+            applicationSupportDirectory: appSupport
+        )
+
+        XCTAssertEqual(candidates.map(\.path), [
+            "/tmp/xdg-data/opencode/opencode.db",
+            "/tmp/home/.local/share/opencode/opencode.db",
+            "/tmp/app-support/opencode/opencode.db"
+        ])
+    }
+
     private func makeDatabase(named name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         if FileManager.default.fileExists(atPath: url.path) {

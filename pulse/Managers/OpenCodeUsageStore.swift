@@ -31,12 +31,75 @@ final class OpenCodeUsageStore: ObservableObject {
 
     let databaseURL: URL
 
-    init(databaseURL: URL = OpenCodeUsageStore.defaultDatabaseURL) {
-        self.databaseURL = databaseURL
+    init(databaseURL: URL? = nil) {
+        self.databaseURL = databaseURL ?? OpenCodeUsageStore.resolveDatabaseURL()
     }
 
     static var defaultDatabaseURL: URL {
         URL(fileURLWithPath: NSString(string: "~/.local/share/opencode/opencode.db").expandingTildeInPath)
+    }
+
+    static func candidateDatabaseURLs(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationSupportDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    ) -> [URL] {
+        var candidates: [URL] = []
+
+        if let explicitPath = environment["OPENCODE_DB_PATH"], explicitPath.isEmpty == false {
+            candidates.append(URL(fileURLWithPath: NSString(string: explicitPath).expandingTildeInPath))
+        }
+
+        if let xdgDataHome = environment["XDG_DATA_HOME"], xdgDataHome.isEmpty == false {
+            candidates.append(
+                URL(fileURLWithPath: NSString(string: xdgDataHome).expandingTildeInPath)
+                    .appendingPathComponent("opencode")
+                    .appendingPathComponent("opencode.db")
+            )
+        }
+
+        candidates.append(
+            homeDirectoryURL
+                .appendingPathComponent(".local")
+                .appendingPathComponent("share")
+                .appendingPathComponent("opencode")
+                .appendingPathComponent("opencode.db")
+        )
+
+        if let applicationSupportDirectory {
+            candidates.append(
+                applicationSupportDirectory
+                    .appendingPathComponent("opencode")
+                    .appendingPathComponent("opencode.db")
+            )
+        }
+
+        var seenPaths = Set<String>()
+        return candidates.filter { seenPaths.insert($0.path).inserted }
+    }
+
+    static func resolveDatabaseURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationSupportDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    ) -> URL {
+        let candidates = candidateDatabaseURLs(
+            environment: environment,
+            homeDirectoryURL: homeDirectoryURL,
+            applicationSupportDirectory: applicationSupportDirectory
+        )
+
+        let existingCandidates = candidates.filter { fileManager.fileExists(atPath: $0.path) }
+        guard existingCandidates.isEmpty == false else {
+            return candidates.first ?? defaultDatabaseURL
+        }
+
+        return existingCandidates.max { lhs, rhs in
+            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return lhsDate < rhsDate
+        } ?? existingCandidates[0]
     }
 
     func refresh() {

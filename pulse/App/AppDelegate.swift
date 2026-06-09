@@ -2,6 +2,22 @@ import AppKit
 import Combine
 import SwiftUI
 
+private enum PanelMetrics {
+    static let selectedTabDefaultsKey = "selectedTab"
+    static let baseWidth: CGFloat = 300
+    static let agentWidth: CGFloat = 460
+    static let baseHeight: CGFloat = 420
+    static let agentHeight: CGFloat = baseHeight * 2
+    static let baseMinWidth: CGFloat = 280
+    static let agentMinWidth: CGFloat = 420
+    static let baseMinHeight: CGFloat = 320
+    static let agentMinHeight: CGFloat = baseMinHeight * 2
+}
+
+extension Notification.Name {
+    static let pulsePanelTabDidChange = Notification.Name("pulsePanelTabDidChange")
+}
+
 private final class InputPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -17,7 +33,20 @@ private final class InputPanel: NSPanel {
         )
         let isZoomed = abs(frame.width - target.width) < 2 && abs(frame.height - target.height) < 2
         if isZoomed {
-            setFrame(NSRect(x: current.origin.x, y: screen.visibleFrame.maxY - 420, width: 300, height: 420), display: true, animate: true)
+            let agentEnabled = UserDefaults.standard.object(forKey: AgentUsageSettings.userDefaultsKey) as? Bool == true
+            let selectedTab = UserDefaults.standard.integer(forKey: PanelMetrics.selectedTabDefaultsKey)
+            let targetWidth = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+            let targetHeight = agentEnabled && selectedTab == 2 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
+            setFrame(
+                NSRect(
+                    x: current.origin.x,
+                    y: screen.visibleFrame.maxY - targetHeight,
+                    width: targetWidth,
+                    height: targetHeight
+                ),
+                display: true,
+                animate: true
+            )
         } else {
             setFrame(target, display: true, animate: true)
         }
@@ -32,11 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var cancellables = Set<AnyCancellable>()
     private let monitor = SystemMonitor()
     private let themeManager = ThemeManager()
+    private let agentUsageSettings = AgentUsageSettings()
+    private let openCodeUsageStore = OpenCodeUsageStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupMainMenu()
         setupThemeObservation()
+        setupFeatureObservation()
+        setupPanelObservation()
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
@@ -101,6 +134,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let p = makePanel()
         panel = p
 
+        if agentUsageSettings.isEnabled {
+            openCodeUsageStore.refresh()
+        }
+
         if let button = statusItem.button,
            let screen = button.window?.screen ?? NSScreen.main {
             let buttonRect = button.convert(button.bounds, to: nil)
@@ -146,6 +183,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .store(in: &cancellables)
     }
 
+    private func setupFeatureObservation() {
+        agentUsageSettings.$isEnabled
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isEnabled in
+                self?.updatePanelLayout(agentEnabled: isEnabled, selectedTab: self?.currentSelectedTab ?? 0, animated: true)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func setupPanelObservation() {
+        NotificationCenter.default.publisher(for: .pulsePanelTabDidChange)
+            .compactMap { $0.object as? Int }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] selectedTab in
+                guard let self else { return }
+                updatePanelLayout(agentEnabled: agentUsageSettings.isEnabled, selectedTab: selectedTab, animated: true)
+            }
+            .store(in: &cancellables)
+    }
+
     private func applyCurrentTheme() {
         let appearance = themeManager.currentTheme.nsAppearance
         panel?.appearance = appearance
@@ -157,8 +214,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func makePanel() -> InputPanel {
+        let metrics = panelMetrics(agentEnabled: agentUsageSettings.isEnabled, selectedTab: currentSelectedTab)
         let p = InputPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: metrics.width, height: metrics.height),
             styleMask: [.borderless, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -169,7 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         p.isMovableByWindowBackground = false
         p.isReleasedWhenClosed = false
         p.hidesOnDeactivate = false
-        p.minSize = NSSize(width: 280, height: 320)
+        p.minSize = NSSize(width: metrics.minWidth, height: metrics.minHeight)
         p.appearance = themeManager.currentTheme.nsAppearance
         p.backgroundColor = .clear
         p.isOpaque = false
@@ -178,6 +236,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             rootView: PopoverView()
                 .environmentObject(monitor)
                 .environmentObject(themeManager)
+                .environmentObject(agentUsageSettings)
+                .environmentObject(openCodeUsageStore)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
@@ -188,6 +248,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             contentView.layer?.masksToBounds = true
         }
         return p
+    }
+
+    private var currentSelectedTab: Int {
+        UserDefaults.standard.integer(forKey: PanelMetrics.selectedTabDefaultsKey)
+    }
+
+    private func panelMetrics(agentEnabled: Bool, selectedTab: Int) -> (width: CGFloat, height: CGFloat, minWidth: CGFloat, minHeight: CGFloat) {
+        let width = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+        let minWidth = agentEnabled ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
+        let isAgentTabActive = agentEnabled && selectedTab == 2
+        let height = isAgentTabActive ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
+        let minHeight = isAgentTabActive ? PanelMetrics.agentMinHeight : PanelMetrics.baseMinHeight
+        return (width, height, minWidth, minHeight)
+    }
+
+    private func updatePanelLayout(agentEnabled: Bool, selectedTab: Int, animated: Bool) {
+        guard let panel else { return }
+
+        let metrics = panelMetrics(agentEnabled: agentEnabled, selectedTab: selectedTab)
+        var frame = panel.frame
+        guard abs(frame.width - metrics.width) > 1 || abs(frame.height - metrics.height) > 1 else {
+            panel.minSize = NSSize(width: metrics.minWidth, height: metrics.minHeight)
+            return
+        }
+
+        let topEdge = frame.maxY
+        let midX = frame.midX
+        frame.size.width = metrics.width
+        frame.size.height = metrics.height
+        frame.origin.x = midX - metrics.width / 2
+        frame.origin.y = topEdge - metrics.height
+        panel.setFrame(frame, display: true, animate: animated)
+        panel.minSize = NSSize(width: metrics.minWidth, height: metrics.minHeight)
     }
 
     private func showContextMenu() {
@@ -244,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let controller = NSHostingController(
             rootView: SettingsView()
                 .environmentObject(themeManager)
+                .environmentObject(agentUsageSettings)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller
