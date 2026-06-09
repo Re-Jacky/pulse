@@ -22,6 +22,11 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in 
       <img src="docs/images/preview-settings.png" width="300" alt="Pulse — Settings tab" />
     </td>
   </tr>
+  <tr>
+    <td valign="middle">
+      <img src="docs/images/preview-agent.png" width="300" alt="Pulse — Agent tab" />
+    </td>
+  </tr>
 </table>
 
 ---
@@ -131,8 +136,26 @@ pulse/
 │   ├── SearchableSelectorView.swift # Searchable selector used by Agent Usage
 │   └── SettingsView.swift      # Native settings window with theme selector and version info
 └── scripts/
-    └── build-dmg.sh            # hdiutil-based DMG packager
+    ├── build-dmg.sh            # hdiutil-based DMG packager
+    └── fix_screenshot_corners.py # Makes rounded-corner screenshot bleed transparent
 ```
+
+### Screenshot Asset Cleanup
+
+If a preview PNG shows dark/black corner bleed around a rounded screenshot, run:
+
+```bash
+python3 -m pip install pillow
+python3 scripts/fix_screenshot_corners.py docs/images/preview-agent.png
+```
+
+You can pass multiple PNGs at once:
+
+```bash
+python3 scripts/fix_screenshot_corners.py docs/images/preview-overview.png docs/images/preview-processes.png docs/images/preview-settings.png
+```
+
+The script updates files in place and makes corner-connected dark bleed pixels transparent.
 
 ---
 
