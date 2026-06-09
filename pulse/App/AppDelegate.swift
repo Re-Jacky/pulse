@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let monitor = SystemMonitor()
     private let themeManager = ThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
-    private let openCodeUsageStore = OpenCodeUsageStore()
+    private let agentUsageStore = AgentUsageStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -134,9 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let p = makePanel()
         panel = p
 
-        if agentUsageSettings.isEnabled {
-            openCodeUsageStore.refresh()
-        }
+		if agentUsageSettings.isEnabled {
+			agentUsageStore.refreshAll()
+		}
 
         if let button = statusItem.button,
            let screen = button.window?.screen ?? NSScreen.main {
@@ -237,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(monitor)
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
-                .environmentObject(openCodeUsageStore)
+                .environmentObject(agentUsageStore)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
