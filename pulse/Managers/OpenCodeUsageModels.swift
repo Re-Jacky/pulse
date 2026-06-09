@@ -1,46 +1,5 @@
 import Foundation
 
-enum OpenCodeTimeRange: String, CaseIterable, Identifiable {
-    case allTime = "all_time"
-    case today = "today"
-    case last7Days = "last_7_days"
-    case last30Days = "last_30_days"
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .allTime:
-            return "All Time"
-        case .today:
-            return "Today"
-        case .last7Days:
-            return "7 Days"
-        case .last30Days:
-            return "30 Days"
-        }
-    }
-
-    func contains(_ date: Date, now: Date = Date()) -> Bool {
-        switch self {
-        case .allTime:
-            return true
-        case .today:
-            return Calendar.current.isDate(date, inSameDayAs: now)
-        case .last7Days:
-            return date >= now.addingTimeInterval(-7 * 24 * 60 * 60)
-        case .last30Days:
-            return date >= now.addingTimeInterval(-30 * 24 * 60 * 60)
-        }
-    }
-}
-
-enum OpenCodeScope: Equatable {
-    case allProjects
-    case project(directory: String)
-    case session(projectDirectory: String, sessionID: String)
-}
-
 struct OpenCodeSessionRecord: Identifiable, Equatable {
     let id: String
     let title: String
@@ -67,42 +26,30 @@ struct OpenCodeSessionRecord: Identifiable, Equatable {
     }
 }
 
-struct OpenCodeUsageSummary: Equatable {
-    let totalTokens: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let reasoningTokens: Int
-    let cacheReadTokens: Int
-    let cacheWriteTokens: Int
-    let sessionsCount: Int
-    let cost: Double
-    let lastUpdated: Date?
-}
-
 struct OpenCodeProjectOption: Identifiable, Equatable {
-    let id: String
-    let directory: String
-    let shortName: String
-    let summary: OpenCodeUsageSummary
+let id: String
+let directory: String
+let shortName: String
+let summary: AgentUsageSummary
 }
 
 struct OpenCodeSessionOption: Identifiable, Equatable {
-    let id: String
-    let title: String
-    let directory: String
-    let agent: String
-    let modelDisplayName: String
-    let summary: OpenCodeUsageSummary
-    let updatedAt: Date
+let id: String
+let title: String
+let directory: String
+let agent: String
+let modelDisplayName: String
+let summary: AgentUsageSummary
+let updatedAt: Date
 }
 
 struct OpenCodeModelBreakdown: Identifiable, Equatable {
-    var id: String { [providerID, modelID, variant ?? ""].joined(separator: "::") }
+var id: String { [providerID, modelID, variant ?? ""].joined(separator: "::") }
 
-    let providerID: String
-    let modelID: String
-    let variant: String?
-    let summary: OpenCodeUsageSummary
+let providerID: String
+let modelID: String
+let variant: String?
+let summary: AgentUsageSummary
 }
 
 struct OpenCodeUsageSnapshot: Equatable {
@@ -112,7 +59,7 @@ struct OpenCodeUsageSnapshot: Equatable {
         self.sessions = sessions.sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    func filtered(to range: OpenCodeTimeRange, now: Date = Date()) -> OpenCodeUsageSnapshot {
+    func filtered(to range: AgentTimeRange, now: Date = Date()) -> OpenCodeUsageSnapshot {
         OpenCodeUsageSnapshot(
             sessions: sessions.filter { range.contains($0.updatedAt, now: now) }
         )
@@ -162,7 +109,7 @@ struct OpenCodeUsageSnapshot: Equatable {
             }
     }
 
-    func summary(for scope: OpenCodeScope) -> OpenCodeUsageSummary {
+    func summary(for scope: AgentScope) -> AgentUsageSummary {
         switch scope {
         case .allProjects:
             return Self.makeSummary(from: sessions)
@@ -173,7 +120,7 @@ struct OpenCodeUsageSnapshot: Equatable {
         }
     }
 
-    func modelBreakdown(for scope: OpenCodeScope) -> [OpenCodeModelBreakdown] {
+    func modelBreakdown(for scope: AgentScope) -> [OpenCodeModelBreakdown] {
         let source: [OpenCodeSessionRecord]
 
         switch scope {
@@ -206,19 +153,19 @@ struct OpenCodeUsageSnapshot: Equatable {
         }
     }
 
-    static func makeSummary(from sessions: [OpenCodeSessionRecord]) -> OpenCodeUsageSummary {
-        OpenCodeUsageSummary(
-            totalTokens: sessions.reduce(0) { $0 + $1.totalTokens },
-            inputTokens: sessions.reduce(0) { $0 + $1.inputTokens },
-            outputTokens: sessions.reduce(0) { $0 + $1.outputTokens },
-            reasoningTokens: sessions.reduce(0) { $0 + $1.reasoningTokens },
-            cacheReadTokens: sessions.reduce(0) { $0 + $1.cacheReadTokens },
-            cacheWriteTokens: sessions.reduce(0) { $0 + $1.cacheWriteTokens },
-            sessionsCount: sessions.count,
-            cost: sessions.reduce(0) { $0 + $1.cost },
-            lastUpdated: sessions.map(\.updatedAt).max()
-        )
-    }
+static func makeSummary(from sessions: [OpenCodeSessionRecord]) -> AgentUsageSummary {
+AgentUsageSummary(
+totalTokens: sessions.reduce(0) { $0 + $1.totalTokens },
+inputTokens: sessions.reduce(0) { $0 + $1.inputTokens },
+outputTokens: sessions.reduce(0) { $0 + $1.outputTokens },
+reasoningTokens: sessions.reduce(0) { $0 + $1.reasoningTokens },
+cacheReadTokens: sessions.reduce(0) { $0 + $1.cacheReadTokens },
+cacheWriteTokens: sessions.reduce(0) { $0 + $1.cacheWriteTokens },
+sessionsCount: sessions.count,
+cost: sessions.reduce(0) { $0 + $1.cost },
+lastUpdated: sessions.map(\.updatedAt).max()
+)
+}
 
     static func modelDisplayName(providerID: String, modelID: String, variant: String?) -> String {
         guard let variant, variant.isEmpty == false else {
