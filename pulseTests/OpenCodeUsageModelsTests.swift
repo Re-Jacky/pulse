@@ -1,5 +1,5 @@
 import XCTest
-@testable import pulse
+@testable import Pulse
 
 final class OpenCodeUsageModelsTests: XCTestCase {
     func testSessionTotalTokensAddsEveryTokenBucket() {
