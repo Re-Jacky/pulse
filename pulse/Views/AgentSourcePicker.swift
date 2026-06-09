@@ -16,9 +16,10 @@ struct AgentSourcePicker: View {
                         .foregroundColor(source == selectedSource ? .appPrimaryText : .appSecondaryText)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(source == selectedSource ? Color.accentColor.opacity(0.18) : Color.clear)
-                }
-                .buttonStyle(.plain)
+                    .background(source == selectedSource ? Color.accentColor.opacity(0.18) : Color.clear)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             }
         }
         .clipShape(Capsule())
