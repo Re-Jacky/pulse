@@ -25,24 +25,39 @@ enum CodexUsageQuery {
 
     static func resolveDatabaseURL(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
     ) -> URL? {
         if let explicitPath = environment["CODEX_DB_PATH"], explicitPath.isEmpty == false {
             let url = URL(fileURLWithPath: NSString(string: explicitPath).expandingTildeInPath)
-            if FileManager.default.fileExists(atPath: url.path) {
+            if fileManager.fileExists(atPath: url.path) {
                 return url
             }
         }
 
-        let defaultPath = homeDirectoryURL
-            .appendingPathComponent(".codex")
-            .appendingPathComponent("state_5.sqlite")
+        let codexDir = homeDirectoryURL.appendingPathComponent(".codex")
+        let statePattern = "state_*.sqlite"
 
-        guard FileManager.default.fileExists(atPath: defaultPath.path) else {
+        guard let contents = try? fileManager.contentsOfDirectory(at: codexDir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
             return nil
         }
 
-        return defaultPath
+        let stateDBs = contents.filter { url in
+            url.lastPathComponent.matchingStateDB(pattern: statePattern)
+        }
+
+        guard stateDBs.isEmpty == false else {
+            return nil
+        }
+
+        return stateDBs.max { lhs, rhs in
+            let lhsVersion = lhs.lastPathComponent.stateDBVersion
+            let rhsVersion = rhs.lastPathComponent.stateDBVersion
+            if lhsVersion != rhsVersion { return lhsVersion < rhsVersion }
+            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return lhsDate < rhsDate
+        }
     }
 
     static func loadSnapshot(databaseURL: URL) throws -> CodexUsageSnapshot {
@@ -236,4 +251,17 @@ private func stringColumn(_ statement: OpaquePointer?, index: Int32) -> String {
 private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> String? {
     let value = stringColumn(statement, index: index)
     return value.isEmpty ? nil : value
+}
+
+private extension String {
+    var stateDBVersion: Int {
+        let pattern = /^state_(\d+)\.sqlite$/
+        guard let match = try? pattern.firstMatch(in: self) else { return -1 }
+        return Int(match.1) ?? -1
+    }
+
+    func matchingStateDB(pattern: String) -> Bool {
+        let pattern = /^state_\d+\.sqlite$/
+        return (try? pattern.firstMatch(in: self)) != nil
+    }
 }
