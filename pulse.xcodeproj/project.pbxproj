@@ -61,13 +61,13 @@
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
 		100000000000000000000027 /* AgentUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageView.swift; sourceTree = "<group>"; };
-		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexUsageQuery.swift; sourceTree = "<group>"; };
+		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
-		8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageModels.swift; sourceTree = "<group>"; };
+		8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageModels.swift; sourceTree = "<group>"; };
 		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A555DA5BBA52686079843F84 /* CodexUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexUsageModels.swift; sourceTree = "<group>"; };
+		A555DA5BBA52686079843F84 /* CodexUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageModels.swift; sourceTree = "<group>"; };
 		AA000001000000000000001B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AA000001000000000000002B /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AA000001000000000000003B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
