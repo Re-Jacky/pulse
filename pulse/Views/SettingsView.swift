@@ -124,7 +124,10 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(selectedSection == section ? Color.accentColor.opacity(0.14) : .clear)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(Rectangle())
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .buttonStyle(.plain)
+        .focusEffectDisabled()
     }
 }
