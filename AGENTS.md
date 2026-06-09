@@ -10,6 +10,7 @@ Agent configuration and codebase context for AI assistants working on this proje
 - **Language**: Swift 5.9+, macOS 14.0+ target (Sonoma; `MACOSX_DEPLOYMENT_TARGET = 14.0` in pbxproj)
 - **Dependencies**: None — pure Apple frameworks only (AppKit, SwiftUI, IOKit, Foundation)
 - **Entry point**: `pulse/App/main.swift` → `AppDelegate`
+- **Optional feature**: Agent Usage panel for local OpenCode token analysis
 
 ---
 
@@ -37,17 +38,25 @@ AppDelegate (NSStatusItem + InputPanel)
   └── PopoverView (SwiftUI root, tab switcher)
         ├── OverviewView    (CPU / Memory / GPU bars)
         └── ProcessListView (search / sort / kill)
+        └── AgentUsageView  (OpenCode usage filters + analysis cards)
 
 SystemMonitor (ObservableObject, 2s Timer)
   ├── CPUMonitor      → host_processor_info
   ├── MemoryMonitor   → host_statistics64
   ├── GPUMonitor      → IOKit IOAccelerator
   └── ProcessMonitor  → BSD proc APIs + kill(2)
+
+OpenCodeUsageStore (ObservableObject, manual refresh)
+  ├── DB path auto-detection
+  ├── SQLite reads from local OpenCode session DB
+  └── Aggregates global / project / session token usage
 ```
 
 `SystemMonitor` is the single source of truth. Instantiated once in `AppDelegate`, injected via `.environmentObject(monitor)`. All views read it via `@EnvironmentObject`.
 
 `ThemeManager` is a second `ObservableObject` instantiated in `AppDelegate` and injected the same way — views receive it via `@EnvironmentObject var themeManager: ThemeManager`. It persists the selected `AppTheme` (.system/.dark/.light) to `UserDefaults` under key `"appTheme"`.
+
+`OpenCodeUsageStore` is also instantiated once in `AppDelegate` and injected as an `@EnvironmentObject`. It is refresh-on-open / refresh-on-demand only; there is no background polling.
 
 Settings are managed separately from the main panel: `AppDelegate` owns a reusable `NSWindow` for `SettingsView`. The app temporarily uses `.regular` activation while that window is open so standard window behavior works (`Cmd+W`, focus, resize), then returns to `.accessory` when both the settings window and main panel are closed.
 
@@ -64,13 +73,18 @@ Settings are managed separately from the main panel: `AppDelegate` owns a reusab
 | `Monitors/MemoryMonitor.swift` | Memory used/total in GB |
 | `Monitors/GPUMonitor.swift` | GPU usage % via IOKit |
 | `Monitors/ProcessMonitor.swift` | Process list, port enrichment, kill |
+| `Managers/OpenCodeUsageModels.swift` | Agent usage scopes, summaries, time ranges, model breakdowns |
+| `Managers/OpenCodeUsageStore.swift` | SQLite-backed OpenCode usage loader + DB path detection |
 | `Views/Colors.swift` | Color(hex:) + brand palette |
 | `Views/MetricRowView.swift` | Animated gradient bar (reusable) |
 | `Views/OverviewView.swift` | Three metric rows |
+| `Views/AgentUsageView.swift` | OpenCode usage UI, filters, cards, model breakdown |
 | `Views/PopoverView.swift` | Root view, tab switcher, NSVisualEffectView |
 | `Views/ProcessListView.swift` | Filterable, sortable process table |
 | `Views/ProcessRowView.swift` | Single process row + kill context menu |
+| `Views/SearchableSelectorView.swift` | Searchable project/session picker used by Agent Usage |
 | `Views/SettingsView.swift` | Two-pane settings window content (left sidebar, right detail pane) |
+| `Managers/AgentUsageSettings.swift` | Persists whether Agent Usage is enabled |
 | `Managers/ThemeManager.swift` | `AppTheme` enum + `ObservableObject` persisting theme choice |
 | `scripts/build-dmg.sh` | hdiutil-based DMG packager |
 
@@ -86,6 +100,7 @@ The main window is `InputPanel`, a custom `NSPanel` subclass in `AppDelegate.swi
 - **Activation**: opens with `setActivationPolicy(.regular)` → `activate` → `makeKeyAndOrderFront`, then immediately reverts to `.accessory` via `DispatchQueue.main.async` — keyboard works, no Dock icon appears
 - **Zoom**: overrides `zoom(_:)` to scale 1.5× width / 2× height instead of going fullscreen
 - **Dismiss**: global `NSEvent` monitor closes panel on outside click
+- **Dynamic sizing**: width expands when Agent Usage is enabled, and height expands when the `Agent` tab is active
 
 ## Settings Window
 
@@ -95,14 +110,13 @@ The main window is `InputPanel`, a custom `NSPanel` subclass in `AppDelegate.swi
 - **Resizable**: window min size is `520x280`; `SettingsView` must not hard-code a fixed outer width/height or horizontal resizing breaks
 - The app must stay `.regular` while the settings window is open; reverting to `.accessory` too early causes the window to flash to front and immediately fall behind
 - `Cmd+W` works through the `Window` menu wired in `AppDelegate.setupMainMenu()`; avoid adding the same `NSMenuItem` to multiple menus or AppKit will crash with `NSInternalInconsistencyException`
+- `Agent Usage` lives in Settings and defaults to off; enabling it reveals the `Agent` tab in the main panel
 
 ---
 
 ## Adding Files to the Xcode Project
 
 When adding new Swift files, use `add_files.rb` (at repo root) or manually add entries to `project.pbxproj`. Do **not** just create the file on disk — Xcode will not compile it unless it appears in the Sources build phase.
-
-The `project.pbxproj` currently has duplicate `PBXFileReference` entries for `ProcessRowView.swift` and `ProcessListView.swift` (two UUIDs each). Only the first UUID in the Sources phase is compiled. This is benign but do not replicate the pattern.
 
 ---
 
@@ -120,12 +134,14 @@ The `project.pbxproj` currently has duplicate `PBXFileReference` entries for `Pr
 - Tab switching uses `.opacity` + `.allowsHitTesting` (not `if/else`) so the tab bar never shifts position
 - Theme changes force SwiftUI refresh at the root via `.id(themeManager.currentTheme)` on the main panel/settings root views; without that, AppKit appearance can update but SwiftUI content may not redraw until the panel is recreated
 - Use semantic colors from `Views/Colors.swift` (`appPrimaryText`, `appDivider`, etc.) instead of hard-coded `.white.opacity(...)` so light mode stays readable
+- Agent Usage filter state is persisted with `@AppStorage` so the last project, session, and time range survive reopen
 
 ### No-gos (hard constraints)
 - **No external dependencies** — no SPM packages, no CocoaPods
 - **No force casts** — no `as! AnyObject` to suppress errors
 - **No disk/network/battery monitoring** — scope is CPU + Memory + GPU + Processes only
 - **No Dock icon** — `LSUIElement = true` must stay; activation policy trick must not leave `.regular` permanently
+- **No automatic agent polling** — Agent Usage loads on panel visibility / manual refresh only
 
 ---
 
@@ -151,6 +167,8 @@ In `AppDelegate.makePanel()`, adjust the `contentRect`:
 contentRect: NSRect(x: 0, y: 0, width: 300, height: 420)
 ```
 
+If Agent Usage sizing changed unexpectedly, also check the sizing helpers in `AppDelegate` and the selected tab persistence in `PopoverView`.
+
 ### Change the menu bar icon
 
 In `AppDelegate.applicationDidFinishLaunching`:
@@ -175,6 +193,19 @@ window.minSize = NSSize(width: 520, height: 280)
 ```
 
 If resizing feels capped, check `SettingsView` for fixed outer frames before changing AppKit code.
+
+### Agent Usage data source
+
+- OpenCode usage is read from a local SQLite database
+- DB detection currently checks, in order:
+  - `OPENCODE_DB_PATH`
+  - `XDG_DATA_HOME/opencode/opencode.db`
+  - `~/.local/share/opencode/opencode.db`
+  - `~/Library/Application Support/opencode/opencode.db`
+- The most recently modified existing candidate is selected
+- Supported UI ranges are `All Time`, `Today`, `7 Days`, and `30 Days`
+- Supported scopes are global, project, and session
+- Model breakdown is shown for global and project scopes, not session scope
 
 ---
 
