@@ -61,6 +61,44 @@ struct AgentUsageView: View {
         }
     }
 
+    private var tokenFlowData: [TokenUsageDataPoint] {
+        guard selectedSource == .all, selectedTimeRange != .today else { return [] }
+
+        let now = Date()
+        let calendar = Calendar.current
+
+        let minOC = openCodeFilteredSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
+        let minCX = codexFilteredSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
+        guard let earliest = [minOC, minCX].compactMap({ $0 }).min() else { return [] }
+
+        let totalDays = calendar.dateComponents([.day], from: earliest, to: now).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
+        let bucketSize: Int
+        switch selectedTimeRange {
+        case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
+        default: bucketSize = 1
+        }
+
+        var entries: [(date: Date, tokens: Int)] = []
+        for s in openCodeFilteredSnapshot.sessions {
+            entries.append((s.updatedAt, s.totalTokens))
+        }
+        for s in codexFilteredSnapshot.sessions {
+            entries.append((s.updatedAt, s.tokensUsed))
+        }
+
+        var buckets: [TokenUsageDataPoint] = []
+        var cursor = earliest
+        while cursor <= now {
+            guard let bucketEnd = calendar.date(byAdding: .day, value: bucketSize, to: cursor) else { break }
+            let sum = entries
+                .filter { $0.date >= cursor && $0.date < bucketEnd }
+                .reduce(0) { $0 + $1.tokens }
+            buckets.append(TokenUsageDataPoint(date: cursor, totalTokens: sum))
+            cursor = bucketEnd
+        }
+        return buckets
+    }
+
     private var projectOptions: [SearchableSelectorOption] {
         switch selectedSource {
         case .all:
@@ -162,6 +200,10 @@ struct AgentUsageView: View {
                     timeRangeSelector
                     selectorsBlock
                     detailBlock
+
+                    if selectedSource == .all && selectedTimeRange != .today {
+                        AgentUsageFlowChartView(dataPoints: tokenFlowData)
+                    }
 
                     if selectedSource != .all && isSessionScope == false {
                         byModelBlock
@@ -583,4 +625,10 @@ struct AgentUsageView: View {
             }
         }
     }
+}
+
+struct TokenUsageDataPoint: Identifiable {
+    let date: Date
+    let totalTokens: Int
+    var id: Date { date }
 }
