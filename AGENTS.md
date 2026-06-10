@@ -39,7 +39,8 @@ AppDelegate (NSStatusItem + InputPanel)
         ├── OverviewView    (CPU / Memory / GPU bars)
         └── ProcessListView (search / sort / kill)
 └── AgentUsageView (OpenCode + Codex usage, source picker, combined All summary)
-
+      └── AgentUsageFlowChartView (token flow line chart, All mode only)
+ 
 SystemMonitor (ObservableObject, 2s Timer)
   ├── CPUMonitor      → host_processor_info
   ├── MemoryMonitor   → host_statistics64
@@ -84,6 +85,7 @@ Settings are managed separately from the main panel: `AppDelegate` owns a reusab
 | `Views/MetricRowView.swift` | Animated gradient bar (reusable) |
 | `Views/OverviewView.swift` | Three metric rows |
 | `Views/AgentUsageView.swift` | OpenCode + Codex usage UI, filters, cards, model breakdown |
+| `Views/AgentUsageFlowChartView.swift` | Token flow line chart (All mode only, excludes Today) |
 | `Views/AgentSourcePicker.swift` | Three-way capsule toggle (All / OpenCode / Codex) |
 | `Views/CodexSessionDetailView.swift` | Subagent edges + goals for a Codex session |
 | `Views/PopoverView.swift` | Root view, tab switcher, NSVisualEffectView |
@@ -218,6 +220,7 @@ If resizing feels capped, check `SettingsView` for fixed outer frames before cha
   - Returns `nil` if no DB is found (Codex is optional)
 - **All** mode merges both sources in-memory via `AgentUsageSummary.merge()`
   - Shows unioned project list, combined token totals, hidden session selector / context / by-model
+- **All** mode has a token flow line chart (`AgentUsageFlowChartView`) below the Usage card when a date range other than `Today` is selected; daily buckets for 7D/30D, adaptive ~30 buckets for All Time
 - Supported UI ranges are `All Time`, `Today`, `7 Days`, and `30 Days`
 - Supported scopes are global, project, and session (session not available in All mode)
 - Model breakdown is shown for global and project scopes, not session scope (and not in All mode)
@@ -234,8 +237,8 @@ Version is defined in `pulse.xcodeproj/project.pbxproj` (`MARKETING_VERSION`). `
 # Check current version
 grep -m1 'MARKETING_VERSION' pulse.xcodeproj/project.pbxproj
 
-# Bump via sed (example: 1.1.1 → 1.2.0)
-sed -i '' 's/MARKETING_VERSION = .*/MARKETING_VERSION = 1.2.0;/' pulse.xcodeproj/project.pbxproj
+# Bump via sed (example: 1.5.1 → 1.6.0)
+sed -i '' 's/MARKETING_VERSION = .*/MARKETING_VERSION = 1.6.0;/' pulse.xcodeproj/project.pbxproj
 ```
 
 | Change type | Version segment to bump |
@@ -250,7 +253,6 @@ sed -i '' 's/MARKETING_VERSION = .*/MARKETING_VERSION = 1.2.0;/' pulse.xcodeproj
 
 ## What Was Intentionally Left Out
 
-- No history / charts over time
 - No persistence beyond UI state (tab selection + search text use `@AppStorage`; no CoreData)
 - No network or disk I/O monitoring
 - No Dock presence
