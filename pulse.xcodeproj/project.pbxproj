@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00BAAAB49755D0A4A036CC98 /* AgentUsageFlowChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */; };
 		100000000000000000000001 /* AppVersionInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* AppVersionInfoTests.swift */; };
 		100000000000000000000010 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* AppVersionInfo.swift */; };
 		100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* OpenCodeUsageModelsTests.swift */; };
@@ -65,6 +66,7 @@
 		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
 		100000000000000000000027 /* AgentUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageView.swift; sourceTree = "<group>"; };
 		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
+		2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageFlowChartView.swift; sourceTree = "<group>"; };
 		301784F7059433DCC99F2522 /* AgentSourcePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentSourcePicker.swift; sourceTree = "<group>"; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */,
 				301784F7059433DCC99F2522 /* AgentSourcePicker.swift */,
 				B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */,
+				2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -344,6 +347,7 @@
 				BF2915F50115C7E2E9B4DEB8 /* AgentSourcePicker.swift in Sources */,
 				229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */,
 				37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */,
+				00BAAAB49755D0A4A036CC98 /* AgentUsageFlowChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
