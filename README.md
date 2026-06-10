@@ -33,7 +33,7 @@ A small macOS menu bar app for monitoring CPU, Memory, and GPU, with a built-in 
 
 ## Installation
 
-Download the latest `.dmg` from the [Releases](https://github.com/zyao/pulse/releases) page, open it, and drag **Pulse.app** to the Applications shortcut inside.
+Download the latest `.dmg` from the [Releases](https://github.com/Re-Jacky/pulse/releases) page, open it, and drag **Pulse.app** to the Applications shortcut inside.
 
 > [!IMPORTANT]
 > **If macOS blocks the app on first launch** with a message like *"Apple could not verify Pulse is free of malware"*, run this in Terminal after dragging to Applications:
