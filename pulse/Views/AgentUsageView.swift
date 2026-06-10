@@ -71,7 +71,9 @@ struct AgentUsageView: View {
         let minCX = codexFilteredSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
         guard let earliest = [minOC, minCX].compactMap({ $0 }).min() else { return [] }
 
-        let totalDays = calendar.dateComponents([.day], from: earliest, to: now).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
+        let earliestDay = calendar.startOfDay(for: earliest)
+        let nowDay = calendar.startOfDay(for: now)
+        let totalDays = calendar.dateComponents([.day], from: earliestDay, to: nowDay).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
         let bucketSize: Int
         switch selectedTimeRange {
         case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
@@ -80,15 +82,15 @@ struct AgentUsageView: View {
 
         var entries: [(date: Date, tokens: Int)] = []
         for s in openCodeFilteredSnapshot.sessions {
-            entries.append((s.updatedAt, s.totalTokens))
+            entries.append((calendar.startOfDay(for: s.updatedAt), s.totalTokens))
         }
         for s in codexFilteredSnapshot.sessions {
-            entries.append((s.updatedAt, s.tokensUsed))
+            entries.append((calendar.startOfDay(for: s.updatedAt), s.tokensUsed))
         }
 
         var buckets: [TokenUsageDataPoint] = []
-        var cursor = earliest
-        while cursor <= now {
+        var cursor = earliestDay
+        while cursor <= nowDay {
             guard let bucketEnd = calendar.date(byAdding: .day, value: bucketSize, to: cursor) else { break }
             let sum = entries
                 .filter { $0.date >= cursor && $0.date < bucketEnd }
@@ -201,7 +203,7 @@ struct AgentUsageView: View {
                     selectorsBlock
                     detailBlock
 
-                    if selectedSource == .all && selectedTimeRange != .today {
+                    if selectedSource == .all && selectedTimeRange != .today && tokenFlowData.isEmpty == false {
                         AgentUsageFlowChartView(dataPoints: tokenFlowData)
                     }
 
