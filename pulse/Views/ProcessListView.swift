@@ -77,7 +77,7 @@ struct ProcessListView: View {
 
             Text("Right-click a process to kill it")
                 .font(.system(size: 10))
-                .foregroundColor(.appQuaternaryText)
+                .foregroundColor(.appSecondaryText)
                 .padding(.top, 8)
         }
         .padding(16)
