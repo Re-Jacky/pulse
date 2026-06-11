@@ -148,10 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             p.setFrameOrigin(NSPoint(x: clamped, y: y))
         }
 
-        NSApp.setActivationPolicy(.regular)
         p.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.setActivationPolicy(.accessory)
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
