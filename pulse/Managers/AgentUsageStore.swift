@@ -168,13 +168,22 @@ final class AgentUsageStore: ObservableObject {
             return
         }
 
-        do {
-            openCodeDailySnapshot = try OpenCodeUsageQuery.loadDailySnapshot(
-                databaseURL: openCodeDatabaseURL,
-                range: range
-            )
-        } catch {
-            openCodeDailySnapshot = nil
+        let databaseURL = openCodeDatabaseURL
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = try OpenCodeUsageQuery.loadDailySnapshot(
+                    databaseURL: databaseURL,
+                    range: range
+                )
+                DispatchQueue.main.async {
+                    self.openCodeDailySnapshot = snapshot
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.openCodeDailySnapshot = nil
+                }
+            }
         }
     }
 
