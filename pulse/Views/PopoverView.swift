@@ -6,7 +6,7 @@ struct PopoverView: View {
     @EnvironmentObject var agentUsageSettings: AgentUsageSettings
 
     private var availableTabs: [(title: String, tag: Int)] {
-        var tabs: [(String, Int)] = [("Overview", 0), ("Processes", 1)]
+        var tabs: [(String, Int)] = [("Stats", 0), ("Processes", 1)]
         if agentUsageSettings.isEnabled {
             tabs.append(("Agent", 2))
         }
