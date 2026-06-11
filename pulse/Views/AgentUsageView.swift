@@ -476,7 +476,7 @@ struct AgentUsageView: View {
     private var byModelBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text("By Model")
+                Text("By")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.appPrimaryText)
 
