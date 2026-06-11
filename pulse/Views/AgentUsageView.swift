@@ -38,15 +38,6 @@ struct AgentUsageView: View {
         AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime
     }
 
-    private var showCodexWarning: Bool {
-        guard selectedTimeRange != .allTime else { return false }
-        switch selectedSource {
-        case .codex: return true
-        case .all: return codexFilteredSnapshot.sessions.contains { $0.isSubagent == false }
-        case .openCode: return false
-        }
-    }
-
     private var openCodeFilteredSnapshot: OpenCodeUsageSnapshot {
         if let dailySnapshot = agentStore.openCodeDailySnapshot {
             return dailySnapshot
@@ -114,7 +105,6 @@ struct AgentUsageView: View {
     }
 
     private var projectOptions: [SearchableSelectorOption] {
-        let warningSuffix = showCodexWarning ? " \u{26A0}\u{FE0F}" : ""
         switch selectedSource {
         case .all:
             let ocProjects = Dictionary(grouping: openCodeFilteredSnapshot.sessions, by: \.directory)
@@ -125,12 +115,10 @@ struct AgentUsageView: View {
                 let cxSessions = cxProjects[dir] ?? []
                 let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed }
                 let sessionsCount = ocSessions.count + cxSessions.count
-                let hasCodexSessions = cxSessions.isEmpty == false
-                let suffix = (hasCodexSessions && showCodexWarning) ? warningSuffix : ""
                 return SearchableSelectorOption(
                     id: dir,
                     title: URL(fileURLWithPath: dir).lastPathComponent,
-                    subtitle: "\(compact(totalTokens)) total tokens\(suffix) \u{2022} \(sessionsCount) sessions \u{2022} \(dir)"
+                    subtitle: "\(compact(totalTokens)) total tokens \u{2022} \(sessionsCount) sessions \u{2022} \(dir)"
                 )
             }
             .sorted { lhs, rhs in
@@ -154,7 +142,7 @@ struct AgentUsageView: View {
                 SearchableSelectorOption(
                     id: $0.directory,
                     title: $0.shortName,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens\(warningSuffix) \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
                 )
             }
         }
@@ -167,7 +155,6 @@ struct AgentUsageView: View {
     }
 
     private var sessionOptions: [SearchableSelectorOption] {
-        let warningSuffix = showCodexWarning ? " \u{26A0}\u{FE0F}" : ""
         switch selectedSource {
         case .all:
             return []
@@ -187,7 +174,7 @@ struct AgentUsageView: View {
                 return SearchableSelectorOption(
                     id: $0.id,
                     title: $0.title,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens\(warningSuffix) \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
                 )
             }
         }
@@ -376,26 +363,26 @@ struct AgentUsageView: View {
                 .foregroundColor(.appPrimaryText)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                metricCard(title: "Total", value: compact(summary.totalTokens), showWarning: showCodexWarning)
+                metricCard(title: "Total", value: compact(summary.totalTokens))
 
                 if let input = summary.inputTokens {
-                    metricCard(title: "Input", value: compact(input), showWarning: showCodexWarning)
+                    metricCard(title: "Input", value: compact(input))
                 }
                 if let output = summary.outputTokens {
-                    metricCard(title: "Output", value: compact(output), showWarning: showCodexWarning)
+                    metricCard(title: "Output", value: compact(output))
                 }
                 if let cacheRead = summary.cacheReadTokens {
-                    metricCard(title: "Cache Read", value: compact(cacheRead), showWarning: showCodexWarning)
+                    metricCard(title: "Cache Read", value: compact(cacheRead))
                 }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     if let reasoning = summary.reasoningTokens {
-                        summaryPill(title: "Reasoning", value: compact(reasoning), showWarning: showCodexWarning)
+                        summaryPill(title: "Reasoning", value: compact(reasoning))
                     }
                     if let cacheWrite = summary.cacheWriteTokens {
-                        summaryPill(title: "Cache Write", value: compact(cacheWrite), showWarning: showCodexWarning)
+                        summaryPill(title: "Cache Write", value: compact(cacheWrite))
                     }
                     summaryPill(title: "Sessions", value: "\(summary.sessionsCount)")
                     summaryPill(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
@@ -533,21 +520,15 @@ struct AgentUsageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func metricCard(title: String, value: String, showWarning: Bool = false) -> some View {
+    private func metricCard(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.appSecondaryText)
 
-            HStack(spacing: 4) {
-                Text(value)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.appPrimaryText)
-
-                if showWarning {
-                    WarningIcon(size: 12)
-                }
-            }
+            Text(value)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -555,21 +536,15 @@ struct AgentUsageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func summaryPill(title: String, value: String, showWarning: Bool = false) -> some View {
+    private func summaryPill(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.appSecondaryText)
 
-            HStack(spacing: 4) {
-                Text(value)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.appPrimaryText)
-
-                if showWarning {
-                    WarningIcon(size: 10)
-                }
-            }
+            Text(value)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.appPrimaryText)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -664,24 +639,4 @@ struct TokenUsageDataPoint: Identifiable {
     let date: Date
     let totalTokens: Int
     var id: Date { date }
-}
-
-struct WarningIcon: View {
-    let size: CGFloat
-    @State private var isHovered = false
-
-    var body: some View {
-        Image(systemName: "exclamationmark.triangle.fill")
-            .font(.system(size: size))
-            .foregroundColor(.orange)
-            .onHover { hovering in
-                isHovered = hovering
-            }
-            .popover(isPresented: $isHovered, arrowEdge: .top) {
-                Text("Token counts may include lifetime data from sessions active during this period")
-                    .font(.system(size: 11))
-                    .padding(8)
-            }
-            .contentShape(Rectangle())
-    }
 }
