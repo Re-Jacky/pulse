@@ -78,6 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+
+        // Pre-build the panel so the first open is instant.
+        panel = makePanel()
     }
 
     private func setupMainMenu() {
@@ -131,8 +134,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func openPanel() {
-        let p = makePanel()
-        panel = p
+        let p: InputPanel
+        if let existing = panel {
+            p = existing
+        } else {
+            p = makePanel()
+            panel = p
+        }
 
 		if agentUsageSettings.isEnabled {
 			agentUsageStore.refreshAll()
@@ -158,7 +166,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func closePanel() {
         panel?.orderOut(nil)
-        panel = nil
         if settingsWindow?.isVisible != true {
             NSApp.setActivationPolicy(.accessory)
         }
