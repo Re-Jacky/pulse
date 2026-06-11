@@ -153,6 +153,28 @@ struct OpenCodeUsageSnapshot: Equatable {
         }
     }
 
+    func providerBreakdown(for scope: AgentScope) -> [ProviderBreakdown] {
+        let source: [OpenCodeSessionRecord]
+
+        switch scope {
+        case .allProjects:
+            source = sessions
+        case .project(let directory):
+            source = sessions.filter { $0.directory == directory }
+        case .session:
+            return []
+        }
+
+        return Dictionary(grouping: source) { $0.modelProviderID }
+            .compactMap { provider, sessions in
+                ProviderBreakdown(
+                    provider: provider,
+                    summary: Self.makeSummary(from: sessions)
+                )
+            }
+            .sorted { $0.summary.totalTokens > $1.summary.totalTokens }
+    }
+
 static func makeSummary(from sessions: [OpenCodeSessionRecord]) -> AgentUsageSummary {
 AgentUsageSummary(
 totalTokens: sessions.reduce(0) { $0 + $1.totalTokens },

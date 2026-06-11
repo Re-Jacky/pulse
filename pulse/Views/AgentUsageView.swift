@@ -7,6 +7,7 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageSelectedProjectDirectory") private var selectedProjectDirectory = ""
     @AppStorage("agentUsageSelectedSessionID") private var selectedSessionID = ""
     @AppStorage("agentUsageSelectedTimeRange") private var selectedTimeRangeRawValue = AgentTimeRange.allTime.rawValue
+    @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
 
     private var selectedSource: AgentSource {
         AgentSource(rawValue: selectedSourceRawValue) ?? .all
@@ -474,10 +475,71 @@ struct AgentUsageView: View {
 
     private var byModelBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("By Model")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.appPrimaryText)
+            HStack {
+                Text("By Model")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
 
+                Spacer()
+
+                Picker(selection: $modelGroupBy, label: EmptyView()) {
+                    Text("Provider").tag("provider")
+                    Text("Model").tag("model")
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+            }
+
+            if modelGroupBy == "provider" {
+                providerBreakdownView
+            } else {
+                modelBreakdownView
+            }
+        }
+        .padding(12)
+        .background(Color.appFieldBackground.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var providerBreakdownView: some View {
+        Group {
+            switch selectedSource {
+            case .all:
+                EmptyView()
+            case .openCode:
+                let breakdown = openCodeFilteredSnapshot.providerBreakdown(for: scope)
+                if breakdown.isEmpty {
+                    Text("No provider usage data for this scope.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.appSecondaryText)
+                } else {
+                    ForEach(breakdown) { provider in
+                        detailRow(
+                            title: provider.provider,
+                            value: compact(provider.summary.totalTokens)
+                        )
+                    }
+                }
+            case .codex:
+                let breakdown = codexFilteredSnapshot.providerBreakdown(for: scope)
+                if breakdown.isEmpty {
+                    Text("No provider usage data for this scope.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.appSecondaryText)
+                } else {
+                    ForEach(breakdown) { provider in
+                        detailRow(
+                            title: provider.provider,
+                            value: compact(provider.summary.totalTokens)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private var modelBreakdownView: some View {
+        Group {
             switch selectedSource {
             case .all:
                 EmptyView()
@@ -515,9 +577,6 @@ struct AgentUsageView: View {
                 }
             }
         }
-        .padding(12)
-        .background(Color.appFieldBackground.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func metricCard(title: String, value: String) -> some View {
@@ -639,4 +698,10 @@ struct TokenUsageDataPoint: Identifiable {
     let date: Date
     let totalTokens: Int
     var id: Date { date }
+}
+
+struct ProviderBreakdown: Identifiable {
+    let provider: String
+    let summary: AgentUsageSummary
+    var id: String { provider }
 }

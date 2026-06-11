@@ -165,6 +165,28 @@ struct CodexUsageSnapshot: Equatable {
             }
     }
 
+    func providerBreakdown(for scope: AgentScope) -> [ProviderBreakdown] {
+        let source: [CodexSessionRecord]
+
+        switch scope {
+        case .allProjects:
+            source = sessions.filter { $0.isSubagent == false }
+        case .project(let directory):
+            source = sessions.filter { $0.cwd == directory && $0.isSubagent == false }
+        case .session:
+            return []
+        }
+
+        return Dictionary(grouping: source) { $0.modelProvider }
+            .compactMap { provider, sessions in
+                ProviderBreakdown(
+                    provider: provider,
+                    summary: Self.makeSummary(from: sessions)
+                )
+            }
+            .sorted { $0.summary.totalTokens > $1.summary.totalTokens }
+    }
+
     static func makeSummary(from sessions: [CodexSessionRecord]) -> AgentUsageSummary {
         AgentUsageSummary(
             totalTokens: sessions.reduce(0) { $0 + $1.tokensUsed },
