@@ -44,6 +44,10 @@ enum CodexUsageQuery {
 
         let stateDBs = contents.filter { url in
             url.lastPathComponent.matchingStateDB(pattern: statePattern)
+        }.filter { url in
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let size = attrs[.size] as? Int else { return false }
+            return size > 0
         }
 
         guard stateDBs.isEmpty == false else {
