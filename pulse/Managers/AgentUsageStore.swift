@@ -18,6 +18,7 @@ final class AgentUsageStore: ObservableObject {
     @Published var selectedSource: AgentSource = .openCode
 
     @Published private(set) var openCodeSnapshot = OpenCodeUsageSnapshot(sessions: [])
+    @Published private(set) var openCodeDailySnapshot: OpenCodeUsageSnapshot?
     @Published private(set) var codexSnapshot = CodexUsageSnapshot(sessions: [])
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
@@ -159,6 +160,22 @@ final class AgentUsageStore: ObservableObject {
 
         isLoading = false
         isRefreshing = false
+    }
+
+    func loadOpenCodeDailySnapshot(range: AgentTimeRange) {
+        guard range != .allTime else {
+            openCodeDailySnapshot = nil
+            return
+        }
+
+        do {
+            openCodeDailySnapshot = try OpenCodeUsageQuery.loadDailySnapshot(
+                databaseURL: openCodeDatabaseURL,
+                range: range
+            )
+        } catch {
+            openCodeDailySnapshot = nil
+        }
     }
 
     func loadCodexDetail(for threadID: String) {
