@@ -475,19 +475,19 @@ struct AgentUsageView: View {
 
     private var byModelBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 8) {
                 Text("By Model")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.appPrimaryText)
-
-                Spacer()
 
                 Picker(selection: $modelGroupBy, label: EmptyView()) {
                     Text("Provider").tag("provider")
                     Text("Model").tag("model")
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 160)
+                .frame(width: 140)
+
+                Spacer()
             }
 
             if modelGroupBy == "provider" {
