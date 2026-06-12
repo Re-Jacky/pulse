@@ -111,7 +111,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
         XCTAssertEqual(breakdown[0].modelID, "claude-sonnet-4.6")
         XCTAssertEqual(breakdown[0].variant, "default")
         XCTAssertEqual(breakdown[0].summary.totalTokens, 1530)
-        XCTAssertEqual(breakdown[0].summary.cost, 2.0, accuracy: 0.0001)
+        XCTAssertEqual(breakdown[0].summary.cost, 2.0)
     }
 
     func testSessionScopeSummaryUsesOnlySelectedSession() {

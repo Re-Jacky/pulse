@@ -13,20 +13,6 @@ struct AgentUsageView: View {
         AgentSource(rawValue: selectedSourceRawValue) ?? .all
     }
 
-    private var isSessionScope: Bool {
-        selectedProjectDirectoryValue != nil && selectedSessionIDValue != nil
-    }
-
-    private var scope: AgentScope {
-        if let selectedProjectDirectoryValue, let selectedSessionIDValue {
-            return .session(projectDirectory: selectedProjectDirectory, sessionID: selectedSessionID)
-        }
-        if let selectedProjectDirectoryValue {
-            return .project(directory: selectedProjectDirectory)
-        }
-        return .allProjects
-    }
-
     private var selectedProjectDirectoryValue: String? {
         selectedProjectDirectory.isEmpty ? nil : selectedProjectDirectory
     }
@@ -39,19 +25,27 @@ struct AgentUsageView: View {
         AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime
     }
 
-    private var openCodeFilteredSnapshot: OpenCodeUsageSnapshot {
-        if let dailySnapshot = agentStore.openCodeDailySnapshot {
-            return dailySnapshot
+    private var scope: AgentScope {
+        if let selectedProjectDirectoryValue, let selectedSessionIDValue, selectedSource != .all {
+            return .session(projectDirectory: selectedProjectDirectory, sessionID: selectedSessionID)
         }
-        return agentStore.openCodeSnapshot.filtered(to: selectedTimeRange)
+        if let selectedProjectDirectoryValue {
+            return .project(directory: selectedProjectDirectory)
+        }
+        return .allProjects
+    }
+
+    private var isSessionScope: Bool {
+        if case .session = scope { return true }
+        return false
+    }
+
+    private var openCodeFilteredSnapshot: OpenCodeUsageSnapshot {
+        agentStore.state.openCodeSnapshot.filtered(to: selectedTimeRange)
     }
 
     private var codexFilteredSnapshot: CodexUsageSnapshot {
-        agentStore.codexSnapshot.filtered(to: selectedTimeRange)
-    }
-
-    private var combinedFilteredSnapshot: (openCode: OpenCodeUsageSnapshot, codex: CodexUsageSnapshot) {
-        (openCodeFilteredSnapshot, codexFilteredSnapshot)
+        agentStore.state.codexSnapshot.filtered(to: selectedTimeRange)
     }
 
     private var summary: AgentUsageSummary {
@@ -191,6 +185,11 @@ struct AgentUsageView: View {
         return codexFilteredSnapshot.sessions.first(where: { $0.id == selectedSessionIDValue })
     }
 
+    private var codexDetailState: CodexSessionDetailState {
+        guard let selectedSessionIDValue else { return .idle }
+        return agentStore.codexDetail(for: selectedSessionIDValue)
+    }
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
@@ -215,45 +214,25 @@ struct AgentUsageView: View {
                         byModelBlock
                     }
 
-                    if selectedSource == .codex && isSessionScope {
-                        CodexSessionDetailView()
+                    if selectedSource == .codex, isSessionScope, let session = selectedCodexSession {
+                        CodexSessionDetailView(
+                            session: session,
+                            detailState: codexDetailState
+                        )
                     }
                 }
             }
             .padding(16)
         }
         .onAppear {
-            agentStore.selectedSource = selectedSource
             agentStore.refreshIfNeeded()
-            agentStore.loadOpenCodeDailySnapshot(range: selectedTimeRange)
-        }
-        .onChange(of: agentStore.openCodeSnapshot) { _ in
-            if selectedSource == .openCode || selectedSource == .all {
-                reconcileSelection()
+            if selectedSource == .codex, let threadID = selectedSessionIDValue {
+                agentStore.ensureCodexDetailLoaded(for: threadID)
             }
-        }
-        .onChange(of: agentStore.codexSnapshot) { _ in
-            if selectedSource == .codex || selectedSource == .all {
-                reconcileSelection()
-            }
-        }
-        .onChange(of: selectedTimeRangeRawValue) { _ in
-            agentStore.loadOpenCodeDailySnapshot(range: selectedTimeRange)
-            reconcileSelection()
-        }
-        .onChange(of: selectedSourceRawValue) { newValue in
-            if let source = AgentSource(rawValue: newValue) {
-                agentStore.selectedSource = source
-                agentStore.refreshIfNeeded()
-                agentStore.loadOpenCodeDailySnapshot(range: selectedTimeRange)
-            }
-            reconcileSelection()
         }
         .onChange(of: selectedSessionID) { _ in
-            if selectedSource == .codex, selectedSessionID.isEmpty == false {
-                agentStore.loadCodexDetail(for: selectedSessionID)
-            } else {
-                agentStore.clearCodexDetail()
+            if selectedSource == .codex, let threadID = selectedSessionIDValue {
+                agentStore.ensureCodexDetailLoaded(for: threadID)
             }
         }
     }
@@ -302,16 +281,26 @@ struct AgentUsageView: View {
                 Spacer()
 
                 Button(agentStore.isRefreshing ? "Refreshing..." : "Refresh") {
-                    agentStore.refresh()
+                    agentStore.refreshAll()
                 }
                 .buttonStyle(.borderless)
                 .disabled(agentStore.isRefreshing)
             }
 
-            Text("Pulse reads this agent\u{2019}s local usage data from \(agentStore.databasePath) when you refresh the panel.")
+            Text("Pulse reads this agent\u{2019}s local usage data from \(databasePath) when you refresh the panel.")
                 .font(.system(size: 11))
                 .foregroundColor(.appSecondaryText)
                 .textSelection(.enabled)
+        }
+    }
+
+    private var databasePath: String {
+        switch selectedSource {
+        case .all:
+            let paths = [agentStore.repository.openCodeDatabaseURL.path, agentStore.repository.codexDatabaseURL?.path].compactMap { $0 }
+            return paths.joined(separator: " + ")
+        case .openCode: return agentStore.repository.openCodeDatabaseURL.path
+        case .codex: return agentStore.repository.codexDatabaseURL?.path ?? "Codex database not found"
         }
     }
 
@@ -621,13 +610,13 @@ struct AgentUsageView: View {
                 .font(.system(size: 12))
                 .foregroundColor(.appSecondaryText)
 
-            Text("Expected DB: \(agentStore.databasePath)")
+            Text("Expected DB: \(databasePath)")
                 .font(.system(size: 11))
                 .foregroundColor(.appTertiaryText)
                 .textSelection(.enabled)
 
             Button("Refresh") {
-                agentStore.refresh()
+                agentStore.refreshAll()
             }
             .buttonStyle(.borderless)
         }
@@ -662,35 +651,6 @@ struct AgentUsageView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func reconcileSelection() {
-        let currentProjectOptions: [String]
-        switch selectedSource {
-        case .all:
-            let ocDirs = Set(openCodeFilteredSnapshot.projectOptions.map(\.directory))
-            let cxDirs = Set(codexFilteredSnapshot.projectOptions.map(\.directory))
-            currentProjectOptions = Array(ocDirs.union(cxDirs))
-        case .openCode:
-            currentProjectOptions = openCodeFilteredSnapshot.projectOptions.map(\.directory)
-        case .codex:
-            currentProjectOptions = codexFilteredSnapshot.projectOptions.map(\.directory)
-        }
-
-        if let selectedProjectDirectoryValue,
-           currentProjectOptions.contains(selectedProjectDirectory) == false {
-            selectedProjectDirectory = ""
-            selectedSessionID = ""
-            return
-        }
-
-        if selectedSource != .all, let selectedProjectDirectoryValue, let selectedSessionIDValue {
-            let validSessionIDs = Set(sessionOptions.map(\.id))
-            if validSessionIDs.contains(selectedSessionID) == false {
-                selectedProjectDirectory = selectedProjectDirectoryValue
-                selectedSessionID = ""
-            }
-        }
     }
 }
 

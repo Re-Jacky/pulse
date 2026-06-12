@@ -2,7 +2,7 @@ import XCTest
 import SQLite3
 @testable import Pulse
 
-final class OpenCodeUsageStoreTests: XCTestCase {
+final class OpenCodeUsageQueryTests: XCTestCase {
     func testLoadSnapshotReadsSessionRowsAndParsesModelJSON() throws {
         let databaseURL = try makeDatabase(named: "OpenCodeUsageStoreTests.sqlite")
         defer { try? FileManager.default.removeItem(at: databaseURL) }
@@ -41,7 +41,7 @@ final class OpenCodeUsageStoreTests: XCTestCase {
         );
         """)
 
-        let snapshot = try OpenCodeUsageStore.loadSnapshot(databaseURL: databaseURL)
+        let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
 
         XCTAssertEqual(snapshot.sessions.count, 1)
         XCTAssertEqual(snapshot.sessions[0].modelProviderID, "codex-gpt")
@@ -53,8 +53,8 @@ final class OpenCodeUsageStoreTests: XCTestCase {
     func testLoadSnapshotThrowsMissingDatabaseError() {
         let missingURL = URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString).sqlite")
 
-        XCTAssertThrowsError(try OpenCodeUsageStore.loadSnapshot(databaseURL: missingURL)) { error in
-            guard case OpenCodeUsageStore.LoadError.databaseNotFound(let path) = error else {
+        XCTAssertThrowsError(try OpenCodeUsageQuery.loadSnapshot(databaseURL: missingURL)) { error in
+            guard case OpenCodeUsageQuery.QueryError.databaseNotFound(let path) = error else {
                 return XCTFail("Unexpected error: \(error)")
             }
 
@@ -74,7 +74,7 @@ final class OpenCodeUsageStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.createFile(atPath: localDB.path, contents: Data()))
         XCTAssertTrue(FileManager.default.createFile(atPath: appSupportDB.path, contents: Data()))
 
-        let chosen = OpenCodeUsageStore.resolveDatabaseURL(
+        let chosen = OpenCodeUsageQuery.resolveDatabaseURL(
             environment: [:],
             fileManager: .default,
             homeDirectoryURL: home,
@@ -89,7 +89,7 @@ final class OpenCodeUsageStoreTests: XCTestCase {
         let home = URL(fileURLWithPath: "/tmp/home")
         let appSupport = URL(fileURLWithPath: "/tmp/app-support")
 
-        let candidates = OpenCodeUsageStore.candidateDatabaseURLs(
+        let candidates = OpenCodeUsageQuery.candidateDatabaseURLs(
             environment: ["XDG_DATA_HOME": "/tmp/xdg-data"],
             homeDirectoryURL: home,
             applicationSupportDirectory: appSupport

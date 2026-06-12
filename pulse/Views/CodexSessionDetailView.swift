@@ -1,69 +1,47 @@
 import SwiftUI
 
 struct CodexSessionDetailView: View {
-    @EnvironmentObject private var agentStore: AgentUsageStore
-
-    private var edges: [CodexSubagentEdge] { agentStore.codexSubagentEdges }
-    private var goals: [CodexGoal] { agentStore.codexGoals }
+    let session: CodexSessionRecord
+    let detailState: CodexSessionDetailState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if agentStore.isLoadingCodexDetail {
-                ProgressView()
-                    .scaleEffect(0.6)
-            }
-
-            if edges.isEmpty == false {
-                subagentsSection
-            }
-
-            if goals.isEmpty == false {
-                goalsSection
+        switch detailState {
+        case .idle, .loading:
+            ProgressView()
+                .scaleEffect(0.6)
+        case .failed(let message):
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundColor(.appSecondaryText)
+        case .loaded(let detail):
+            VStack(alignment: .leading, spacing: 12) {
+                if detail.edges.isEmpty == false {
+                    subagentsSection(edges: detail.edges)
+                }
+                if detail.goals.isEmpty == false {
+                    goalsSection(goals: detail.goals)
+                }
             }
         }
     }
 
-    private var subagentsSection: some View {
+    private func subagentsSection(edges: [CodexSubagentEdge]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Subagents")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
 
             ForEach(edges, id: \.childThreadID) { edge in
-                if let child = agentStore.codexSnapshot.sessions.first(where: { $0.id == edge.childThreadID }) {
-                    HStack(spacing: 8) {
-                        Text(child.agentNickname ?? "Subagent")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.appPrimaryText)
+                HStack(spacing: 8) {
+                    Text("Subagent \(edge.childThreadID.prefix(8))")
+                        .font(.system(size: 12))
+                        .foregroundColor(.appSecondaryText)
 
-                        if let role = child.agentRole, role.isEmpty == false {
-                            Text("(\(role))")
-                                .font(.system(size: 12))
-                                .foregroundColor(.appSecondaryText)
-                        }
+                    Spacer()
 
-                        Spacer()
-
-                        Text("\(child.modelProvider) / \(child.model)")
-                            .font(.system(size: 11))
-                            .foregroundColor(.appSecondaryText)
-
-                        Text(compact(child.tokensUsed))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.appPrimaryText)
-                    }
-                } else {
-                    HStack {
-                        Text("Subagent \(edge.childThreadID.prefix(8))")
-                            .font(.system(size: 12))
-                            .foregroundColor(.appSecondaryText)
-
-                        Spacer()
-
-                        Text(edge.status)
-                            .font(.system(size: 11))
-                            .foregroundColor(.appTertiaryText)
-                    }
+                    Text(edge.status)
+                        .font(.system(size: 11))
+                        .foregroundColor(.appTertiaryText)
                 }
             }
         }
@@ -72,7 +50,7 @@ struct CodexSessionDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var goalsSection: some View {
+    private func goalsSection(goals: [CodexGoal]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Goals")
                 .font(.system(size: 13, weight: .semibold))
@@ -161,7 +139,7 @@ struct CodexSessionDetailView: View {
             return String(format: "%.1fM", Double(value) / 1_000_000)
         }
         if value >= 1_000 {
-            return String(format: "%.1fK", Double(value) / 1_000)
+            return String(format: "%.1K", Double(value) / 1_000)
         }
         return "\(value)"
     }
