@@ -15,9 +15,12 @@
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
+		100000000000000000000028 /* AgentUsageViewDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000029 /* AgentUsageViewDataTests.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
 		100000000000000000000024 /* SearchableSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000025 /* SearchableSelectorView.swift */; };
 		100000000000000000000026 /* AgentUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000027 /* AgentUsageView.swift */; };
+		10000000000000000000002A /* AgentUsageRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000002B /* AgentUsageRepository.swift */; };
+		10000000000000000000002C /* AgentUsageViewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000002D /* AgentUsageViewData.swift */; };
 		1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */; };
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
 		37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */; };
@@ -62,6 +65,9 @@
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
+		100000000000000000000029 /* AgentUsageViewDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageViewDataTests.swift; sourceTree = "<group>"; };
+		10000000000000000000002B /* AgentUsageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageRepository.swift; sourceTree = "<group>"; };
+		10000000000000000000002D /* AgentUsageViewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageViewData.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
 		100000000000000000000027 /* AgentUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageView.swift; sourceTree = "<group>"; };
@@ -117,6 +123,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000002 /* AppVersionInfoTests.swift */,
+				100000000000000000000029 /* AgentUsageViewDataTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
@@ -127,12 +134,14 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000015 /* AgentUsageSettings.swift */,
+				10000000000000000000002B /* AgentUsageRepository.swift */,
 				100000000000000000000011 /* AppVersionInfo.swift */,
 				100000000000000000000017 /* OpenCodeUsageModels.swift */,
 				100000000000000000000021 /* OpenCodeUsageStore.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
 				A555DA5BBA52686079843F84 /* CodexUsageModels.swift */,
 				8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */,
+				10000000000000000000002D /* AgentUsageViewData.swift */,
 				12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */,
 				F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */,
 			);
@@ -311,6 +320,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000001 /* AppVersionInfoTests.swift in Sources */,
+				100000000000000000000028 /* AgentUsageViewDataTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 			);
@@ -336,6 +346,7 @@
 				525A1EB1F76074255369A695 /* PopoverView.swift in Sources */,
 				100000000000000000000024 /* SearchableSelectorView.swift in Sources */,
 				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
+				10000000000000000000002A /* AgentUsageRepository.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,
 				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
 				100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */,
@@ -343,6 +354,7 @@
 				8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */,
 				BE927B2A06123921C62EE3A0 /* CodexUsageModels.swift in Sources */,
 				1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */,
+				10000000000000000000002C /* AgentUsageViewData.swift in Sources */,
 				8C5A31BAE41545DC9F94B7F6 /* CodexUsageQuery.swift in Sources */,
 				BF2915F50115C7E2E9B4DEB8 /* AgentSourcePicker.swift in Sources */,
 				229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */,
@@ -535,7 +547,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.7.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -559,7 +571,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.2;
+				MARKETING_VERSION = 1.7.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;

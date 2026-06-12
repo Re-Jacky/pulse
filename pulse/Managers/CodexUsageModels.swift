@@ -72,6 +72,12 @@ struct CodexGoal: Identifiable, Equatable {
     }
 }
 
+struct CodexSessionDetail: Equatable {
+    let threadID: String
+    let edges: [CodexSubagentEdge]
+    let goals: [CodexGoal]
+}
+
 struct CodexUsageSnapshot: Equatable {
     let sessions: [CodexSessionRecord]
 
