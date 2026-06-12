@@ -57,4 +57,98 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(AgentUsageLoadedState.empty.codexDetailCache, [:])
         XCTAssertEqual(AgentUsageLoadedState.empty.refreshGeneration, 0)
     }
+
+    func testDerivedDataForAllSourceMergesSummariesAndShowsTokenFlow() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeSnapshot: OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 120)]),
+                codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 80)]),
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 200)
+        XCTAssertTrue(data.showsTokenFlow)
+        XCTAssertFalse(data.isSessionScope)
+        XCTAssertTrue(data.sessionOptions.isEmpty)
+    }
+
+    func testDerivedDataForCodexSessionHidesByModelAndCarriesDetailThreadID() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "thread_1", tokens: 80)]),
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: "thread_1",
+            modelGroupBy: .provider
+        ))
+
+        XCTAssertTrue(data.isSessionScope)
+        XCTAssertFalse(data.showsByModel)
+        XCTAssertEqual(data.codexDetailThreadID, "thread_1")
+    }
+}
+
+private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessionRecord {
+    OpenCodeSessionRecord(
+        id: id,
+        title: "Session \(id)",
+        directory: "/Users/zyao/Desktop/pulse",
+        agent: "build",
+        modelProviderID: "opencode",
+        modelID: "model-a",
+        modelVariant: nil,
+        inputTokens: tokens,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        cost: 0,
+        createdAt: Date(timeIntervalSince1970: 1000),
+        updatedAt: Date(timeIntervalSince1970: 2000)
+    )
+}
+
+private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionRecord {
+    CodexSessionRecord(
+        id: id,
+        title: "Session \(id)",
+        cwd: "/Users/zyao/Desktop/pulse",
+        model: "gpt-5",
+        modelProvider: "openai",
+        tokensUsed: tokens,
+        reasoningEffort: "",
+        threadSource: "primary",
+        agentNickname: nil,
+        agentRole: nil,
+        createdAt: Date(timeIntervalSince1970: 1000),
+        updatedAt: Date(timeIntervalSince1970: 2000)
+    )
+}
+
+private final class StubRepository: AgentUsageRepositorying {
+    var openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
+    var codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
+    func loadOpenCodeSnapshot() throws -> OpenCodeUsageSnapshot { OpenCodeUsageSnapshot(sessions: []) }
+    func loadCodexSnapshot() throws -> CodexUsageSnapshot { CodexUsageSnapshot(sessions: []) }
+    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail { CodexSessionDetail(threadID: threadID, edges: [], goals: []) }
 }

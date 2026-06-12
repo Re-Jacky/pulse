@@ -9,185 +9,18 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageSelectedTimeRange") private var selectedTimeRangeRawValue = AgentTimeRange.allTime.rawValue
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
 
-    private var selectedSource: AgentSource {
-        AgentSource(rawValue: selectedSourceRawValue) ?? .all
+    private var selection: AgentUsageSelection {
+        AgentUsageSelection(
+            source: AgentSource(rawValue: selectedSourceRawValue) ?? .all,
+            timeRange: AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime,
+            projectDirectory: selectedProjectDirectory.isEmpty ? nil : selectedProjectDirectory,
+            sessionID: selectedSessionID.isEmpty ? nil : selectedSessionID,
+            modelGroupBy: AgentModelGroupBy(rawValue: modelGroupBy) ?? .model
+        )
     }
 
-    private var selectedProjectDirectoryValue: String? {
-        selectedProjectDirectory.isEmpty ? nil : selectedProjectDirectory
-    }
-
-    private var selectedSessionIDValue: String? {
-        selectedSessionID.isEmpty ? nil : selectedSessionID
-    }
-
-    private var selectedTimeRange: AgentTimeRange {
-        AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime
-    }
-
-    private var scope: AgentScope {
-        if let selectedProjectDirectoryValue, let selectedSessionIDValue, selectedSource != .all {
-            return .session(projectDirectory: selectedProjectDirectory, sessionID: selectedSessionID)
-        }
-        if let selectedProjectDirectoryValue {
-            return .project(directory: selectedProjectDirectory)
-        }
-        return .allProjects
-    }
-
-    private var isSessionScope: Bool {
-        if case .session = scope { return true }
-        return false
-    }
-
-    private var openCodeFilteredSnapshot: OpenCodeUsageSnapshot {
-        agentStore.state.openCodeSnapshot.filtered(to: selectedTimeRange)
-    }
-
-    private var codexFilteredSnapshot: CodexUsageSnapshot {
-        agentStore.state.codexSnapshot.filtered(to: selectedTimeRange)
-    }
-
-    private var summary: AgentUsageSummary {
-        switch selectedSource {
-        case .all:
-            let oc = openCodeFilteredSnapshot.summary(for: scope)
-            let cx = codexFilteredSnapshot.summary(for: scope)
-            return AgentUsageSummary.merge(oc, cx)
-        case .openCode: return openCodeFilteredSnapshot.summary(for: scope)
-        case .codex: return codexFilteredSnapshot.summary(for: scope)
-        }
-    }
-
-    private var tokenFlowData: [TokenUsageDataPoint] {
-        guard selectedSource == .all, selectedTimeRange != .today else { return [] }
-
-        let now = Date()
-        let calendar = Calendar.current
-
-        let minOC = openCodeFilteredSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
-        let minCX = codexFilteredSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
-        guard let earliest = [minOC, minCX].compactMap({ $0 }).min() else { return [] }
-
-        let earliestDay = calendar.startOfDay(for: earliest)
-        let nowDay = calendar.startOfDay(for: now)
-        let totalDays = calendar.dateComponents([.day], from: earliestDay, to: nowDay).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
-        let bucketSize: Int
-        switch selectedTimeRange {
-        case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
-        default: bucketSize = 1
-        }
-
-        var entries: [(date: Date, tokens: Int)] = []
-        for s in openCodeFilteredSnapshot.sessions {
-            entries.append((calendar.startOfDay(for: s.updatedAt), s.totalTokens))
-        }
-        for s in codexFilteredSnapshot.sessions {
-            entries.append((calendar.startOfDay(for: s.updatedAt), s.tokensUsed))
-        }
-
-        var buckets: [TokenUsageDataPoint] = []
-        var cursor = earliestDay
-        while cursor <= nowDay {
-            guard let bucketEnd = calendar.date(byAdding: .day, value: bucketSize, to: cursor) else { break }
-            let sum = entries
-                .filter { $0.date >= cursor && $0.date < bucketEnd }
-                .reduce(0) { $0 + $1.tokens }
-            buckets.append(TokenUsageDataPoint(date: cursor, totalTokens: sum))
-            cursor = bucketEnd
-        }
-        return buckets
-    }
-
-    private var projectOptions: [SearchableSelectorOption] {
-        switch selectedSource {
-        case .all:
-            let ocProjects = Dictionary(grouping: openCodeFilteredSnapshot.sessions, by: \.directory)
-            let cxProjects = Dictionary(grouping: codexFilteredSnapshot.sessions.filter { $0.isSubagent == false }, by: \.cwd)
-            let allDirs = Set(ocProjects.keys).union(cxProjects.keys)
-            return allDirs.map { dir -> SearchableSelectorOption in
-                let ocSessions = ocProjects[dir] ?? []
-                let cxSessions = cxProjects[dir] ?? []
-                let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed }
-                let sessionsCount = ocSessions.count + cxSessions.count
-                return SearchableSelectorOption(
-                    id: dir,
-                    title: URL(fileURLWithPath: dir).lastPathComponent,
-                    subtitle: "\(compact(totalTokens)) total tokens \u{2022} \(sessionsCount) sessions \u{2022} \(dir)"
-                )
-            }
-            .sorted { lhs, rhs in
-                let lhsTokens = totalTokensForAllProject(lhs.id)
-                let rhsTokens = totalTokensForAllProject(rhs.id)
-                if lhsTokens == rhsTokens {
-                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-                }
-                return lhsTokens > rhsTokens
-            }
-        case .openCode:
-            return openCodeFilteredSnapshot.projectOptions.map {
-                SearchableSelectorOption(
-                    id: $0.directory,
-                    title: $0.shortName,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
-                )
-            }
-        case .codex:
-            return codexFilteredSnapshot.projectOptions.map {
-                SearchableSelectorOption(
-                    id: $0.directory,
-                    title: $0.shortName,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
-                )
-            }
-        }
-    }
-
-    private func totalTokensForAllProject(_ dir: String) -> Int {
-        let ocTokens = openCodeFilteredSnapshot.sessions.filter { $0.directory == dir }.reduce(0) { $0 + $1.totalTokens }
-        let cxTokens = codexFilteredSnapshot.sessions.filter { $0.cwd == dir && $0.isSubagent == false }.reduce(0) { $0 + $1.tokensUsed }
-        return ocTokens + cxTokens
-    }
-
-    private var sessionOptions: [SearchableSelectorOption] {
-        switch selectedSource {
-        case .all:
-            return []
-        case .openCode:
-            guard let selectedProjectDirectoryValue else { return [] }
-            return openCodeFilteredSnapshot.sessionOptions(for: selectedProjectDirectory).map {
-                SearchableSelectorOption(
-                    id: $0.id,
-                    title: $0.title,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)"
-                )
-            }
-        case .codex:
-            guard let selectedProjectDirectoryValue else { return [] }
-            return codexFilteredSnapshot.sessionOptions(for: selectedProjectDirectory).map {
-                let effort = $0.reasoningEffort.isEmpty ? "" : " \u{2022} \($0.reasoningEffort)"
-                return SearchableSelectorOption(
-                    id: $0.id,
-                    title: $0.title,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
-                )
-            }
-        }
-    }
-
-    private var selectedOpenCodeSession: OpenCodeSessionRecord? {
-        guard selectedSource == .openCode, let selectedSessionIDValue else { return nil }
-        return openCodeFilteredSnapshot.sessions.first(where: { $0.id == selectedSessionIDValue })
-    }
-
-    private var selectedCodexSession: CodexSessionRecord? {
-        guard selectedSource == .codex, let selectedSessionIDValue else { return nil }
-        return codexFilteredSnapshot.sessions.first(where: { $0.id == selectedSessionIDValue })
-    }
-
-    private var codexDetailState: CodexSessionDetailState {
-        guard let selectedSessionIDValue else { return .idle }
-        return agentStore.codexDetail(for: selectedSessionIDValue)
+    private var data: AgentUsageDerivedViewData {
+        agentStore.derivedData(for: selection)
     }
 
     var body: some View {
@@ -196,7 +29,7 @@ struct AgentUsageView: View {
                 header
 
                 if agentStore.isLoading {
-                    ProgressView("Loading \(selectedSource.displayName) usage...")
+                    ProgressView("Loading \(data.selection.source.displayName) usage...")
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 40)
                 } else if let error = agentStore.lastError {
@@ -206,18 +39,19 @@ struct AgentUsageView: View {
                     selectorsBlock
                     detailBlock
 
-                    if selectedSource == .all && selectedTimeRange != .today && tokenFlowData.isEmpty == false {
-                        AgentUsageFlowChartView(dataPoints: tokenFlowData)
+                    if data.showsTokenFlow && data.tokenFlowData.isEmpty == false {
+                        AgentUsageFlowChartView(dataPoints: data.tokenFlowData)
                     }
 
-                    if selectedSource != .all && isSessionScope == false {
+                    if data.showsByModel {
                         byModelBlock
                     }
 
-                    if selectedSource == .codex, isSessionScope, let session = selectedCodexSession {
+                    if let threadID = data.codexDetailThreadID,
+                       let session = data.selectedCodexSession {
                         CodexSessionDetailView(
                             session: session,
-                            detailState: codexDetailState
+                            detailState: agentStore.codexDetail(for: threadID)
                         )
                     }
                 }
@@ -226,12 +60,12 @@ struct AgentUsageView: View {
         }
         .onAppear {
             agentStore.refreshIfNeeded()
-            if selectedSource == .codex, let threadID = selectedSessionIDValue {
+            if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
         }
         .onChange(of: selectedSessionID) { _ in
-            if selectedSource == .codex, let threadID = selectedSessionIDValue {
+            if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
         }
@@ -263,12 +97,12 @@ struct AgentUsageView: View {
                     if agentStore.availableSources.count > 1 {
                         AgentSourcePicker(
                             availableSources: agentStore.availableSources,
-                            selectedSource: selectedSource
+                            selectedSource: selection.source
                         ) { source in
                             selectedSourceRawValue = source.rawValue
                         }
                     } else {
-                        Text(selectedSource.displayName)
+                        Text(selection.source.displayName)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.appPrimaryText)
                             .padding(.horizontal, 10)
@@ -295,7 +129,7 @@ struct AgentUsageView: View {
     }
 
     private var databasePath: String {
-        switch selectedSource {
+        switch selection.source {
         case .all:
             let paths = [agentStore.repository.openCodeDatabaseURL.path, agentStore.repository.codexDatabaseURL?.path].compactMap { $0 }
             return paths.joined(separator: " + ")
@@ -309,14 +143,14 @@ struct AgentUsageView: View {
             SearchableSelectorView(
                 label: "Project",
                 placeholder: "All Projects",
-                selectedTitle: selectedProjectDirectoryValue.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "All Projects",
+                selectedTitle: selection.projectDirectory.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "All Projects",
                 options: [
                     SearchableSelectorOption(
                         id: "__all__",
                         title: "All Projects",
-                        subtitle: "Show all \(selectedSource.displayName) sessions"
+                        subtitle: "Show all \(selection.source.displayName) sessions"
                     )
-                ] + projectOptions
+                ] + data.projectOptions
             ) { option in
                 if option.id == "__all__" {
                     selectedProjectDirectory = ""
@@ -327,18 +161,18 @@ struct AgentUsageView: View {
                 }
             }
 
-            if selectedSource != .all && selectedProjectDirectoryValue != nil {
+            if selection.source != .all && selection.projectDirectory != nil {
                 SearchableSelectorView(
                     label: "Session",
                     placeholder: "All Sessions",
-                    selectedTitle: sessionOptions.first(where: { $0.id == selectedSessionIDValue })?.title ?? "All Sessions",
+                    selectedTitle: data.sessionOptions.first(where: { $0.id == selection.sessionID })?.title ?? "All Sessions",
                     options: [
                         SearchableSelectorOption(
                             id: "__all__",
                             title: "All Sessions",
                             subtitle: "Show the full project summary"
                         )
-                    ] + sessionOptions
+                    ] + data.sessionOptions
                 ) { option in
                     selectedSessionID = option.id == "__all__" ? "" : option.id
                 }
@@ -353,36 +187,20 @@ struct AgentUsageView: View {
                 .foregroundColor(.appPrimaryText)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                metricCard(title: "Total", value: compact(summary.totalTokens))
-
-                if let input = summary.inputTokens {
-                    metricCard(title: "Input", value: compact(input))
-                }
-                if let output = summary.outputTokens {
-                    metricCard(title: "Output", value: compact(output))
-                }
-                if let cacheRead = summary.cacheReadTokens {
-                    metricCard(title: "Cache Read", value: compact(cacheRead))
+                ForEach(data.usageMetrics) { metric in
+                    metricCard(title: metric.title, value: metric.valueText)
                 }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    if let reasoning = summary.reasoningTokens {
-                        summaryPill(title: "Reasoning", value: compact(reasoning))
-                    }
-                    if let cacheWrite = summary.cacheWriteTokens {
-                        summaryPill(title: "Cache Write", value: compact(cacheWrite))
-                    }
-                    summaryPill(title: "Sessions", value: "\(summary.sessionsCount)")
-                    summaryPill(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
-                    if let cost = summary.cost, cost > 0 {
-                        summaryPill(title: "Cost", value: String(format: "$%.2f", cost))
+                    ForEach(data.summaryPills) { pill in
+                        summaryPill(title: pill.title, value: pill.valueText)
                     }
                 }
             }
 
-            if selectedSource != .all {
+            if selection.source != .all {
                 Divider()
                     .background(Color.appDivider)
 
@@ -390,76 +208,14 @@ struct AgentUsageView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.appPrimaryText)
 
-                switch selectedSource {
-                case .all:
-                    EmptyView()
-                case .openCode:
-                    openCodeContextRows
-                case .codex:
-                    codexContextRows
+                ForEach(data.contextRows) { row in
+                    detailRow(title: row.title, value: row.valueText)
                 }
             }
         }
         .padding(12)
         .background(Color.appFieldBackground.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var openCodeContextRows: some View {
-        Group {
-            switch scope {
-            case .allProjects:
-                detailRow(title: "Projects Count", value: "\(openCodeFilteredSnapshot.projectOptions.count)")
-                detailRow(title: "Sessions Count", value: "\(summary.sessionsCount)")
-                detailRow(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
-            case .project(let directory):
-                detailRow(title: "Project Name", value: URL(fileURLWithPath: directory).lastPathComponent)
-                detailRow(title: "Full Path", value: directory)
-                detailRow(title: "Sessions Count", value: "\(summary.sessionsCount)")
-                detailRow(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
-            case .session:
-                detailRow(title: "Title", value: selectedOpenCodeSession?.title ?? "-")
-                detailRow(title: "Full Path", value: selectedOpenCodeSession?.directory ?? "-")
-                detailRow(title: "Agent", value: selectedOpenCodeSession?.agent ?? "-")
-                detailRow(
-                    title: "Provider / Model",
-                    value: selectedOpenCodeSession.map {
-                        OpenCodeUsageSnapshot.modelDisplayName(
-                            providerID: $0.modelProviderID,
-                            modelID: $0.modelID,
-                            variant: $0.modelVariant
-                        )
-                    } ?? "-"
-                )
-                detailRow(title: "Created", value: selectedOpenCodeSession.map { shortDateTime($0.createdAt) } ?? "-")
-                detailRow(title: "Last Updated", value: selectedOpenCodeSession.map { shortDateTime($0.updatedAt) } ?? "-")
-            }
-        }
-    }
-
-    private var codexContextRows: some View {
-        Group {
-            switch scope {
-            case .allProjects:
-                detailRow(title: "Projects Count", value: "\(codexFilteredSnapshot.projectOptions.count)")
-                detailRow(title: "Sessions Count", value: "\(summary.sessionsCount)")
-                detailRow(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
-            case .project(let directory):
-                detailRow(title: "Project Name", value: URL(fileURLWithPath: directory).lastPathComponent)
-                detailRow(title: "Full Path", value: directory)
-                detailRow(title: "Sessions Count", value: "\(summary.sessionsCount)")
-                detailRow(title: "Last Updated", value: summary.lastUpdated.map(shortDateTime) ?? "-")
-            case .session:
-                detailRow(title: "Title", value: selectedCodexSession?.title ?? "-")
-                detailRow(title: "Full Path", value: selectedCodexSession?.cwd ?? "-")
-                detailRow(title: "Model", value: selectedCodexSession.map { "\($0.modelProvider) / \($0.model)" } ?? "-")
-                if let session = selectedCodexSession, session.reasoningEffort.isEmpty == false {
-                    detailRow(title: "Reasoning Effort", value: session.reasoningEffort)
-                }
-                detailRow(title: "Created", value: selectedCodexSession.map { shortDateTime($0.createdAt) } ?? "-")
-                detailRow(title: "Last Updated", value: selectedCodexSession.map { shortDateTime($0.updatedAt) } ?? "-")
-            }
-        }
     }
 
     private var byModelBlock: some View {
@@ -480,92 +236,18 @@ struct AgentUsageView: View {
             }
 
             if modelGroupBy == "provider" {
-                providerBreakdownView
+                ForEach(data.providerBreakdown) { provider in
+                    detailRow(title: provider.provider, value: compact(provider.summary.totalTokens))
+                }
             } else {
-                modelBreakdownView
+                ForEach(data.modelBreakdownRows) { row in
+                    detailRow(title: row.title, value: row.valueText)
+                }
             }
         }
         .padding(12)
         .background(Color.appFieldBackground.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var providerBreakdownView: some View {
-        Group {
-            switch selectedSource {
-            case .all:
-                EmptyView()
-            case .openCode:
-                let breakdown = openCodeFilteredSnapshot.providerBreakdown(for: scope)
-                if breakdown.isEmpty {
-                    Text("No provider usage data for this scope.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                } else {
-                    ForEach(breakdown) { provider in
-                        detailRow(
-                            title: provider.provider,
-                            value: compact(provider.summary.totalTokens)
-                        )
-                    }
-                }
-            case .codex:
-                let breakdown = codexFilteredSnapshot.providerBreakdown(for: scope)
-                if breakdown.isEmpty {
-                    Text("No provider usage data for this scope.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                } else {
-                    ForEach(breakdown) { provider in
-                        detailRow(
-                            title: provider.provider,
-                            value: compact(provider.summary.totalTokens)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private var modelBreakdownView: some View {
-        Group {
-            switch selectedSource {
-            case .all:
-                EmptyView()
-            case .openCode:
-                let breakdown = openCodeFilteredSnapshot.modelBreakdown(for: scope)
-                if breakdown.isEmpty {
-                    Text("No model usage data for this scope.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                } else {
-                    ForEach(breakdown) { model in
-                        detailRow(
-                            title: OpenCodeUsageSnapshot.modelDisplayName(
-                                providerID: model.providerID,
-                                modelID: model.modelID,
-                                variant: model.variant
-                            ),
-                            value: compact(model.summary.totalTokens)
-                        )
-                    }
-                }
-            case .codex:
-                let breakdown = codexFilteredSnapshot.modelBreakdown(for: scope)
-                if breakdown.isEmpty {
-                    Text("No model usage data for this scope.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                } else {
-                    ForEach(breakdown) { model in
-                        detailRow(
-                            title: "\(model.modelProvider) / \(model.model)",
-                            value: compact(model.summary.totalTokens)
-                        )
-                    }
-                }
-            }
-        }
     }
 
     private func metricCard(title: String, value: String) -> some View {
@@ -602,7 +284,7 @@ struct AgentUsageView: View {
 
     private func errorState(_ error: AgentUsageStore.LoadError) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(selectedSource.displayName) data unavailable")
+            Text("\(selection.source.displayName) data unavailable")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
 
@@ -645,12 +327,6 @@ struct AgentUsageView: View {
         if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
         if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
         return "\(value)"
-    }
-
-    private func shortDateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
     }
 }
 

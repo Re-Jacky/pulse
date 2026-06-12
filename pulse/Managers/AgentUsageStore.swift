@@ -147,6 +147,302 @@ final class AgentUsageStore: ObservableObject {
         self.state = state
     }
     #endif
+
+    // MARK: - Derivation
+
+    func derivedData(for inputSelection: AgentUsageSelection) -> AgentUsageDerivedViewData {
+        let selection = reconcile(inputSelection)
+        let openCodeSnapshot = state.openCodeSnapshot.filtered(to: selection.timeRange)
+        let codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
+        let scope = selection.scope
+
+        let summary: AgentUsageSummary = {
+            switch selection.source {
+            case .all:
+                return AgentUsageSummary.merge(
+                    openCodeSnapshot.summary(for: scope),
+                    codexSnapshot.summary(for: scope)
+                )
+            case .openCode:
+                return openCodeSnapshot.summary(for: scope)
+            case .codex:
+                return codexSnapshot.summary(for: scope)
+            }
+        }()
+
+        return AgentUsageDerivedViewData(
+            selection: selection,
+            scope: scope,
+            summary: summary,
+            projectOptions: buildProjectOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            sessionOptions: buildSessionOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            tokenFlowData: buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            usageMetrics: buildUsageMetrics(summary: summary),
+            summaryPills: buildSummaryPills(summary: summary),
+            contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            selectedOpenCodeSession: selection.source == .openCode ? openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID }) : nil,
+            selectedCodexSession: selection.source == .codex ? codexSnapshot.sessions.first(where: { $0.id == selection.sessionID }) : nil,
+            codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
+            isSessionScope: selection.isSessionScope,
+            showsByModel: selection.source != .all && selection.isSessionScope == false,
+            showsTokenFlow: selection.source == .all && selection.timeRange != .today
+        )
+    }
+
+    // MARK: - Derivation Helpers
+
+    private func buildProjectOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [SearchableSelectorOption] {
+        switch selection.source {
+        case .all:
+            let ocProjects = Dictionary(grouping: openCodeSnapshot.sessions, by: \.directory)
+            let cxProjects = Dictionary(grouping: codexSnapshot.sessions.filter { $0.isSubagent == false }, by: \.cwd)
+            let allDirs = Set(ocProjects.keys).union(cxProjects.keys)
+            return allDirs.map { dir -> SearchableSelectorOption in
+                let ocSessions = ocProjects[dir] ?? []
+                let cxSessions = cxProjects[dir] ?? []
+                let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed }
+                let sessionsCount = ocSessions.count + cxSessions.count
+                return SearchableSelectorOption(
+                    id: dir,
+                    title: URL(fileURLWithPath: dir).lastPathComponent,
+                    subtitle: "\(compact(totalTokens)) total tokens \u{2022} \(sessionsCount) sessions \u{2022} \(dir)"
+                )
+            }
+            .sorted { lhs, rhs in
+                let lhsTokens = totalTokensForProject(dir: lhs.id, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+                let rhsTokens = totalTokensForProject(dir: rhs.id, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+                if lhsTokens == rhsTokens {
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+                return lhsTokens > rhsTokens
+            }
+        case .openCode:
+            return openCodeSnapshot.projectOptions.map {
+                SearchableSelectorOption(
+                    id: $0.directory,
+                    title: $0.shortName,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
+                )
+            }
+        case .codex:
+            return codexSnapshot.projectOptions.map {
+                SearchableSelectorOption(
+                    id: $0.directory,
+                    title: $0.shortName,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
+                )
+            }
+        }
+    }
+
+    private func totalTokensForProject(dir: String, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> Int {
+        let ocTokens = openCodeSnapshot.sessions.filter { $0.directory == dir }.reduce(0) { $0 + $1.totalTokens }
+        let cxTokens = codexSnapshot.sessions.filter { $0.cwd == dir && $0.isSubagent == false }.reduce(0) { $0 + $1.tokensUsed }
+        return ocTokens + cxTokens
+    }
+
+    private func buildSessionOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [SearchableSelectorOption] {
+        switch selection.source {
+        case .all:
+            return []
+        case .openCode:
+            guard let projectDirectory = selection.projectDirectory else { return [] }
+            return openCodeSnapshot.sessionOptions(for: projectDirectory).map {
+                SearchableSelectorOption(
+                    id: $0.id,
+                    title: $0.title,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)"
+                )
+            }
+        case .codex:
+            guard let projectDirectory = selection.projectDirectory else { return [] }
+            return codexSnapshot.sessionOptions(for: projectDirectory).map {
+                let effort = $0.reasoningEffort.isEmpty ? "" : " \u{2022} \($0.reasoningEffort)"
+                return SearchableSelectorOption(
+                    id: $0.id,
+                    title: $0.title,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
+                )
+            }
+        }
+    }
+
+    private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
+        guard selection.source == .all, selection.timeRange != .today else { return [] }
+
+        let now = Date()
+        let calendar = Calendar.current
+
+        let minOC = openCodeSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
+        let minCX = codexSnapshot.sessions.min(by: { $0.updatedAt < $1.updatedAt })?.updatedAt
+        guard let earliest = [minOC, minCX].compactMap({ $0 }).min() else { return [] }
+
+        let earliestDay = calendar.startOfDay(for: earliest)
+        let nowDay = calendar.startOfDay(for: now)
+        let totalDays = calendar.dateComponents([.day], from: earliestDay, to: nowDay).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
+        let bucketSize: Int
+        switch selection.timeRange {
+        case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
+        default: bucketSize = 1
+        }
+
+        var entries: [(date: Date, tokens: Int)] = []
+        for s in openCodeSnapshot.sessions {
+            entries.append((calendar.startOfDay(for: s.updatedAt), s.totalTokens))
+        }
+        for s in codexSnapshot.sessions {
+            entries.append((calendar.startOfDay(for: s.updatedAt), s.tokensUsed))
+        }
+
+        var buckets: [TokenUsageDataPoint] = []
+        var cursor = earliestDay
+        while cursor <= nowDay {
+            guard let bucketEnd = calendar.date(byAdding: .day, value: bucketSize, to: cursor) else { break }
+            let sum = entries
+                .filter { $0.date >= cursor && $0.date < bucketEnd }
+                .reduce(0) { $0 + $1.tokens }
+            buckets.append(TokenUsageDataPoint(date: cursor, totalTokens: sum))
+            cursor = bucketEnd
+        }
+        return buckets
+    }
+
+    private func buildUsageMetrics(summary: AgentUsageSummary) -> [AgentUsageMetricCard] {
+        var metrics: [AgentUsageMetricCard] = [
+            AgentUsageMetricCard(id: "total", title: "Total", valueText: compact(summary.totalTokens), detailText: nil)
+        ]
+        if let input = summary.inputTokens {
+            metrics.append(AgentUsageMetricCard(id: "input", title: "Input", valueText: compact(input), detailText: nil))
+        }
+        if let output = summary.outputTokens {
+            metrics.append(AgentUsageMetricCard(id: "output", title: "Output", valueText: compact(output), detailText: nil))
+        }
+        if let cacheRead = summary.cacheReadTokens {
+            metrics.append(AgentUsageMetricCard(id: "cacheRead", title: "Cache Read", valueText: compact(cacheRead), detailText: nil))
+        }
+        return metrics
+    }
+
+    private func buildSummaryPills(summary: AgentUsageSummary) -> [AgentUsageSummaryPill] {
+        var pills: [AgentUsageSummaryPill] = []
+        if let reasoning = summary.reasoningTokens {
+            pills.append(AgentUsageSummaryPill(id: "reasoning", title: "Reasoning", valueText: compact(reasoning)))
+        }
+        if let cacheWrite = summary.cacheWriteTokens {
+            pills.append(AgentUsageSummaryPill(id: "cacheWrite", title: "Cache Write", valueText: compact(cacheWrite)))
+        }
+        pills.append(AgentUsageSummaryPill(id: "sessions", title: "Sessions", valueText: "\(summary.sessionsCount)"))
+        pills.append(AgentUsageSummaryPill(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-"))
+        if let cost = summary.cost, cost > 0 {
+            pills.append(AgentUsageSummaryPill(id: "cost", title: "Cost", valueText: String(format: "$%.2f", cost)))
+        }
+        return pills
+    }
+
+    private func buildContextRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [AgentUsageDetailRow] {
+        guard selection.source != .all else { return [] }
+
+        var rows: [AgentUsageDetailRow] = []
+
+        switch selection.source {
+        case .all:
+            break
+        case .openCode:
+            let summary = openCodeSnapshot.summary(for: scope)
+            switch scope {
+            case .allProjects:
+                rows.append(AgentUsageDetailRow(id: "projectsCount", title: "Projects Count", valueText: "\(openCodeSnapshot.projectOptions.count)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .project(let directory):
+                rows.append(AgentUsageDetailRow(id: "projectName", title: "Project Name", valueText: URL(fileURLWithPath: directory).lastPathComponent, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: directory, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .session:
+                let session = openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.directory ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "agent", title: "Agent", valueText: session?.agent ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "providerModel", title: "Provider / Model", valueText: session.map { OpenCodeUsageSnapshot.modelDisplayName(providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: session.map { shortDateTime($0.updatedAt) } ?? "-", secondaryText: nil))
+            }
+        case .codex:
+            let summary = codexSnapshot.summary(for: scope)
+            switch scope {
+            case .allProjects:
+                rows.append(AgentUsageDetailRow(id: "projectsCount", title: "Projects Count", valueText: "\(codexSnapshot.projectOptions.count)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .project(let directory):
+                rows.append(AgentUsageDetailRow(id: "projectName", title: "Project Name", valueText: URL(fileURLWithPath: directory).lastPathComponent, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: directory, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .session:
+                let session = codexSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.cwd ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "model", title: "Model", valueText: session.map { "\($0.modelProvider) / \($0.model)" } ?? "-", secondaryText: nil))
+                if let session, session.reasoningEffort.isEmpty == false {
+                    rows.append(AgentUsageDetailRow(id: "reasoningEffort", title: "Reasoning Effort", valueText: session.reasoningEffort, secondaryText: nil))
+                }
+                rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: session.map { shortDateTime($0.updatedAt) } ?? "-", secondaryText: nil))
+            }
+        }
+        return rows
+    }
+
+    private func buildProviderBreakdown(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [ProviderBreakdown] {
+        guard selection.source != .all else { return [] }
+        switch selection.source {
+        case .all: return []
+        case .openCode: return openCodeSnapshot.providerBreakdown(for: scope)
+        case .codex: return codexSnapshot.providerBreakdown(for: scope)
+        }
+    }
+
+    private func buildModelBreakdownRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [AgentUsageDetailRow] {
+        guard selection.source != .all else { return [] }
+        switch selection.source {
+        case .all: return []
+        case .openCode:
+            return openCodeSnapshot.modelBreakdown(for: scope).map {
+                AgentUsageDetailRow(
+                    id: "\($0.providerID)/\($0.modelID)",
+                    title: OpenCodeUsageSnapshot.modelDisplayName(providerID: $0.providerID, modelID: $0.modelID, variant: $0.variant),
+                    valueText: compact($0.summary.totalTokens),
+                    secondaryText: nil
+                )
+            }
+        case .codex:
+            return codexSnapshot.modelBreakdown(for: scope).map {
+                AgentUsageDetailRow(
+                    id: "\($0.modelProvider)/\($0.model)",
+                    title: "\($0.modelProvider) / \($0.model)",
+                    valueText: compact($0.summary.totalTokens),
+                    secondaryText: nil
+                )
+            }
+        }
+    }
+
+    private func compact(_ value: Int) -> String {
+        if value >= 1_000_000_000 { return String(format: "%.1fB", Double(value) / 1_000_000_000) }
+        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
+        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
+        return "\(value)"
+    }
+
+    private func shortDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
 }
 
 private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: URL?) -> [AgentSource] {
