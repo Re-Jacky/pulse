@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let themeManager = ThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
-    private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "zyao", repoName: "pulse"))
+    private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "pulse"))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupPanelObservation()
 
         Task { @MainActor [weak self] in
-            await self?.updateManager.checkForUpdates(userInitiated: false)
+            await self?.updateManager.checkForUpdates(userInitiated: true)
         }
 
         updateManager.performPostUpgradeTasks()
@@ -309,16 +309,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
-        let checkUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
-        checkUpdatesItem.target = self
-        menu.addItem(checkUpdatesItem)
-
-        if case let .readyToInstall(release, _, _) = updateManager.state {
-            let installItem = NSMenuItem(title: "Install Pulse \(release.version)", action: #selector(installDownloadedUpdate), keyEquivalent: "")
-            installItem.target = self
-            menu.addItem(installItem)
-        }
-
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit Pulse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
@@ -370,23 +360,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller
         return window
-    }
-
-    @objc private func checkForUpdatesFromMenu() {
-        Task { @MainActor [weak self] in
-            await self?.updateManager.checkForUpdates(userInitiated: true)
-        }
-    }
-
-    @objc private func installDownloadedUpdate() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                try await self.updateManager.beginInstall()
-            } catch {
-                self.updateManager.present(error: error)
-            }
-        }
     }
 
     func windowWillClose(_ notification: Notification) {

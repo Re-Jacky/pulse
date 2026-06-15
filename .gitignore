@@ -21,5 +21,9 @@ build/
 .build/
 .swiftpm/
 
+# Local worktrees
+.worktrees/
+
 # Distribution
 dist/*.dmg
+dist/*.zip

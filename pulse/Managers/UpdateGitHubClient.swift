@@ -6,7 +6,7 @@ struct LiveUpdateClient: UpdateClient {
 
     func fetchLatestRelease() async throws -> AppRelease {
         let url = URL(string: "https://api.github.com/repos/\(repoOwner)/\(repoName)/releases/latest")!
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: 15)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Pulse/\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)

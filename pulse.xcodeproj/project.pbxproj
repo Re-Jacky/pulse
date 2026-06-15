@@ -135,8 +135,8 @@
 		10000000000000000000004A /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = "Contents/Helpers";
-			dstSubfolderSpec = 16;
+			dstPath = "../Helpers";
+			dstSubfolderSpec = 10;
 			files = (
 				100000000000000000000049 /* PulseUpdater.app in CopyFiles */,
 			);
@@ -548,7 +548,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -566,7 +566,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -706,7 +706,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -730,7 +730,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.1;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -18,7 +18,8 @@ struct UpdateInstallPlanner {
             stagedAppPath: stagedAppURL.path,
             installedAppPath: installedAppURL.path,
             backupAppPath: backupAppURL.path,
-            relaunchMarkerPath: markerURL.path
+            relaunchMarkerPath: markerURL.path,
+            runningAppPID: ProcessInfo.processInfo.processIdentifier
         )
     }
 }

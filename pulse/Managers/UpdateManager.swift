@@ -166,6 +166,11 @@ final class UpdateManager: ObservableObject {
         userDefaults.set(contract.backupAppPath, forKey: Self.pendingBackupPathKey)
         userDefaults.set(contract.installedAppPath, forKey: Self.pendingInstalledPathKey)
         state = .launchingInstaller(release)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.userDefaults.synchronize()
+            NSApp.terminate(nil)
+        }
     }
 
     @MainActor

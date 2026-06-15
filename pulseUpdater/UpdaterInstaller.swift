@@ -24,6 +24,8 @@ struct UpdaterInstaller {
             throw InstallError.invalidContract(error.localizedDescription)
         }
 
+        waitForProcessToExit(pid: contract.runningAppPID)
+
         if fileManager.fileExists(atPath: backupAppURL.path) {
             try fileManager.removeItem(at: backupAppURL)
         }
@@ -41,6 +43,9 @@ struct UpdaterInstaller {
             throw error
         }
 
+        try fileManager.createDirectory(at: markerURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("ok".utf8).write(to: markerURL, options: .atomic)
+
         var relaunchError: Error?
         let semaphore = DispatchSemaphore(value: 0)
         workspace.openApplication(at: installedAppURL, configuration: NSWorkspace.OpenConfiguration()) { _, error in
@@ -50,13 +55,21 @@ struct UpdaterInstaller {
         semaphore.wait()
 
         if let error = relaunchError {
+            try? fileManager.removeItem(at: markerURL)
             _ = UpdateRecovery.attemptBackupRestore(fileManager: fileManager, backupAppURL: backupAppURL, installedAppURL: installedAppURL)
             workspace.openApplication(at: installedAppURL, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
             throw InstallError.relaunchFailed(error.localizedDescription)
         }
+    }
 
-        try fileManager.createDirectory(at: markerURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data("ok".utf8).write(to: markerURL, options: .atomic)
+    private func waitForProcessToExit(pid: Int32) {
+        let deadline = DispatchTime.now() + .seconds(10)
+        while DispatchTime.now() < deadline {
+            if kill(pid, 0) != 0 {
+                return
+            }
+            usleep(200_000)
+        }
     }
 
     enum InstallError: LocalizedError {

@@ -32,6 +32,7 @@ struct UpdateInstallContract: Codable, Equatable {
     let installedAppPath: String
     let backupAppPath: String
     let relaunchMarkerPath: String
+    let runningAppPID: Int32
 }
 
 enum UpdateRecovery {
