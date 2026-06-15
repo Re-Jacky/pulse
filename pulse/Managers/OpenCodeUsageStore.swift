@@ -271,7 +271,68 @@ updatedAt: updatedAt
 )
 }
 
-return OpenCodeUsageSnapshot(sessions: sessions)
+    return OpenCodeUsageSnapshot(sessions: sessions)
+}
+
+static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
+    guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+        throw QueryError.databaseNotFound(path: databaseURL.path)
+    }
+
+    let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+        sqlite3_close(db)
+        throw QueryError.databaseOpenFailed(message: message)
+    }
+    defer { sqlite3_close(db) }
+
+    let sql = """
+    SELECT m.session_id,
+           (m.time_created / 86400000) AS day,
+           SUM(coalesce(json_extract(m.data, '$.tokens.input'), 0)),
+           SUM(coalesce(json_extract(m.data, '$.tokens.output'), 0)),
+           SUM(coalesce(json_extract(m.data, '$.tokens.reasoning'), 0)),
+           SUM(coalesce(json_extract(m.data, '$.tokens.cache.read'), 0)),
+           SUM(coalesce(json_extract(m.data, '$.tokens.cache.write'), 0)),
+           SUM(coalesce(json_extract(m.data, '$.cost'), 0))
+    FROM message m
+    WHERE json_extract(m.data, '$.role') = 'assistant'
+    GROUP BY m.session_id, day
+    ORDER BY m.session_id, day
+    """
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw QueryError.queryPrepareFailed(message: String(cString: sqlite3_errmsg(db)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    var buckets: [OpenCodeDailyBucket] = []
+
+    while true {
+        let stepResult = sqlite3_step(statement)
+        if stepResult == SQLITE_DONE { break }
+        guard stepResult == SQLITE_ROW else {
+            throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+        }
+
+        buckets.append(
+            OpenCodeDailyBucket(
+                sessionID: stringColumn(statement, index: 0),
+                day: Int(sqlite3_column_int64(statement, 1)),
+                inputTokens: Int(sqlite3_column_int64(statement, 2)),
+                outputTokens: Int(sqlite3_column_int64(statement, 3)),
+                reasoningTokens: Int(sqlite3_column_int64(statement, 4)),
+                cacheReadTokens: Int(sqlite3_column_int64(statement, 5)),
+                cacheWriteTokens: Int(sqlite3_column_int64(statement, 6)),
+                cost: sqlite3_column_double(statement, 7)
+            )
+        )
+    }
+
+    return buckets
 }
 }
 
