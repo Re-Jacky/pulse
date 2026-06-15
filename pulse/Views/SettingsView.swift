@@ -3,12 +3,14 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var agentUsageSettings: AgentUsageSettings
+    @EnvironmentObject var updateManager: UpdateManager
     @State private var selectedSection: Section = .theme
     private let versionInfo = AppVersionInfo()
 
     private enum Section: Hashable {
         case theme
         case agentUsage
+        case updates
     }
 
     var body: some View {
@@ -20,6 +22,7 @@ struct SettingsView: View {
 
                 sidebarButton(title: "Theme", systemImage: "circle.lefthalf.filled", section: .theme)
                 sidebarButton(title: "Agent Usage", systemImage: "person.2.wave.2", section: .agentUsage)
+                sidebarButton(title: "Updates", systemImage: "arrow.triangle.2.circlepath", section: .updates)
 
                 Spacer()
             }
@@ -36,6 +39,8 @@ struct SettingsView: View {
                         themeContent
                     case .agentUsage:
                         agentUsageContent
+                    case .updates:
+                        updateContent
                     }
                 }
 
@@ -100,6 +105,55 @@ struct SettingsView: View {
 
             Toggle("Enable Agent Usage", isOn: $agentUsageSettings.isEnabled)
                 .toggleStyle(.switch)
+        }
+    }
+
+    private var updateContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Updates")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
+
+            Text(versionInfo.appDisplayVersion)
+                .font(.system(size: 13))
+                .foregroundColor(.appSecondaryText)
+
+            switch updateManager.state {
+            case .checking:
+                ProgressView("Checking for updates...")
+            case .downloading:
+                ProgressView("Downloading update...")
+            case let .updateAvailable(release):
+                Button("Download Pulse \(release.version)") {
+                    Task { @MainActor in
+                        do {
+                            try await updateManager.downloadAvailableUpdate(release)
+                        } catch {
+                            updateManager.present(error: error)
+                        }
+                    }
+                }
+            case let .readyToInstall(release, _, _):
+                Button("Install Pulse \(release.version)") {
+                    Task { @MainActor in
+                        do {
+                            try await updateManager.beginInstall()
+                        } catch {
+                            updateManager.present(error: error)
+                        }
+                    }
+                }
+            case let .failed(message):
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red)
+            default:
+                Button("Check for Updates...") {
+                    Task { @MainActor in
+                        await updateManager.checkForUpdates(userInitiated: true)
+                    }
+                }
+            }
         }
     }
 

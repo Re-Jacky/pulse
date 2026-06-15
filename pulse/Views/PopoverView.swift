@@ -4,6 +4,7 @@ struct PopoverView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var agentUsageSettings: AgentUsageSettings
+    @EnvironmentObject var updateManager: UpdateManager
 
     private var availableTabs: [(title: String, tag: Int)] {
         var tabs: [(String, Int)] = [("Stats", 0), ("Processes", 1)]

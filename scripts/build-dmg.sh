@@ -5,7 +5,6 @@ APP_NAME="Pulse"
 SCHEME="pulse"
 PROJECT="pulse.xcodeproj"
 VERSION=$(grep -m1 'MARKETING_VERSION' "${PROJECT}/project.pbxproj" | sed 's/.*= *//;s/;//')
-PROJECT="pulse.xcodeproj"
 CONFIG="Release"
 DIST_DIR="dist"
 STAGING_DIR="/tmp/${APP_NAME}-dmg-staging"
@@ -36,6 +35,11 @@ mkdir -p "${STAGING_DIR}"
 cp -R "${APP_PATH}" "${STAGING_DIR}/"
 ln -s /Applications "${STAGING_DIR}/Applications"
 
+ZIP_OUT="${DIST_DIR}/${APP_NAME}-${VERSION}-updater.zip"
+
+echo "==> Creating updater ZIP..."
+ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_OUT}"
+
 DMG_TMP="/tmp/${APP_NAME}-tmp.dmg"
 DMG_OUT="${DIST_DIR}/${APP_NAME}-${VERSION}.dmg"
 
@@ -51,4 +55,4 @@ mv "${DMG_TMP}" "${DMG_OUT}"
 rm -rf "${STAGING_DIR}"
 rm -rf "${DERIVED_DATA_DIR}"
 
-echo "==> Done: ${DMG_OUT}"
+echo "==> Done: ${ZIP_OUT} ${DMG_OUT}"

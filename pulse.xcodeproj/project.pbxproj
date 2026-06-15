@@ -17,6 +17,18 @@
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000028 /* AgentUsageViewDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000029 /* AgentUsageViewDataTests.swift */; };
 		100000000000000000000030 /* AgentUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000031 /* AgentUsageStoreTests.swift */; };
+		100000000000000000000032 /* UpdateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000033 /* UpdateManagerTests.swift */; };
+		10000000000000000000003A /* UpdateInstallPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003B /* UpdateInstallPlannerTests.swift */; };
+		100000000000000000000034 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
+		10000000000000000000003C /* UpdateInstallPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003D /* UpdateInstallPlanner.swift */; };
+		100000000000000000000036 /* UpdateGitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000037 /* UpdateGitHubClient.swift */; };
+		100000000000000000000038 /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000039 /* UpdateManager.swift */; };
+		100000000000000000000040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000041 /* main.swift */; };
+		100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000043 /* UpdaterAppDelegate.swift */; };
+		100000000000000000000044 /* UpdaterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000045 /* UpdaterWindowController.swift */; };
+		100000000000000000000046 /* UpdaterInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000047 /* UpdaterInstaller.swift */; };
+		100000000000000000000048 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
+		100000000000000000000049 /* PulseUpdater.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = 10000000000000000000004B /* PulseUpdater.app */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
 		100000000000000000000024 /* SearchableSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000025 /* SearchableSelectorView.swift */; };
 		100000000000000000000026 /* AgentUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000027 /* AgentUsageView.swift */; };
@@ -55,6 +67,13 @@
 			remoteGlobalIDString = AA00000100000000000000AA;
 			remoteInfo = pulse;
 		};
+		10000000000000000000004C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA00000100000000000000EA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 10000000000000000000004D;
+			remoteInfo = pulseUpdater;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +87,17 @@
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000029 /* AgentUsageViewDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageViewDataTests.swift; sourceTree = "<group>"; };
 		100000000000000000000031 /* AgentUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000033 /* UpdateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManagerTests.swift; sourceTree = "<group>"; };
+		10000000000000000000003B /* UpdateInstallPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallPlannerTests.swift; sourceTree = "<group>"; };
+		100000000000000000000035 /* UpdateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateModels.swift; sourceTree = "<group>"; };
+		10000000000000000000003D /* UpdateInstallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateInstallPlanner.swift; sourceTree = "<group>"; };
+		100000000000000000000037 /* UpdateGitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateGitHubClient.swift; sourceTree = "<group>"; };
+		100000000000000000000039 /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateManager.swift; sourceTree = "<group>"; };
+		100000000000000000000041 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		100000000000000000000043 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
+		100000000000000000000045 /* UpdaterWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterWindowController.swift; sourceTree = "<group>"; };
+		100000000000000000000047 /* UpdaterInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterInstaller.swift; sourceTree = "<group>"; };
+		10000000000000000000004B /* PulseUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		10000000000000000000002B /* AgentUsageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageRepository.swift; sourceTree = "<group>"; };
 		10000000000000000000002D /* AgentUsageViewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageViewData.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -101,8 +131,28 @@
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		10000000000000000000004A /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "Contents/Helpers";
+			dstSubfolderSpec = 16;
+			files = (
+				100000000000000000000049 /* PulseUpdater.app in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		100000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		10000000000000000000004E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -127,10 +177,23 @@
 				100000000000000000000002 /* AppVersionInfoTests.swift */,
 				100000000000000000000029 /* AgentUsageViewDataTests.swift */,
 				100000000000000000000031 /* AgentUsageStoreTests.swift */,
+				10000000000000000000003B /* UpdateInstallPlannerTests.swift */,
+				100000000000000000000033 /* UpdateManagerTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
 			path = pulseTests;
+			sourceTree = "<group>";
+		};
+		10000000000000000000004F /* pulseUpdater */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000041 /* main.swift */,
+				100000000000000000000043 /* UpdaterAppDelegate.swift */,
+				100000000000000000000045 /* UpdaterWindowController.swift */,
+				100000000000000000000047 /* UpdaterInstaller.swift */,
+			);
+			path = pulseUpdater;
 			sourceTree = "<group>";
 		};
 		5FBA87F2FBD639833E1B72BD /* Managers */ = {
@@ -139,6 +202,10 @@
 				100000000000000000000015 /* AgentUsageSettings.swift */,
 				10000000000000000000002B /* AgentUsageRepository.swift */,
 				100000000000000000000011 /* AppVersionInfo.swift */,
+				100000000000000000000037 /* UpdateGitHubClient.swift */,
+				10000000000000000000003D /* UpdateInstallPlanner.swift */,
+				100000000000000000000039 /* UpdateManager.swift */,
+				100000000000000000000035 /* UpdateModels.swift */,
 				100000000000000000000017 /* OpenCodeUsageModels.swift */,
 				100000000000000000000021 /* OpenCodeUsageStore.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
@@ -175,6 +242,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000004B /* pulse.app */,
+				10000000000000000000004B /* PulseUpdater.app */,
 				100000000000000000000004 /* pulseTests.xctest */,
 			);
 			name = Products;
@@ -206,6 +274,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000001000000000000008A /* pulse */,
+				10000000000000000000004F /* pulseUpdater */,
 				100000000000000000000006 /* pulseTests */,
 				AA000001000000000000006A /* Products */,
 			);
@@ -244,17 +313,36 @@
 			productReference = 100000000000000000000004 /* pulseTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		10000000000000000000004D /* pulseUpdater */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000050 /* Build configuration list for PBXNativeTarget "pulseUpdater" */;
+			buildPhases = (
+				100000000000000000000051 /* Sources */,
+				10000000000000000000004E /* Frameworks */,
+				100000000000000000000052 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = pulseUpdater;
+			productName = PulseUpdater;
+			productReference = 10000000000000000000004B /* PulseUpdater.app */;
+			productType = "com.apple.product-type.application";
+		};
 		AA00000100000000000000AA /* pulse */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA00000100000000000000BA /* Build configuration list for PBXNativeTarget "pulse" */;
 			buildPhases = (
 				AA00000100000000000000CA /* Sources */,
 				AA000001000000000000005A /* Frameworks */,
+				10000000000000000000004A /* CopyFiles */,
 				AA00000100000000000000DA /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				100000000000000000000053 /* PBXTargetDependency */,
 			);
 			name = pulse;
 			productName = pulse;
@@ -294,6 +382,7 @@
 			projectRoot = "";
 			targets = (
 				AA00000100000000000000AA /* pulse */,
+				10000000000000000000004D /* pulseUpdater */,
 				100000000000000000000007 /* pulseTests */,
 			);
 		};
@@ -301,6 +390,13 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		10000000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000052 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -325,8 +421,22 @@
 				100000000000000000000001 /* AppVersionInfoTests.swift in Sources */,
 				100000000000000000000028 /* AgentUsageViewDataTests.swift in Sources */,
 				100000000000000000000030 /* AgentUsageStoreTests.swift in Sources */,
+				10000000000000000000003A /* UpdateInstallPlannerTests.swift in Sources */,
+				100000000000000000000032 /* UpdateManagerTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000051 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000040 /* main.swift in Sources */,
+				100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */,
+				100000000000000000000044 /* UpdaterWindowController.swift in Sources */,
+				100000000000000000000046 /* UpdaterInstaller.swift in Sources */,
+				100000000000000000000048 /* UpdateModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,6 +462,10 @@
 				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
 				10000000000000000000002A /* AgentUsageRepository.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,
+				100000000000000000000036 /* UpdateGitHubClient.swift in Sources */,
+				10000000000000000000003C /* UpdateInstallPlanner.swift in Sources */,
+				100000000000000000000038 /* UpdateManager.swift in Sources */,
+				100000000000000000000034 /* UpdateModels.swift in Sources */,
 				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
 				100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,
@@ -374,6 +488,11 @@
 			isa = PBXTargetDependency;
 			target = AA00000100000000000000AA /* pulse */;
 			targetProxy = 100000000000000000000003 /* PBXContainerItemProxy */;
+		};
+		100000000000000000000053 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 10000000000000000000004D /* pulseUpdater */;
+			targetProxy = 10000000000000000000004C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -415,6 +534,42 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Pulse.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Pulse";
+			};
+			name = Release;
+		};
+		100000000000000000000054 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
+				PRODUCT_NAME = PulseUpdater;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		100000000000000000000055 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
+				PRODUCT_NAME = PulseUpdater;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -551,7 +706,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.3;
+				MARKETING_VERSION = 1.8.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -575,7 +730,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.3;
+				MARKETING_VERSION = 1.8.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -591,6 +746,15 @@
 			buildConfigurations = (
 				10000000000000000000000C /* Debug */,
 				10000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000050 /* Build configuration list for PBXNativeTarget "pulseUpdater" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000054 /* Debug */,
+				100000000000000000000055 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

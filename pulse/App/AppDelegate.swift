@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let themeManager = ThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
+    private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "zyao", repoName: "pulse"))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -70,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupThemeObservation()
         setupFeatureObservation()
         setupPanelObservation()
+
+        Task { @MainActor [weak self] in
+            await self?.updateManager.checkForUpdates(userInitiated: false)
+        }
+
+        updateManager.performPostUpgradeTasks()
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
@@ -156,8 +163,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             p.setFrameOrigin(NSPoint(x: clamped, y: y))
         }
 
-        p.makeKeyAndOrderFront(nil)
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        p.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            if self.settingsWindow?.isVisible != true {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
@@ -241,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
                 .environmentObject(agentUsageStore)
+                .environmentObject(updateManager)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
@@ -295,6 +309,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
+        let checkUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdatesFromMenu), keyEquivalent: "")
+        checkUpdatesItem.target = self
+        menu.addItem(checkUpdatesItem)
+
+        if case let .readyToInstall(release, _, _) = updateManager.state {
+            let installItem = NSMenuItem(title: "Install Pulse \(release.version)", action: #selector(installDownloadedUpdate), keyEquivalent: "")
+            installItem.target = self
+            menu.addItem(installItem)
+        }
+
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit Pulse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
@@ -341,10 +365,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             rootView: SettingsView()
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
+                .environmentObject(updateManager)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller
         return window
+    }
+
+    @objc private func checkForUpdatesFromMenu() {
+        Task { @MainActor [weak self] in
+            await self?.updateManager.checkForUpdates(userInitiated: true)
+        }
+    }
+
+    @objc private func installDownloadedUpdate() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.updateManager.beginInstall()
+            } catch {
+                self.updateManager.present(error: error)
+            }
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
