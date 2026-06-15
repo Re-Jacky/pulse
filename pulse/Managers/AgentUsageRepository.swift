@@ -4,7 +4,8 @@ protocol AgentUsageRepositorying {
     var openCodeDatabaseURL: URL { get }
     var codexDatabaseURL: URL? { get }
 
-    func loadOpenCodeSnapshot() throws -> OpenCodeUsageSnapshot
+    func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot
+    func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket]
     func loadCodexSnapshot() throws -> CodexUsageSnapshot
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail
 }
@@ -21,8 +22,12 @@ struct AgentUsageRepository: AgentUsageRepositorying {
         self.codexDatabaseURL = codexDatabaseURL
     }
 
-    func loadOpenCodeSnapshot() throws -> OpenCodeUsageSnapshot {
+    func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot {
         try OpenCodeUsageQuery.loadSnapshot(databaseURL: openCodeDatabaseURL)
+    }
+
+    func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] {
+        try OpenCodeUsageQuery.loadDailyBuckets(databaseURL: openCodeDatabaseURL)
     }
 
     func loadCodexSnapshot() throws -> CodexUsageSnapshot {

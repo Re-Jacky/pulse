@@ -62,7 +62,8 @@ final class AgentUsageViewDataTests: XCTestCase {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
             AgentUsageLoadedState(
-                openCodeSnapshot: OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 120)]),
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 120)]),
+                openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 80)]),
                 refreshGeneration: 1,
                 codexDetailCache: [:]
@@ -87,7 +88,8 @@ final class AgentUsageViewDataTests: XCTestCase {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
             AgentUsageLoadedState(
-                openCodeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "thread_1", tokens: 80)]),
                 refreshGeneration: 1,
                 codexDetailCache: [:]
@@ -148,7 +150,8 @@ private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionReco
 private final class StubRepository: AgentUsageRepositorying {
     var openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
     var codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
-    func loadOpenCodeSnapshot() throws -> OpenCodeUsageSnapshot { OpenCodeUsageSnapshot(sessions: []) }
+    func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot { OpenCodeUsageSnapshot(sessions: []) }
+    func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] { [] }
     func loadCodexSnapshot() throws -> CodexUsageSnapshot { CodexUsageSnapshot(sessions: []) }
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail { CodexSessionDetail(threadID: threadID, edges: [], goals: []) }
 }

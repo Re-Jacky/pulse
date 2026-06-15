@@ -36,13 +36,15 @@ enum CodexSessionDetailState: Equatable {
 }
 
 struct AgentUsageLoadedState: Equatable {
-    let openCodeSnapshot: OpenCodeUsageSnapshot
+    let openCodeCumulativeSnapshot: OpenCodeUsageSnapshot
+    let openCodeDailyBuckets: [OpenCodeDailyBucket]
     let codexSnapshot: CodexUsageSnapshot
     let refreshGeneration: Int
     let codexDetailCache: [String: CodexSessionDetailState]
 
     static let empty = AgentUsageLoadedState(
-        openCodeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+        openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+        openCodeDailyBuckets: [],
         codexSnapshot: CodexUsageSnapshot(sessions: []),
         refreshGeneration: 0,
         codexDetailCache: [:]

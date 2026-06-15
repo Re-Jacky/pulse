@@ -4,7 +4,7 @@ import XCTest
 final class AgentUsageStoreTests: XCTestCase {
     func testRefreshAllLoadsBothSnapshotsAndClearsPreviousDetailCache() {
         let repository = StubAgentUsageRepository()
-        repository.openCodeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1")])
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1")])
         repository.codexSnapshot = CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1")])
         repository.codexDetail = CodexSessionDetail(threadID: "cx_1", edges: [], goals: [])
 
@@ -16,6 +16,7 @@ final class AgentUsageStoreTests: XCTestCase {
         store.refreshAll()
 
         XCTAssertEqual(repository.openCodeLoadCount, 1)
+        XCTAssertEqual(repository.openCodeBucketLoadCount, 1)
         XCTAssertEqual(repository.codexLoadCount, 1)
         XCTAssertEqual(store.state.refreshGeneration, 1)
         XCTAssertEqual(store.codexDetail(for: "cx_1"), .idle)
@@ -48,6 +49,68 @@ final class AgentUsageStoreTests: XCTestCase {
 
         XCTAssertEqual(reconciled.projectDirectory, "/Users/zyao/Desktop/pulse")
         XCTAssertNil(reconciled.sessionID)
+    }
+
+    func testLoadedStateHoldsDailyBuckets() {
+        let buckets = [OpenCodeDailyBucket(sessionID: "s1", day: 20000,
+            inputTokens: 100, outputTokens: 50, reasoningTokens: 10,
+            cacheReadTokens: 1000, cacheWriteTokens: 4, cost: 0.02)]
+        let state = AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+            openCodeDailyBuckets: buckets,
+            codexSnapshot: CodexUsageSnapshot(sessions: []),
+            refreshGeneration: 0,
+            codexDetailCache: [:]
+        )
+        XCTAssertEqual(state.openCodeDailyBuckets.count, 1)
+        XCTAssertEqual(state.openCodeDailyBuckets[0].sessionID, "s1")
+    }
+
+    func testRefreshAllLoadsBucketsAlongsideCumulative() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1")])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(sessionID: "oc_1", day: 20000,
+                inputTokens: 50, outputTokens: 25, reasoningTokens: 5,
+                cacheReadTokens: 500, cacheWriteTokens: 2, cost: 0.01)
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        XCTAssertEqual(repository.openCodeLoadCount, 1)
+        XCTAssertEqual(repository.openCodeBucketLoadCount, 1)
+        XCTAssertEqual(store.state.openCodeDailyBuckets.count, 1)
+        XCTAssertEqual(store.state.openCodeCumulativeSnapshot.sessions.count, 1)
+    }
+
+    func testDerivedDataUsesBucketsForTodayAndCumulativeForAllTime() {
+        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            makeOpenCodeSession(id: "ses_1", tokens: 1000)
+        ])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(sessionID: "ses_1", day: todayDay,
+                inputTokens: 10, outputTokens: 5, reasoningTokens: 1,
+                cacheReadTokens: 20, cacheWriteTokens: 2, cost: 0.001)
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let allTimeSelection = AgentUsageSelection(
+            source: .openCode, timeRange: .allTime,
+            projectDirectory: nil, sessionID: nil, modelGroupBy: .model)
+        let allTimeData = store.derivedData(for: allTimeSelection)
+        XCTAssertEqual(allTimeData.summary.totalTokens, 1000)
+
+        let todaySelection = AgentUsageSelection(
+            source: .openCode, timeRange: .today,
+            projectDirectory: nil, sessionID: nil, modelGroupBy: .model)
+        let todayData = store.derivedData(for: todaySelection)
+        XCTAssertEqual(todayData.summary.totalTokens, 38)
     }
 }
 
@@ -92,17 +155,24 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
     var openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
     var codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
 
-    var openCodeSnapshot = OpenCodeUsageSnapshot(sessions: [])
+    var openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [])
+    var openCodeDailyBuckets: [OpenCodeDailyBucket] = []
     var codexSnapshot = CodexUsageSnapshot(sessions: [])
     var codexDetail = CodexSessionDetail(threadID: "", edges: [], goals: [])
 
     var openCodeLoadCount = 0
+    var openCodeBucketLoadCount = 0
     var codexLoadCount = 0
     var codexDetailLoadCount = 0
 
-    func loadOpenCodeSnapshot() throws -> OpenCodeUsageSnapshot {
+    func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot {
         openCodeLoadCount += 1
-        return openCodeSnapshot
+        return openCodeCumulativeSnapshot
+    }
+
+    func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] {
+        openCodeBucketLoadCount += 1
+        return openCodeDailyBuckets
     }
 
     func loadCodexSnapshot() throws -> CodexUsageSnapshot {
