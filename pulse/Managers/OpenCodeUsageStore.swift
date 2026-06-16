@@ -279,9 +279,9 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         throw QueryError.databaseNotFound(path: databaseURL.path)
     }
 
-    let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
+    let dbPath = databaseURL.path
     var db: OpaquePointer?
-    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+    guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
         sqlite3_close(db)
         throw QueryError.databaseOpenFailed(message: message)
