@@ -74,6 +74,7 @@ jobs:
             "${{ steps.version.outputs.dmg }}" \
             "${{ steps.version.outputs.zip }}" \
             --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
             --title "Pulse ${{ steps.version.outputs.version }}" \
             --notes "Automated release for Pulse ${{ steps.version.outputs.version }}"
 
