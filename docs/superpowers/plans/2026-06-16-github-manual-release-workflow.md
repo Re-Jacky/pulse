@@ -150,7 +150,7 @@ Insert this step after `Show resolved release values`:
 
 - [ ] **Step 2: Verify the command format locally**
 
-Run: `git ls-remote --tags origin "refs/tags/v0.0.0-does-not-exist"`
+Run: `git ls-remote --exit-code --tags origin "refs/tags/v0.0.0-does-not-exist"`
 Expected: no matching output and a non-zero exit code
 
 - [ ] **Step 3: Commit the tag guard**
