@@ -98,9 +98,11 @@ open "$(find ~/Library/Developer/Xcode/DerivedData -name 'Pulse.app' -path '*/De
 bash scripts/build-dmg.sh
 ```
 
-Builds a Release `.app` and packages it into a drag-to-install DMG using only macOS built-in tools (`hdiutil` — no Homebrew required).
+Builds a Release `.app` and packages it into release artifacts using only macOS built-in tools (`hdiutil` — no Homebrew required).
 
-Output: `dist/Pulse-1.4.2.dmg`
+Outputs:
+- `dist/Pulse-<version>.dmg`
+- `dist/Pulse-<version>-updater.zip`
 
 To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut inside it.
 
