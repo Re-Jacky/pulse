@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Select Xcode version
         uses: maxim-lobanov/setup-xcode@v1
@@ -51,6 +53,34 @@ jobs:
             exit 1
           fi
 
+      - name: Generate release notes
+        id: release_notes
+        shell: bash
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          {
+            echo "## What's Changed"
+            echo ""
+            if [ -n "$PREVIOUS_TAG" ]; then
+              git log "${PREVIOUS_TAG}..HEAD" --format='- %s (%h)'
+            else
+              git log HEAD --format='- %s (%h)'
+            fi
+            echo ""
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ steps.version.outputs.tag }}"
+            fi
+          } > "$NOTES_FILE"
+
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Show generated release notes
+        shell: bash
+        run: cat "${{ steps.release_notes.outputs.notes_file }}"
+
       - name: Build release artifacts
         shell: bash
         run: bash scripts/build-dmg.sh
@@ -81,7 +111,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "Pulse ${{ steps.version.outputs.version }}" \
-            --notes "Automated release for Pulse ${{ steps.version.outputs.version }}"
+            --notes-file "${{ steps.release_notes.outputs.notes_file }}"
 
       - name: Write workflow summary
         shell: bash
@@ -91,6 +121,7 @@ jobs:
             echo ""
             echo "- Version: ${{ steps.version.outputs.version }}"
             echo "- Tag: ${{ steps.version.outputs.tag }}"
+            echo "- Previous Tag: ${{ steps.release_notes.outputs.previous_tag || 'none' }}"
             echo "- DMG: ${{ steps.version.outputs.dmg }}"
             echo "- ZIP: ${{ steps.version.outputs.zip }}"
           } >> "$GITHUB_STEP_SUMMARY"
