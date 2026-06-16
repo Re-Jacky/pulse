@@ -4,6 +4,7 @@ struct PopoverView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var agentUsageSettings: AgentUsageSettings
+    @EnvironmentObject var agentStore: AgentUsageStore
     @EnvironmentObject var updateManager: UpdateManager
 
     private var availableTabs: [(title: String, tag: Int)] {
@@ -58,20 +59,28 @@ struct PopoverView: View {
                 selectedTab = 0
             }
             syncPanelTabSelection()
+            refreshAgentUsageIfNeeded()
         }
         .onChange(of: selectedTab) { _ in
             syncPanelTabSelection()
+            refreshAgentUsageIfNeeded()
         }
         .onAppear {
             if agentUsageSettings.isEnabled == false && selectedTab == 2 {
                 selectedTab = 0
             }
             syncPanelTabSelection()
+            refreshAgentUsageIfNeeded()
         }
     }
 
     private func syncPanelTabSelection() {
         NotificationCenter.default.post(name: .pulsePanelTabDidChange, object: selectedTab)
+    }
+
+    private func refreshAgentUsageIfNeeded() {
+        guard agentUsageSettings.isEnabled, selectedTab == 2 else { return }
+        agentStore.refreshIfNeededAsync()
     }
 }
 

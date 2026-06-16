@@ -59,7 +59,6 @@ struct AgentUsageView: View {
             .padding(16)
         }
         .onAppear {
-            agentStore.refreshIfNeeded()
             if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
@@ -115,7 +114,7 @@ struct AgentUsageView: View {
                 Spacer()
 
                 Button(agentStore.isRefreshing ? "Refreshing..." : "Refresh") {
-                    agentStore.refreshAll()
+                    agentStore.refreshAllAsync()
                 }
                 .buttonStyle(.borderless)
                 .disabled(agentStore.isRefreshing)

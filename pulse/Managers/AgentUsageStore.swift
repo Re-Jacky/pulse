@@ -3,6 +3,20 @@ import Combine
 
 final class AgentUsageStore: ObservableObject {
 
+    private struct RefreshContext {
+        let nextGeneration: Int
+        let previousState: AgentUsageLoadedState
+    }
+
+    private struct RefreshResult {
+        let openCodeSnapshot: OpenCodeUsageSnapshot
+        let dailyBuckets: [OpenCodeDailyBucket]
+        let codexSnapshot: CodexUsageSnapshot
+        let refreshGeneration: Int
+        let lastError: LoadError?
+        let loadedAnySource: Bool
+    }
+
     enum LoadError: Error, Equatable, LocalizedError {
         case openCode(OpenCodeUsageQuery.QueryError)
         case codex(CodexUsageQuery.QueryError)
@@ -44,61 +58,27 @@ final class AgentUsageStore: ObservableObject {
         refreshAll()
     }
 
+    func refreshIfNeededAsync() {
+        guard hasLoadedGeneralData == false else { return }
+        refreshAllAsync()
+    }
+
     func refreshAll() {
-        if hasLoadedGeneralData == false { isLoading = true } else { isRefreshing = true }
+        guard let context = beginRefresh() else { return }
+        let result = loadRefreshResult(context: context)
+        applyRefreshResult(result)
+    }
 
-        let nextGeneration = state.refreshGeneration + 1
-        let previousState = state
-        state = AgentUsageLoadedState(
-            openCodeCumulativeSnapshot: previousState.openCodeCumulativeSnapshot,
-            openCodeDailyBuckets: previousState.openCodeDailyBuckets,
-            codexSnapshot: previousState.codexSnapshot,
-            refreshGeneration: previousState.refreshGeneration,
-            codexDetailCache: [:]
-        )
+    func refreshAllAsync() {
+        guard let context = beginRefresh() else { return }
+        let repository = self.repository
 
-        var openCodeSnapshot = previousState.openCodeCumulativeSnapshot
-        var dailyBuckets = previousState.openCodeDailyBuckets
-        var codexSnapshot = previousState.codexSnapshot
-        var firstError: LoadError?
-        var loadedAnySource = false
-
-        do {
-            openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
-            dailyBuckets = try repository.loadOpenCodeDailyBuckets()
-            loadedAnySource = true
-        } catch let error as OpenCodeUsageQuery.QueryError {
-            firstError = .openCode(error)
-        } catch {
-            firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
-        }
-
-        do {
-            codexSnapshot = try repository.loadCodexSnapshot()
-            loadedAnySource = true
-        } catch let error as CodexUsageQuery.QueryError {
-            if firstError == nil { firstError = .codex(error) }
-        } catch {
-            if firstError == nil {
-                firstError = .codex(.queryStepFailed(message: error.localizedDescription))
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Self.loadRefreshResult(repository: repository, context: context)
+            DispatchQueue.main.async {
+                self.applyRefreshResult(result)
             }
         }
-
-        state = AgentUsageLoadedState(
-            openCodeCumulativeSnapshot: openCodeSnapshot,
-            openCodeDailyBuckets: dailyBuckets,
-            codexSnapshot: codexSnapshot,
-            refreshGeneration: loadedAnySource ? nextGeneration : previousState.refreshGeneration,
-            codexDetailCache: [:]
-        )
-
-        lastError = firstError
-        if loadedAnySource {
-            hasLoadedGeneralData = true
-        }
-
-        isLoading = false
-        isRefreshing = false
     }
 
     func codexDetail(for threadID: String) -> CodexSessionDetailState {
@@ -220,6 +200,86 @@ final class AgentUsageStore: ObservableObject {
     }
 
     // MARK: - Bucket Aggregation
+
+    private func beginRefresh() -> RefreshContext? {
+        guard isLoading == false, isRefreshing == false else { return nil }
+        if hasLoadedGeneralData == false { isLoading = true } else { isRefreshing = true }
+
+        let context = RefreshContext(
+            nextGeneration: state.refreshGeneration + 1,
+            previousState: state
+        )
+
+        state = AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: context.previousState.openCodeCumulativeSnapshot,
+            openCodeDailyBuckets: context.previousState.openCodeDailyBuckets,
+            codexSnapshot: context.previousState.codexSnapshot,
+            refreshGeneration: context.previousState.refreshGeneration,
+            codexDetailCache: [:]
+        )
+
+        return context
+    }
+
+    private func loadRefreshResult(context: RefreshContext) -> RefreshResult {
+        Self.loadRefreshResult(repository: repository, context: context)
+    }
+
+    private static func loadRefreshResult(repository: AgentUsageRepositorying, context: RefreshContext) -> RefreshResult {
+        var openCodeSnapshot = context.previousState.openCodeCumulativeSnapshot
+        var dailyBuckets = context.previousState.openCodeDailyBuckets
+        var codexSnapshot = context.previousState.codexSnapshot
+        var firstError: LoadError?
+        var loadedAnySource = false
+
+        do {
+            openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
+            dailyBuckets = try repository.loadOpenCodeDailyBuckets()
+            loadedAnySource = true
+        } catch let error as OpenCodeUsageQuery.QueryError {
+            firstError = .openCode(error)
+        } catch {
+            firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
+        }
+
+        do {
+            codexSnapshot = try repository.loadCodexSnapshot()
+            loadedAnySource = true
+        } catch let error as CodexUsageQuery.QueryError {
+            if firstError == nil { firstError = .codex(error) }
+        } catch {
+            if firstError == nil {
+                firstError = .codex(.queryStepFailed(message: error.localizedDescription))
+            }
+        }
+
+        return RefreshResult(
+            openCodeSnapshot: openCodeSnapshot,
+            dailyBuckets: dailyBuckets,
+            codexSnapshot: codexSnapshot,
+            refreshGeneration: loadedAnySource ? context.nextGeneration : context.previousState.refreshGeneration,
+            lastError: firstError,
+            loadedAnySource: loadedAnySource
+        )
+    }
+
+    private func applyRefreshResult(_ result: RefreshResult) {
+        state = AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: result.openCodeSnapshot,
+            openCodeDailyBuckets: result.dailyBuckets,
+            codexSnapshot: result.codexSnapshot,
+            refreshGeneration: result.refreshGeneration,
+            codexDetailCache: [:]
+        )
+
+        lastError = result.lastError
+        if result.loadedAnySource {
+            hasLoadedGeneralData = true
+        }
+
+        isLoading = false
+        isRefreshing = false
+    }
 
     private func aggregatedSnapshot(for range: AgentTimeRange) -> OpenCodeUsageSnapshot {
         let dayRange = self.dayRange(for: range)

@@ -259,6 +259,27 @@ final class AgentUsageStoreTests: XCTestCase {
         let todayData = store.derivedData(for: todaySelection)
         XCTAssertEqual(todayData.summary.totalTokens, 38)
     }
+
+    func testRefreshAllAsyncPublishesLoadingThenCompletes() async throws {
+        let repository = BlockingAgentUsageRepository()
+        let store = AgentUsageStore(repository: repository)
+
+        store.refreshAllAsync()
+
+        await fulfillment(of: [repository.didStartLoading], timeout: 1.0)
+        XCTAssertTrue(store.isLoading)
+        XCTAssertFalse(store.isRefreshing)
+        XCTAssertEqual(store.state.refreshGeneration, 0)
+
+        repository.finishLoading()
+
+        try await waitUntil(timeout: 1.0) {
+            store.isLoading == false && store.state.refreshGeneration == 1
+        }
+
+        XCTAssertEqual(store.state.openCodeCumulativeSnapshot.sessions.map(\.id), ["oc_async"])
+        XCTAssertEqual(store.state.codexSnapshot.sessions.map(\.id), ["cx_async"])
+    }
 }
 
 private func openWritableDatabase(_ url: URL) throws -> OpaquePointer? {
@@ -351,4 +372,45 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
         codexDetailLoadCount += 1
         return codexDetail
     }
+}
+
+private final class BlockingAgentUsageRepository: AgentUsageRepositorying {
+    let openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
+    let codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
+    let didStartLoading = XCTestExpectation(description: "started loading")
+
+    private let semaphore = DispatchSemaphore(value: 0)
+
+    func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot {
+        didStartLoading.fulfill()
+        semaphore.wait()
+        return OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_async")])
+    }
+
+    func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] {
+        []
+    }
+
+    func loadCodexSnapshot() throws -> CodexUsageSnapshot {
+        CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_async")])
+    }
+
+    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {
+        CodexSessionDetail(threadID: threadID, edges: [], goals: [])
+    }
+
+    func finishLoading() {
+        semaphore.signal()
+    }
+}
+
+private func waitUntil(timeout: TimeInterval, condition: @escaping @Sendable () -> Bool) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() {
+            return
+        }
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    XCTFail("Condition not met within \(timeout) seconds")
 }

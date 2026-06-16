@@ -149,10 +149,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             panel = p
         }
 
-		if agentUsageSettings.isEnabled {
-			agentUsageStore.refreshAll()
-		}
-
         if let button = statusItem.button,
            let screen = button.window?.screen ?? NSScreen.main {
             let buttonRect = button.convert(button.bounds, to: nil)
