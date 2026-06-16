@@ -45,3 +45,22 @@ jobs:
             echo "Tag ${{ steps.version.outputs.tag }} already exists" >&2
             exit 1
           fi
+
+      - name: Build release artifacts
+        shell: bash
+        run: bash scripts/build-dmg.sh
+
+      - name: Verify release artifacts exist
+        shell: bash
+        run: |
+          if [ ! -f "${{ steps.version.outputs.dmg }}" ]; then
+            echo "Missing DMG artifact: ${{ steps.version.outputs.dmg }}" >&2
+            exit 1
+          fi
+
+          if [ ! -f "${{ steps.version.outputs.zip }}" ]; then
+            echo "Missing updater ZIP artifact: ${{ steps.version.outputs.zip }}" >&2
+            exit 1
+          fi
+
+          ls -lh "${{ steps.version.outputs.dmg }}" "${{ steps.version.outputs.zip }}"
