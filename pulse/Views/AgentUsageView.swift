@@ -332,6 +332,7 @@ struct AgentUsageView: View {
 struct TokenUsageDataPoint: Identifiable {
     let date: Date
     let totalTokens: Int
+    let bucketSizeDays: Int
     var id: Date { date }
 }
 

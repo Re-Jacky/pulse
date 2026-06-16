@@ -108,9 +108,40 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertFalse(data.showsByModel)
         XCTAssertEqual(data.codexDetailThreadID, "thread_1")
     }
+
+    func testDerivedDataForAllTimeCarriesMultiDayBucketSizeWhenRangeIsCompressed() {
+        let now = Date()
+        let oldestDate = Calendar.current.date(byAdding: .day, value: -32, to: now) ?? now
+        let recentDate = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    makeOpenCodeSession(id: "oc_old", tokens: 120, updatedAt: oldestDate),
+                    makeOpenCodeSession(id: "oc_recent", tokens: 80, updatedAt: recentDate)
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertFalse(data.tokenFlowData.isEmpty)
+        XCTAssertEqual(data.tokenFlowData.first?.bucketSizeDays, 2)
+    }
 }
 
-private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessionRecord {
+private func makeOpenCodeSession(id: String, tokens: Int = 100, updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> OpenCodeSessionRecord {
     OpenCodeSessionRecord(
         id: id,
         title: "Session \(id)",
@@ -126,7 +157,7 @@ private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessi
         cacheWriteTokens: 0,
         cost: 0,
         createdAt: Date(timeIntervalSince1970: 1000),
-        updatedAt: Date(timeIntervalSince1970: 2000)
+        updatedAt: updatedAt
     )
 }
 

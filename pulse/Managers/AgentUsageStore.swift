@@ -446,7 +446,7 @@ final class AgentUsageStore: ObservableObject {
             let sum = entries
                 .filter { $0.date >= cursor && $0.date < bucketEnd }
                 .reduce(0) { $0 + $1.tokens }
-            buckets.append(TokenUsageDataPoint(date: cursor, totalTokens: sum))
+            buckets.append(TokenUsageDataPoint(date: cursor, totalTokens: sum, bucketSizeDays: bucketSize))
             cursor = bucketEnd
         }
         return buckets

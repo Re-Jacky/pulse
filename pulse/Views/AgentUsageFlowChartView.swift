@@ -6,9 +6,15 @@ struct AgentUsageFlowChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Token Flow")
+            Text("Token Trend")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
+
+            if let bucketSizeDays = bucketSizeDays, bucketSizeDays > 1 {
+                Text("Each point combines \(bucketSizeDays) days.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.appSecondaryText)
+            }
 
             Chart(dataPoints) { point in
                 AreaMark(
@@ -28,7 +34,7 @@ struct AgentUsageFlowChartView: View {
                 )
                 .foregroundStyle(Color.accentColor)
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
             }
             .chartYAxis {
                 AxisMarks(preset: .extended, values: .automatic(desiredCount: 4)) { v in
@@ -55,6 +61,11 @@ struct AgentUsageFlowChartView: View {
         .padding(12)
         .background(Color.appFieldBackground.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var bucketSizeDays: Int? {
+        let sizes = Set(dataPoints.map(\.bucketSizeDays))
+        return sizes.count == 1 ? sizes.first : nil
     }
 
     private func compact(_ value: Int) -> String {
