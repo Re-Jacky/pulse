@@ -64,3 +64,27 @@ jobs:
           fi
 
           ls -lh "${{ steps.version.outputs.dmg }}" "${{ steps.version.outputs.zip }}"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.dmg }}" \
+            "${{ steps.version.outputs.zip }}" \
+            --repo "${{ github.repository }}" \
+            --title "Pulse ${{ steps.version.outputs.version }}" \
+            --notes "Automated release for Pulse ${{ steps.version.outputs.version }}"
+
+      - name: Write workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## Release Published"
+            echo ""
+            echo "- Version: ${{ steps.version.outputs.version }}"
+            echo "- Tag: ${{ steps.version.outputs.tag }}"
+            echo "- DMG: ${{ steps.version.outputs.dmg }}"
+            echo "- ZIP: ${{ steps.version.outputs.zip }}"
+          } >> "$GITHUB_STEP_SUMMARY"
