@@ -98,9 +98,9 @@ guard FileManager.default.fileExists(atPath: databaseURL.path) else {
 throw QueryError.databaseNotFound(path: databaseURL.path)
 }
 
-let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
-var db: OpaquePointer?
-guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+let uri = "file://\(databaseURL.path)?immutable=1"
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
 let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
 sqlite3_close(db)
 throw QueryError.databaseOpenFailed(message: message)
@@ -199,9 +199,9 @@ guard FileManager.default.fileExists(atPath: databaseURL.path) else {
 throw QueryError.databaseNotFound(path: databaseURL.path)
 }
 
-let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
-var db: OpaquePointer?
-guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+let uri = "file://\(databaseURL.path)?immutable=1"
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
 let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
 sqlite3_close(db)
 throw QueryError.databaseOpenFailed(message: message)
@@ -279,9 +279,9 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         throw QueryError.databaseNotFound(path: databaseURL.path)
     }
 
-    let dbPath = databaseURL.path
+    let uri = "file://\(databaseURL.path)?immutable=1"
     var db: OpaquePointer?
-    guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
         sqlite3_close(db)
         throw QueryError.databaseOpenFailed(message: message)

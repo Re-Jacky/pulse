@@ -558,7 +558,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.11;
+				MARKETING_VERSION = 1.8.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -576,7 +576,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.11;
+				MARKETING_VERSION = 1.8.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -716,7 +716,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.11;
+				MARKETING_VERSION = 1.8.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -740,7 +740,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.11;
+				MARKETING_VERSION = 1.8.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
