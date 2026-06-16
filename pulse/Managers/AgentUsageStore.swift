@@ -50,18 +50,21 @@ final class AgentUsageStore: ObservableObject {
         let nextGeneration = state.refreshGeneration + 1
         let previousState = state
         state = AgentUsageLoadedState(
-            openCodeSnapshot: previousState.openCodeSnapshot,
+            openCodeCumulativeSnapshot: previousState.openCodeCumulativeSnapshot,
+            openCodeDailyBuckets: previousState.openCodeDailyBuckets,
             codexSnapshot: previousState.codexSnapshot,
             refreshGeneration: previousState.refreshGeneration,
             codexDetailCache: [:]
         )
 
         do {
-            let openCodeSnapshot = try repository.loadOpenCodeSnapshot()
+            let openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
+            let dailyBuckets = try repository.loadOpenCodeDailyBuckets()
             let codexSnapshot = try repository.loadCodexSnapshot()
 
             state = AgentUsageLoadedState(
-                openCodeSnapshot: openCodeSnapshot,
+                openCodeCumulativeSnapshot: openCodeSnapshot,
+                openCodeDailyBuckets: dailyBuckets,
                 codexSnapshot: codexSnapshot,
                 refreshGeneration: nextGeneration,
                 codexDetailCache: [:]
@@ -91,7 +94,8 @@ final class AgentUsageStore: ObservableObject {
         var nextCache = state.codexDetailCache
         nextCache[threadID] = .loading
         state = AgentUsageLoadedState(
-            openCodeSnapshot: state.openCodeSnapshot,
+            openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
+            openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
@@ -105,7 +109,8 @@ final class AgentUsageStore: ObservableObject {
         }
 
         state = AgentUsageLoadedState(
-            openCodeSnapshot: state.openCodeSnapshot,
+            openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
+            openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
@@ -152,7 +157,13 @@ final class AgentUsageStore: ObservableObject {
 
     func derivedData(for inputSelection: AgentUsageSelection) -> AgentUsageDerivedViewData {
         let selection = reconcile(inputSelection)
-        let openCodeSnapshot = state.openCodeSnapshot.filtered(to: selection.timeRange)
+
+        let openCodeSnapshot: OpenCodeUsageSnapshot
+        if selection.timeRange == .allTime {
+            openCodeSnapshot = state.openCodeCumulativeSnapshot.filtered(to: selection.timeRange)
+        } else {
+            openCodeSnapshot = aggregatedSnapshot(for: selection.timeRange)
+        }
         let codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
         let scope = selection.scope
 
@@ -189,6 +200,61 @@ final class AgentUsageStore: ObservableObject {
             showsByModel: selection.source != .all && selection.isSessionScope == false,
             showsTokenFlow: selection.source == .all && selection.timeRange != .today
         )
+    }
+
+    // MARK: - Bucket Aggregation
+
+    private func aggregatedSnapshot(for range: AgentTimeRange) -> OpenCodeUsageSnapshot {
+        let dayRange = self.dayRange(for: range)
+        let meta = state.openCodeCumulativeSnapshot
+
+        let grouped = Dictionary(grouping: state.openCodeDailyBuckets) { $0.sessionID }
+
+        let records: [OpenCodeSessionRecord] = grouped.compactMap { sessionID, buckets in
+            let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
+            guard inRange.isEmpty == false,
+                  let m = meta.sessions.first(where: { $0.id == sessionID })
+            else { return nil }
+
+            return OpenCodeSessionRecord(
+                id: m.id,
+                title: m.title,
+                directory: m.directory,
+                agent: m.agent,
+                modelProviderID: m.modelProviderID,
+                modelID: m.modelID,
+                modelVariant: m.modelVariant,
+                inputTokens: inRange.reduce(0) { $0 + $1.inputTokens },
+                outputTokens: inRange.reduce(0) { $0 + $1.outputTokens },
+                reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
+                cacheReadTokens: inRange.reduce(0) { $0 + $1.cacheReadTokens },
+                cacheWriteTokens: inRange.reduce(0) { $0 + $1.cacheWriteTokens },
+                cost: inRange.reduce(0.0) { $0 + $1.cost },
+                createdAt: m.createdAt,
+                updatedAt: m.updatedAt
+            )
+        }
+
+        return OpenCodeUsageSnapshot(sessions: records)
+    }
+
+    private func dayRange(for range: AgentTimeRange) -> Range<Int> {
+        let now = Date()
+        switch range {
+        case .allTime:
+            return 0..<Int.max
+        case .today:
+            let day = Int(now.timeIntervalSince1970 * 1000) / 86400000
+            return day..<(day + 1)
+        case .last7Days:
+            let endDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
+            let startDay = endDay - 7
+            return startDay..<endDay
+        case .last30Days:
+            let endDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
+            let startDay = endDay - 30
+            return startDay..<endDay
+        }
     }
 
     // MARK: - Derivation Helpers
