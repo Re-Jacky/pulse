@@ -57,27 +57,44 @@ final class AgentUsageStore: ObservableObject {
             codexDetailCache: [:]
         )
 
+        var openCodeSnapshot = previousState.openCodeCumulativeSnapshot
+        var dailyBuckets = previousState.openCodeDailyBuckets
+        var codexSnapshot = previousState.codexSnapshot
+        var firstError: LoadError?
+        var loadedAnySource = false
+
         do {
-            let openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
-            let dailyBuckets = try repository.loadOpenCodeDailyBuckets()
-            let codexSnapshot = try repository.loadCodexSnapshot()
-
-            state = AgentUsageLoadedState(
-                openCodeCumulativeSnapshot: openCodeSnapshot,
-                openCodeDailyBuckets: dailyBuckets,
-                codexSnapshot: codexSnapshot,
-                refreshGeneration: nextGeneration,
-                codexDetailCache: [:]
-            )
-
-            lastError = nil
-            hasLoadedGeneralData = true
+            openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
+            dailyBuckets = try repository.loadOpenCodeDailyBuckets()
+            loadedAnySource = true
         } catch let error as OpenCodeUsageQuery.QueryError {
-            lastError = .openCode(error)
-        } catch let error as CodexUsageQuery.QueryError {
-            lastError = .codex(error)
+            firstError = .openCode(error)
         } catch {
-            lastError = .openCode(.queryStepFailed(message: error.localizedDescription))
+            firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
+        }
+
+        do {
+            codexSnapshot = try repository.loadCodexSnapshot()
+            loadedAnySource = true
+        } catch let error as CodexUsageQuery.QueryError {
+            if firstError == nil { firstError = .codex(error) }
+        } catch {
+            if firstError == nil {
+                firstError = .codex(.queryStepFailed(message: error.localizedDescription))
+            }
+        }
+
+        state = AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: openCodeSnapshot,
+            openCodeDailyBuckets: dailyBuckets,
+            codexSnapshot: codexSnapshot,
+            refreshGeneration: loadedAnySource ? nextGeneration : previousState.refreshGeneration,
+            codexDetailCache: [:]
+        )
+
+        lastError = firstError
+        if loadedAnySource {
+            hasLoadedGeneralData = true
         }
 
         isLoading = false

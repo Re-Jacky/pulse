@@ -35,20 +35,10 @@ enum CodexUsageQuery {
             }
         }
 
-        let codexDir = homeDirectoryURL.appendingPathComponent(".codex")
-        let statePattern = "state_*.sqlite"
-
-        guard let contents = try? fileManager.contentsOfDirectory(at: codexDir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-            return nil
-        }
-
-        let stateDBs = contents.filter { url in
-            url.lastPathComponent.matchingStateDB(pattern: statePattern)
-        }.filter { url in
-            guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let size = attrs[.size] as? Int else { return false }
-            return size > 0
-        }
+        let stateDBs = candidateDatabaseURLs(
+            homeDirectoryURL: homeDirectoryURL,
+            fileManager: fileManager
+        )
 
         guard stateDBs.isEmpty == false else {
             return nil
@@ -58,8 +48,13 @@ enum CodexUsageQuery {
             let lhsVersion = lhs.lastPathComponent.stateDBVersion
             let rhsVersion = rhs.lastPathComponent.stateDBVersion
             if lhsVersion != rhsVersion { return lhsVersion < rhsVersion }
-            let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let lhsPrefersSQLiteDir = prefersSQLiteDirectory(lhs)
+            let rhsPrefersSQLiteDir = prefersSQLiteDirectory(rhs)
+            if lhsPrefersSQLiteDir != rhsPrefersSQLiteDir {
+                return lhsPrefersSQLiteDir == false
+            }
+            let lhsDate = stateDatabaseActivityDate(for: lhs)
+            let rhsDate = stateDatabaseActivityDate(for: rhs)
             return lhsDate < rhsDate
         }
     }
@@ -69,15 +64,7 @@ enum CodexUsageQuery {
             throw QueryError.databaseNotFound(path: databaseURL.path)
         }
 
-        let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
-        var db: OpaquePointer?
-
-        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
-            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-            sqlite3_close(db)
-            throw QueryError.databaseOpenFailed(message: message)
-        }
-
+        let db = try openReadOnlyDatabase(databaseURL: databaseURL)
         defer { sqlite3_close(db) }
 
         let sql = """
@@ -95,7 +82,6 @@ enum CodexUsageQuery {
                 coalesce(created_at_ms, 0),
                 coalesce(updated_at_ms, 0)
             from threads
-            where archived = 0 or archived is null
             order by updated_at_ms desc
             """
 
@@ -139,15 +125,7 @@ enum CodexUsageQuery {
     }
 
     static func loadSubagentEdges(databaseURL: URL, threadID: String) throws -> [CodexSubagentEdge] {
-        let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
-        var db: OpaquePointer?
-
-        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
-            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-            sqlite3_close(db)
-            throw QueryError.databaseOpenFailed(message: message)
-        }
-
+        let db = try openReadOnlyDatabase(databaseURL: databaseURL)
         defer { sqlite3_close(db) }
 
         let sql = """
@@ -187,15 +165,7 @@ enum CodexUsageQuery {
     }
 
     static func loadGoals(databaseURL: URL, threadID: String) throws -> [CodexGoal] {
-        let uri = "file:\(databaseURL.path)?mode=ro&immutable=1"
-        var db: OpaquePointer?
-
-        guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
-            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-            sqlite3_close(db)
-            throw QueryError.databaseOpenFailed(message: message)
-        }
-
+        let db = try openReadOnlyDatabase(databaseURL: databaseURL)
         defer { sqlite3_close(db) }
 
         let sql = """
@@ -257,6 +227,68 @@ private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> 
     return value.isEmpty ? nil : value
 }
 
+private func openReadOnlyDatabase(databaseURL: URL) throws -> OpaquePointer? {
+    let uri = "file:\(databaseURL.path)?mode=ro"
+    var db: OpaquePointer?
+
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+        sqlite3_close(db)
+        throw CodexUsageQuery.QueryError.databaseOpenFailed(message: message)
+    }
+
+    return db
+}
+
+private func candidateDatabaseURLs(
+    homeDirectoryURL: URL,
+    fileManager: FileManager
+) -> [URL] {
+    let codexDir = homeDirectoryURL.appendingPathComponent(".codex")
+    let searchDirectories = [
+        codexDir,
+        codexDir.appendingPathComponent("sqlite")
+    ]
+
+    var candidates: [URL] = []
+    var seenPaths = Set<String>()
+
+    for directory in searchDirectories {
+        guard let contents = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]) else {
+            continue
+        }
+
+        for url in contents where url.lastPathComponent.matchingStateDB(pattern: "state_*.sqlite") {
+            guard let attrs = try? fileManager.attributesOfItem(atPath: url.path),
+                  let size = attrs[.size] as? Int,
+                  size > 0,
+                  seenPaths.insert(url.path).inserted else {
+                continue
+            }
+
+            candidates.append(url)
+        }
+    }
+
+    return candidates
+}
+
+private func stateDatabaseActivityDate(for url: URL) -> Date {
+    let candidates = [
+        url,
+        url.deletingLastPathComponent().appendingPathComponent(url.lastPathComponent + "-wal"),
+        url.deletingLastPathComponent().appendingPathComponent(url.lastPathComponent + "-shm")
+    ]
+
+    return candidates.compactMap {
+        (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+    }.max() ?? .distantPast
+}
+
+private func prefersSQLiteDirectory(_ url: URL) -> Bool {
+    url.deletingLastPathComponent().lastPathComponent == "sqlite"
+}
+
 private extension String {
     var stateDBVersion: Int {
         let pattern = /^state_(\d+)\.sqlite$/
@@ -265,7 +297,8 @@ private extension String {
     }
 
     func matchingStateDB(pattern: String) -> Bool {
-        let pattern = /^state_\d+\.sqlite$/
-        return (try? pattern.firstMatch(in: self)) != nil
+        let regex = try? NSRegularExpression(pattern: "^" + pattern.replacingOccurrences(of: "*", with: ".*") + "$")
+        let range = NSRange(location: 0, length: utf16.count)
+        return regex?.firstMatch(in: self, range: range) != nil
     }
 }
