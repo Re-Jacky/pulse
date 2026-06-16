@@ -37,3 +37,11 @@ jobs:
           echo "Tag: ${{ steps.version.outputs.tag }}"
           echo "DMG: ${{ steps.version.outputs.dmg }}"
           echo "ZIP: ${{ steps.version.outputs.zip }}"
+
+      - name: Fail if release tag already exists
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists" >&2
+            exit 1
+          fi
