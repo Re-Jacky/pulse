@@ -104,6 +104,28 @@ Output: `dist/Pulse-1.4.2.dmg`
 
 To install: open the DMG, drag `Pulse.app` to the **Applications** shortcut inside it.
 
+## GitHub Release Workflow
+
+The repository includes a manual GitHub Actions release workflow.
+
+To publish a release:
+
+1. Bump `MARKETING_VERSION` in `pulse.xcodeproj/project.pbxproj`
+2. Push the change to GitHub
+3. Open the **Actions** tab
+4. Run the **Release** workflow manually
+
+The workflow will:
+
+- read the current `MARKETING_VERSION`
+- build the app with `bash scripts/build-dmg.sh`
+- create a GitHub Release tagged `v<version>`
+- upload:
+  - `Pulse-<version>.dmg`
+  - `Pulse-<version>-updater.zip`
+
+If the release tag already exists, the workflow fails and requires a new version bump.
+
 ---
 
 ## Running
