@@ -13,3 +13,27 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -m1 'MARKETING_VERSION' pulse.xcodeproj/project.pbxproj | sed 's/.*= *//;s/;//')
+
+          if [ -z "${VERSION}" ]; then
+            echo "Failed to read MARKETING_VERSION" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "dmg=dist/Pulse-${VERSION}.dmg" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/Pulse-${VERSION}-updater.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Show resolved release values
+        shell: bash
+        run: |
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "Tag: ${{ steps.version.outputs.tag }}"
+          echo "DMG: ${{ steps.version.outputs.dmg }}"
+          echo "ZIP: ${{ steps.version.outputs.zip }}"
