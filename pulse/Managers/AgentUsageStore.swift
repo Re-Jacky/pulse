@@ -12,6 +12,7 @@ final class AgentUsageStore: ObservableObject {
         let openCodeSnapshot: OpenCodeUsageSnapshot
         let dailyBuckets: [OpenCodeDailyBucket]
         let codexSnapshot: CodexUsageSnapshot
+        let codexDailyBuckets: [CodexDailyBucket]
         let refreshGeneration: Int
         let lastError: LoadError?
         let loadedAnySource: Bool
@@ -94,6 +95,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
             openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
+            codexDailyBuckets: state.codexDailyBuckets,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
         )
@@ -109,6 +111,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
             openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
+            codexDailyBuckets: state.codexDailyBuckets,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
         )
@@ -161,7 +164,14 @@ final class AgentUsageStore: ObservableObject {
         } else {
             openCodeSnapshot = aggregatedSnapshot(for: selection.timeRange)
         }
-        let codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
+        let codexSnapshot: CodexUsageSnapshot
+        if selection.timeRange == .allTime {
+            codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
+        } else if state.codexDailyBuckets.isEmpty {
+            codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
+        } else {
+            codexSnapshot = aggregatedCodexSnapshot(for: selection.timeRange)
+        }
         let scope = selection.scope
 
         let summary: AgentUsageSummary = {
@@ -214,6 +224,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeCumulativeSnapshot: context.previousState.openCodeCumulativeSnapshot,
             openCodeDailyBuckets: context.previousState.openCodeDailyBuckets,
             codexSnapshot: context.previousState.codexSnapshot,
+            codexDailyBuckets: context.previousState.codexDailyBuckets,
             refreshGeneration: context.previousState.refreshGeneration,
             codexDetailCache: [:]
         )
@@ -229,6 +240,7 @@ final class AgentUsageStore: ObservableObject {
         var openCodeSnapshot = context.previousState.openCodeCumulativeSnapshot
         var dailyBuckets = context.previousState.openCodeDailyBuckets
         var codexSnapshot = context.previousState.codexSnapshot
+        var codexDailyBuckets = context.previousState.codexDailyBuckets
         var firstError: LoadError?
         var loadedAnySource = false
 
@@ -244,6 +256,7 @@ final class AgentUsageStore: ObservableObject {
 
         do {
             codexSnapshot = try repository.loadCodexSnapshot()
+            codexDailyBuckets = try repository.loadCodexDailyBuckets()
             loadedAnySource = true
         } catch let error as CodexUsageQuery.QueryError {
             if firstError == nil { firstError = .codex(error) }
@@ -257,6 +270,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeSnapshot: openCodeSnapshot,
             dailyBuckets: dailyBuckets,
             codexSnapshot: codexSnapshot,
+            codexDailyBuckets: codexDailyBuckets,
             refreshGeneration: loadedAnySource ? context.nextGeneration : context.previousState.refreshGeneration,
             lastError: firstError,
             loadedAnySource: loadedAnySource
@@ -268,6 +282,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeCumulativeSnapshot: result.openCodeSnapshot,
             openCodeDailyBuckets: result.dailyBuckets,
             codexSnapshot: result.codexSnapshot,
+            codexDailyBuckets: result.codexDailyBuckets,
             refreshGeneration: result.refreshGeneration,
             codexDetailCache: [:]
         )
@@ -315,6 +330,40 @@ final class AgentUsageStore: ObservableObject {
         return OpenCodeUsageSnapshot(sessions: records)
     }
 
+    private func aggregatedCodexSnapshot(for range: AgentTimeRange) -> CodexUsageSnapshot {
+        let dayRange = self.dayRange(for: range)
+        let meta = state.codexSnapshot
+        let grouped = Dictionary(grouping: state.codexDailyBuckets) { $0.sessionID }
+
+        let records: [CodexSessionRecord] = grouped.compactMap { sessionID, buckets in
+            let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
+            guard inRange.isEmpty == false,
+                  let session = meta.sessions.first(where: { $0.id == sessionID })
+            else { return nil }
+
+            return CodexSessionRecord(
+                id: session.id,
+                title: session.title,
+                cwd: session.cwd,
+                model: session.model,
+                modelProvider: session.modelProvider,
+                tokensUsed: inRange.reduce(0) { $0 + $1.totalTokens },
+                inputTokens: inRange.reduce(0) { $0 + $1.inputTokens },
+                outputTokens: inRange.reduce(0) { $0 + $1.outputTokens },
+                reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
+                cacheReadTokens: inRange.reduce(0) { $0 + $1.cacheReadTokens },
+                reasoningEffort: session.reasoningEffort,
+                threadSource: session.threadSource,
+                agentNickname: session.agentNickname,
+                agentRole: session.agentRole,
+                createdAt: session.createdAt,
+                updatedAt: session.updatedAt
+            )
+        }
+
+        return CodexUsageSnapshot(sessions: records)
+    }
+
     private func dayRange(for range: AgentTimeRange) -> Range<Int> {
         let now = Date()
         switch range {
@@ -324,13 +373,13 @@ final class AgentUsageStore: ObservableObject {
             let day = Int(now.timeIntervalSince1970 * 1000) / 86400000
             return day..<(day + 1)
         case .last7Days:
-            let endDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
-            let startDay = endDay - 7
-            return startDay..<endDay
+            let currentDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
+            let startDay = currentDay - 6
+            return startDay..<(currentDay + 1)
         case .last30Days:
-            let endDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
-            let startDay = endDay - 30
-            return startDay..<endDay
+            let currentDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
+            let startDay = currentDay - 29
+            return startDay..<(currentDay + 1)
         }
     }
 
@@ -415,6 +464,85 @@ final class AgentUsageStore: ObservableObject {
     private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
         guard selection.source == .all, selection.timeRange != .today else { return [] }
 
+        let openCodeTotals = openCodeTokenFlowTotals(
+            range: selection.timeRange,
+            snapshot: openCodeSnapshot
+        )
+        let codexTotals = codexTokenFlowTotals(
+            range: selection.timeRange,
+            snapshot: codexSnapshot
+        )
+
+        guard openCodeTotals.isEmpty == false || codexTotals.isEmpty == false else { return [] }
+
+        var totalsByDay = openCodeTotals
+        for (day, value) in codexTotals {
+            totalsByDay[day, default: 0] += value
+        }
+
+        guard let earliestDay = totalsByDay.keys.min(), let latestDay = totalsByDay.keys.max() else { return [] }
+
+        let totalDays = max(1, latestDay - earliestDay + 1)
+        let bucketSize: Int
+        switch selection.timeRange {
+        case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
+        default: bucketSize = 1
+        }
+
+        var buckets: [TokenUsageDataPoint] = []
+        var cursor = earliestDay
+        while cursor <= latestDay {
+            let bucketEnd = cursor + bucketSize
+            let sum = totalsByDay.reduce(0) { partial, entry in
+                let (day, value) = entry
+                guard day >= cursor && day < bucketEnd else { return partial }
+                return partial + value
+            }
+            let date = Date(timeIntervalSince1970: Double(cursor * 86_400_000) / 1000)
+            buckets.append(TokenUsageDataPoint(date: date, totalTokens: sum, bucketSizeDays: bucketSize))
+            cursor = bucketEnd
+        }
+        return buckets
+    }
+
+    private func openCodeTokenFlowTotals(
+        range: AgentTimeRange,
+        snapshot: OpenCodeUsageSnapshot
+    ) -> [Int: Int] {
+        if state.openCodeDailyBuckets.isEmpty == false {
+            let dayRange = dayRange(for: range)
+            return state.openCodeDailyBuckets.reduce(into: [:]) { totals, bucket in
+                guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { return }
+                let value = bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
+                totals[bucket.day, default: 0] += value
+            }
+        }
+
+        return snapshot.sessions.reduce(into: [:]) { totals, session in
+            let day = Int(Calendar.current.startOfDay(for: session.updatedAt).timeIntervalSince1970 * 1000) / 86_400_000
+            totals[day, default: 0] += session.totalTokens
+        }
+    }
+
+    private func codexTokenFlowTotals(
+        range: AgentTimeRange,
+        snapshot: CodexUsageSnapshot
+    ) -> [Int: Int] {
+        if state.codexDailyBuckets.isEmpty == false {
+            let dayRange = dayRange(for: range)
+            return state.codexDailyBuckets.reduce(into: [:]) { totals, bucket in
+                guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { return }
+                totals[bucket.day, default: 0] += bucket.totalTokens
+            }
+        }
+
+        return snapshot.sessions.reduce(into: [:]) { totals, session in
+            let day = Int(Calendar.current.startOfDay(for: session.updatedAt).timeIntervalSince1970 * 1000) / 86_400_000
+            totals[day, default: 0] += session.tokensUsed
+        }
+    }
+
+    private func legacyTokenFlowData(openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, range: AgentTimeRange) -> [TokenUsageDataPoint] {
         let now = Date()
         let calendar = Calendar.current
 
@@ -426,17 +554,17 @@ final class AgentUsageStore: ObservableObject {
         let nowDay = calendar.startOfDay(for: now)
         let totalDays = calendar.dateComponents([.day], from: earliestDay, to: nowDay).day.flatMap({ $0 > 0 ? $0 : 1 }) ?? 1
         let bucketSize: Int
-        switch selection.timeRange {
+        switch range {
         case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
         default: bucketSize = 1
         }
 
         var entries: [(date: Date, tokens: Int)] = []
-        for s in openCodeSnapshot.sessions {
-            entries.append((calendar.startOfDay(for: s.updatedAt), s.totalTokens))
+        for session in openCodeSnapshot.sessions {
+            entries.append((calendar.startOfDay(for: session.updatedAt), session.totalTokens))
         }
-        for s in codexSnapshot.sessions {
-            entries.append((calendar.startOfDay(for: s.updatedAt), s.tokensUsed))
+        for session in codexSnapshot.sessions {
+            entries.append((calendar.startOfDay(for: session.updatedAt), session.tokensUsed))
         }
 
         var buckets: [TokenUsageDataPoint] = []

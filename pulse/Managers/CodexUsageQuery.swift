@@ -3,6 +3,14 @@ import SQLite3
 
 enum CodexUsageQuery {
 
+    fileprivate struct CumulativeUsage {
+        let inputTokens: Int
+        let outputTokens: Int
+        let reasoningTokens: Int
+        let cacheReadTokens: Int
+        let totalTokens: Int
+    }
+
     enum QueryError: Error, Equatable, LocalizedError {
         case databaseNotFound(path: String)
         case databaseOpenFailed(message: String)
@@ -111,6 +119,10 @@ enum CodexUsageQuery {
                     model: stringColumn(statement, index: 3),
                     modelProvider: stringColumn(statement, index: 4),
                     tokensUsed: Int(sqlite3_column_int64(statement, 5)),
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    reasoningTokens: nil,
+                    cacheReadTokens: nil,
                     reasoningEffort: stringColumn(statement, index: 6),
                     threadSource: stringColumn(statement, index: 7),
                     agentNickname: optionalStringColumn(statement, index: 8),
@@ -122,6 +134,46 @@ enum CodexUsageQuery {
         }
 
         return CodexUsageSnapshot(sessions: sessions)
+    }
+
+    static func loadDailyBuckets(
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> [CodexDailyBucket] {
+        let transcriptURLs = candidateTranscriptURLs(
+            homeDirectoryURL: homeDirectoryURL,
+            fileManager: fileManager
+        )
+
+        var totalsBySessionAndDay: [String: CodexDailyBucket] = [:]
+
+        for url in transcriptURLs {
+            try accumulateDailyBuckets(
+                transcriptURL: url,
+                into: &totalsBySessionAndDay
+            )
+        }
+
+        return totalsBySessionAndDay
+            .compactMap { key, bucket in
+                let parts = key.split(separator: "::", maxSplits: 1).map(String.init)
+                guard parts.count == 2, let day = Int(parts[1]) else { return nil }
+                return CodexDailyBucket(
+                    sessionID: parts[0],
+                    day: day,
+                    inputTokens: bucket.inputTokens,
+                    outputTokens: bucket.outputTokens,
+                    reasoningTokens: bucket.reasoningTokens,
+                    cacheReadTokens: bucket.cacheReadTokens,
+                    totalTokens: bucket.totalTokens
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.day == rhs.day {
+                    return lhs.sessionID < rhs.sessionID
+                }
+                return lhs.day < rhs.day
+            }
     }
 
     static func loadSubagentEdges(databaseURL: URL, threadID: String) throws -> [CodexSubagentEdge] {
@@ -228,16 +280,127 @@ private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> 
 }
 
 private func openReadOnlyDatabase(databaseURL: URL) throws -> OpaquePointer? {
-    let uri = "file://\(databaseURL.path)?immutable=1"
     var db: OpaquePointer?
 
-    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+    guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
         sqlite3_close(db)
         throw CodexUsageQuery.QueryError.databaseOpenFailed(message: message)
     }
 
     return db
+}
+
+private func accumulateDailyBuckets(
+    transcriptURL: URL,
+    into totalsBySessionAndDay: inout [String: CodexDailyBucket]
+) throws {
+    guard let handle = try? FileHandle(forReadingFrom: transcriptURL) else {
+        throw CodexUsageQuery.QueryError.queryStepFailed(message: "Failed to read transcript at \(transcriptURL.path)")
+    }
+    defer { try? handle.close() }
+
+    guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
+        return
+    }
+
+    var sessionID: String?
+    var previousUsage: CodexUsageQuery.CumulativeUsage?
+
+    for line in contents.split(whereSeparator: \.isNewline) {
+        guard let data = line.data(using: .utf8),
+              let rawObject = try? JSONSerialization.jsonObject(with: data),
+              let object = rawObject as? [String: Any],
+              let type = object["type"] as? String else {
+            continue
+        }
+
+        if type == "session_meta", sessionID == nil,
+           let payload = object["payload"] as? [String: Any] {
+            sessionID = (payload["session_id"] as? String)
+                ?? (payload["sessionId"] as? String)
+                ?? (payload["id"] as? String)
+            continue
+        }
+
+        guard type == "event_msg",
+              let payload = object["payload"] as? [String: Any],
+              (payload["type"] as? String) == "token_count",
+              let timestampString = object["timestamp"] as? String,
+              let timestamp = parseCodexTimestamp(timestampString),
+              let currentSessionID = sessionID else {
+            continue
+        }
+
+        guard let currentUsage = parseCumulativeUsage(payload: payload) else {
+            continue
+        }
+
+        let deltaUsage: CodexUsageQuery.CumulativeUsage
+        if hasTotalTokenUsage(payload: payload) {
+            let previous = previousUsage ?? CodexUsageQuery.CumulativeUsage(
+                inputTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                totalTokens: 0
+            )
+            deltaUsage = CodexUsageQuery.CumulativeUsage(
+                inputTokens: max(0, currentUsage.inputTokens - previous.inputTokens),
+                outputTokens: max(0, currentUsage.outputTokens - previous.outputTokens),
+                reasoningTokens: max(0, currentUsage.reasoningTokens - previous.reasoningTokens),
+                cacheReadTokens: max(0, currentUsage.cacheReadTokens - previous.cacheReadTokens),
+                totalTokens: max(0, currentUsage.totalTokens - previous.totalTokens)
+            )
+            previousUsage = currentUsage
+        } else {
+            deltaUsage = currentUsage
+        }
+
+        guard deltaUsage.totalTokens > 0 else { continue }
+
+        let day = Int(timestamp.timeIntervalSince1970 * 1000) / 86_400_000
+        let key = "\(currentSessionID)::\(day)"
+        let deltaBucket = CodexDailyBucket(
+            sessionID: currentSessionID,
+            day: day,
+            inputTokens: deltaUsage.inputTokens,
+            outputTokens: deltaUsage.outputTokens,
+            reasoningTokens: deltaUsage.reasoningTokens,
+            cacheReadTokens: deltaUsage.cacheReadTokens,
+            totalTokens: deltaUsage.totalTokens
+        )
+        let existing = totalsBySessionAndDay[key, default: .zero(sessionID: currentSessionID, day: day)]
+        totalsBySessionAndDay[key] = existing.merging(deltaBucket)
+    }
+}
+
+private func hasTotalTokenUsage(payload: [String: Any]) -> Bool {
+    guard let info = payload["info"] as? [String: Any] else { return false }
+    return info["total_token_usage"] != nil
+}
+
+private func parseCumulativeUsage(payload: [String: Any]) -> CodexUsageQuery.CumulativeUsage? {
+    guard let info = payload["info"] as? [String: Any] else { return nil }
+
+    let usageObject = (info["total_token_usage"] as? [String: Any])
+        ?? (info["last_token_usage"] as? [String: Any])
+    guard let usageObject else { return nil }
+
+    let inputTokens = usageObject["input_tokens"] as? Int ?? 0
+    let outputTokens = usageObject["output_tokens"] as? Int ?? 0
+    let reasoningTokens = usageObject["reasoning_output_tokens"] as? Int ?? 0
+    let cacheReadTokens = usageObject["cached_input_tokens"] as? Int ?? 0
+    let totalTokens = (usageObject["total_tokens"] as? Int)
+        ?? (inputTokens + outputTokens + reasoningTokens + cacheReadTokens)
+
+    return CodexUsageQuery.CumulativeUsage(
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        reasoningTokens: reasoningTokens,
+        cacheReadTokens: cacheReadTokens,
+        totalTokens: totalTokens
+    )
 }
 
 private func candidateDatabaseURLs(
@@ -273,6 +436,53 @@ private func candidateDatabaseURLs(
     return candidates
 }
 
+private func candidateTranscriptURLs(
+    homeDirectoryURL: URL,
+    fileManager: FileManager
+) -> [URL] {
+    let codexDirectory = homeDirectoryURL.appendingPathComponent(".codex")
+    let sessionsDirectory = codexDirectory.appendingPathComponent("sessions")
+    let archivedDirectory = codexDirectory.appendingPathComponent("archived_sessions")
+
+    var urls: [URL] = []
+    collectTranscriptURLs(in: sessionsDirectory, fileManager: fileManager, depth: 0, maxDepth: 3, into: &urls)
+    collectTranscriptURLs(in: archivedDirectory, fileManager: fileManager, depth: 0, maxDepth: 0, into: &urls)
+    return urls
+}
+
+private func collectTranscriptURLs(
+    in directory: URL,
+    fileManager: FileManager,
+    depth: Int,
+    maxDepth: Int,
+    into urls: inout [URL]
+) {
+    guard let contents = try? fileManager.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    ) else {
+        return
+    }
+
+    for url in contents {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            continue
+        }
+
+        if isDirectory.boolValue {
+            guard depth < maxDepth else { continue }
+            collectTranscriptURLs(in: url, fileManager: fileManager, depth: depth + 1, maxDepth: maxDepth, into: &urls)
+            continue
+        }
+
+        if url.pathExtension == "jsonl" {
+            urls.append(url)
+        }
+    }
+}
+
 private func stateDatabaseActivityDate(for url: URL) -> Date {
     let candidates = [
         url,
@@ -301,4 +511,17 @@ private extension String {
         let range = NSRange(location: 0, length: utf16.count)
         return regex?.firstMatch(in: self, range: range) != nil
     }
+}
+
+private extension ISO8601DateFormatter {
+    static let codexUsage: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
+private func parseCodexTimestamp(_ value: String) -> Date? {
+    ISO8601DateFormatter.codexUsage.date(from: value)
+        ?? ISO8601DateFormatter().date(from: value)
 }

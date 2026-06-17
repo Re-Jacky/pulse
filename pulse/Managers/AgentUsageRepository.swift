@@ -7,6 +7,7 @@ protocol AgentUsageRepositorying {
     func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot
     func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket]
     func loadCodexSnapshot() throws -> CodexUsageSnapshot
+    func loadCodexDailyBuckets() throws -> [CodexDailyBucket]
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail
 }
 
@@ -35,6 +36,10 @@ struct AgentUsageRepository: AgentUsageRepositorying {
             throw CodexUsageQuery.QueryError.databaseNotFound(path: "Codex database not found")
         }
         return try CodexUsageQuery.loadSnapshot(databaseURL: codexDatabaseURL)
+    }
+
+    func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {
+        try CodexUsageQuery.loadDailyBuckets()
     }
 
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {

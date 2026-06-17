@@ -206,6 +206,7 @@ final class AgentUsageStoreTests: XCTestCase {
             openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
             openCodeDailyBuckets: buckets,
             codexSnapshot: CodexUsageSnapshot(sessions: []),
+            codexDailyBuckets: [],
             refreshGeneration: 0,
             codexDetailCache: [:]
         )
@@ -258,6 +259,246 @@ final class AgentUsageStoreTests: XCTestCase {
             projectDirectory: nil, sessionID: nil, modelGroupBy: .model)
         let todayData = store.derivedData(for: todaySelection)
         XCTAssertEqual(todayData.summary.totalTokens, 38)
+    }
+
+    func testDerivedDataUsesBucketsForLast7DaysIncludingToday() {
+        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: Date())
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: todayDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let selection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .last7Days,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let data = store.derivedData(for: selection)
+
+        XCTAssertEqual(data.summary.totalTokens, 120)
+        XCTAssertEqual(data.summary.inputTokens, 100)
+        XCTAssertEqual(data.summary.outputTokens, 20)
+        XCTAssertEqual(data.summary.reasoningTokens, 5)
+        XCTAssertEqual(data.summary.cacheReadTokens, 40)
+    }
+
+    func testDerivedDataUsesBucketsForLast30DaysIncludingToday() {
+        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: Date())
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: todayDay,
+                inputTokens: 70,
+                outputTokens: 15,
+                reasoningTokens: 4,
+                cacheReadTokens: 11,
+                totalTokens: 90
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let selection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .last30Days,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let data = store.derivedData(for: selection)
+
+        XCTAssertEqual(data.summary.totalTokens, 90)
+        XCTAssertEqual(data.summary.inputTokens, 70)
+        XCTAssertEqual(data.summary.outputTokens, 15)
+        XCTAssertEqual(data.summary.reasoningTokens, 4)
+        XCTAssertEqual(data.summary.cacheReadTokens, 11)
+    }
+
+    func testCodexLoadDailyBucketsSplitsCrossDaySessionFromTranscript() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
+        let transcriptURL = sessionDir.appendingPathComponent("rollout-test.jsonl")
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let transcript = """
+        {"timestamp":"2026-06-16T23:50:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
+        {"timestamp":"2026-06-16T23:50:01Z","type":"turn_context","payload":{"model":"gpt-5.4"}}
+        {"timestamp":"2026-06-16T23:55:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
+        {"timestamp":"2026-06-17T00:05:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":190,"cached_input_tokens":80,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":220}}}}
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let buckets = try CodexUsageQuery.loadDailyBuckets(
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(
+            buckets,
+            [
+                CodexDailyBucket(
+                    sessionID: "thread_1",
+                    day: 20620,
+                    inputTokens: 100,
+                    outputTokens: 20,
+                    reasoningTokens: 5,
+                    cacheReadTokens: 40,
+                    totalTokens: 120
+                ),
+                CodexDailyBucket(
+                    sessionID: "thread_1",
+                    day: 20621,
+                    inputTokens: 90,
+                    outputTokens: 10,
+                    reasoningTokens: 3,
+                    cacheReadTokens: 40,
+                    totalTokens: 100
+                )
+            ]
+        )
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testCodexLoadDailyBucketsPreservesNativeTotalTokens() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
+        let transcriptURL = sessionDir.appendingPathComponent("native-total-test.jsonl")
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let transcript = """
+        {"timestamp":"2026-06-16T23:55:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
+        {"timestamp":"2026-06-16T23:56:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let buckets = try CodexUsageQuery.loadDailyBuckets(
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets[0].totalTokens, 120)
+        XCTAssertEqual(buckets[0].inputTokens, 100)
+        XCTAssertEqual(buckets[0].outputTokens, 20)
+        XCTAssertEqual(buckets[0].reasoningTokens, 5)
+        XCTAssertEqual(buckets[0].cacheReadTokens, 40)
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testDerivedDataUsesCodexBucketsForTodayInsteadOfSessionUpdatedAt() {
+        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(
+                id: "cx_1",
+                tokens: 500,
+                updatedAt: Date()
+            )
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: todayDay - 1,
+                inputTokens: 400,
+                outputTokens: 60,
+                reasoningTokens: 20,
+                cacheReadTokens: 20,
+                totalTokens: 500
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let todaySelection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let todayData = store.derivedData(for: todaySelection)
+
+        XCTAssertEqual(todayData.summary.totalTokens, 0)
+    }
+
+    func testDerivedDataUsesCodexDetailedBucketFieldsForToday() {
+        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(
+                id: "cx_1",
+                tokens: 999,
+                updatedAt: Date()
+            )
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: todayDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120
+            ),
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: todayDay,
+                inputTokens: 90,
+                outputTokens: 10,
+                reasoningTokens: 3,
+                cacheReadTokens: 40,
+                totalTokens: 100
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 220)
+        XCTAssertEqual(data.summary.inputTokens, 190)
+        XCTAssertEqual(data.summary.outputTokens, 30)
+        XCTAssertEqual(data.summary.reasoningTokens, 8)
+        XCTAssertEqual(data.summary.cacheReadTokens, 80)
+        XCTAssertNil(data.summary.cacheWriteTokens)
     }
 
     func testRefreshAllAsyncPublishesLoadingThenCompletes() async throws {
@@ -317,6 +558,18 @@ private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessi
 }
 
 private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionRecord {
+    makeCodexSession(id: id, tokens: tokens, updatedAt: Date(timeIntervalSince1970: 2000))
+}
+
+private func makeCodexSession(
+    id: String,
+    tokens: Int = 100,
+    inputTokens: Int? = nil,
+    outputTokens: Int? = nil,
+    reasoningTokens: Int? = nil,
+    cacheReadTokens: Int? = nil,
+    updatedAt: Date
+) -> CodexSessionRecord {
     CodexSessionRecord(
         id: id,
         title: "Session \(id)",
@@ -324,12 +577,16 @@ private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionReco
         model: "gpt-5",
         modelProvider: "openai",
         tokensUsed: tokens,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+        reasoningTokens: reasoningTokens,
+        cacheReadTokens: cacheReadTokens,
         reasoningEffort: "",
         threadSource: "primary",
         agentNickname: nil,
         agentRole: nil,
         createdAt: Date(timeIntervalSince1970: 1000),
-        updatedAt: Date(timeIntervalSince1970: 2000)
+        updatedAt: updatedAt
     )
 }
 
@@ -340,6 +597,7 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
     var openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [])
     var openCodeDailyBuckets: [OpenCodeDailyBucket] = []
     var codexSnapshot = CodexUsageSnapshot(sessions: [])
+    var codexDailyBuckets: [CodexDailyBucket] = []
     var codexDetail = CodexSessionDetail(threadID: "", edges: [], goals: [])
     var openCodeError: OpenCodeUsageQuery.QueryError?
     var openCodeDailyBucketError: OpenCodeUsageQuery.QueryError?
@@ -348,6 +606,7 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
     var openCodeLoadCount = 0
     var openCodeBucketLoadCount = 0
     var codexLoadCount = 0
+    var codexBucketLoadCount = 0
     var codexDetailLoadCount = 0
 
     func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot {
@@ -366,6 +625,12 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
         codexLoadCount += 1
         if let codexError { throw codexError }
         return codexSnapshot
+    }
+
+    func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {
+        codexBucketLoadCount += 1
+        if let codexError { throw codexError }
+        return codexDailyBuckets
     }
 
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {
@@ -393,6 +658,10 @@ private final class BlockingAgentUsageRepository: AgentUsageRepositorying {
 
     func loadCodexSnapshot() throws -> CodexUsageSnapshot {
         CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_async")])
+    }
+
+    func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {
+        []
     }
 
     func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {

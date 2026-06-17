@@ -7,6 +7,10 @@ struct CodexSessionRecord: Identifiable, Equatable {
     let model: String
     let modelProvider: String
     let tokensUsed: Int
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let reasoningTokens: Int?
+    let cacheReadTokens: Int?
     let reasoningEffort: String
     let threadSource: String
     let agentNickname: String?
@@ -20,6 +24,41 @@ struct CodexSessionRecord: Identifiable, Equatable {
 
     var isSubagent: Bool {
         threadSource == "subagent"
+    }
+}
+
+struct CodexDailyBucket: Equatable {
+    let sessionID: String
+    let day: Int
+
+    let inputTokens: Int
+    let outputTokens: Int
+    let reasoningTokens: Int
+    let cacheReadTokens: Int
+    let totalTokens: Int
+
+    static func zero(sessionID: String, day: Int) -> CodexDailyBucket {
+        CodexDailyBucket(
+            sessionID: sessionID,
+            day: day,
+            inputTokens: 0,
+            outputTokens: 0,
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            totalTokens: 0
+        )
+    }
+
+    func merging(_ other: CodexDailyBucket) -> CodexDailyBucket {
+        CodexDailyBucket(
+            sessionID: sessionID,
+            day: day,
+            inputTokens: inputTokens + other.inputTokens,
+            outputTokens: outputTokens + other.outputTokens,
+            reasoningTokens: reasoningTokens + other.reasoningTokens,
+            cacheReadTokens: cacheReadTokens + other.cacheReadTokens,
+            totalTokens: totalTokens + other.totalTokens
+        )
     }
 }
 
@@ -196,14 +235,23 @@ struct CodexUsageSnapshot: Equatable {
     static func makeSummary(from sessions: [CodexSessionRecord]) -> AgentUsageSummary {
         AgentUsageSummary(
             totalTokens: sessions.reduce(0) { $0 + $1.tokensUsed },
-            inputTokens: nil,
-            outputTokens: nil,
-            reasoningTokens: nil,
-            cacheReadTokens: nil,
+            inputTokens: reduceOptional(\.inputTokens, sessions: sessions),
+            outputTokens: reduceOptional(\.outputTokens, sessions: sessions),
+            reasoningTokens: reduceOptional(\.reasoningTokens, sessions: sessions),
+            cacheReadTokens: reduceOptional(\.cacheReadTokens, sessions: sessions),
             cacheWriteTokens: nil,
             sessionsCount: sessions.count,
             cost: nil,
             lastUpdated: sessions.map(\.updatedAt).max()
         )
+    }
+
+    private static func reduceOptional(
+        _ keyPath: KeyPath<CodexSessionRecord, Int?>,
+        sessions: [CodexSessionRecord]
+    ) -> Int? {
+        let values = sessions.compactMap { $0[keyPath: keyPath] }
+        guard values.isEmpty == false else { return nil }
+        return values.reduce(0, +)
     }
 }
