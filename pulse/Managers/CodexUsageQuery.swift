@@ -280,9 +280,10 @@ private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> 
 }
 
 private func openReadOnlyDatabase(databaseURL: URL) throws -> OpaquePointer? {
+    let uri = "file://\(databaseURL.path)?immutable=1"
     var db: OpaquePointer?
 
-    guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
         sqlite3_close(db)
         throw CodexUsageQuery.QueryError.databaseOpenFailed(message: message)
