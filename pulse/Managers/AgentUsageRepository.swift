@@ -32,10 +32,7 @@ struct AgentUsageRepository: AgentUsageRepositorying {
     }
 
     func loadCodexSnapshot() throws -> CodexUsageSnapshot {
-        guard let codexDatabaseURL else {
-            throw CodexUsageQuery.QueryError.databaseNotFound(path: "Codex database not found")
-        }
-        return try CodexUsageQuery.loadSnapshot(databaseURL: codexDatabaseURL)
+        try CodexUsageQuery.loadMergedSnapshot()
     }
 
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {

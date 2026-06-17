@@ -55,3 +55,17 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - `pulse/Managers/CodexUsageQuery.swift` - Codex mixed data loading: SQLite state DB for session/detail metadata, transcript `.jsonl` files under `~/.codex` for daily token buckets
 - `scripts/build-dmg.sh` - release packaging
 - `pulseUpdater/` - updater helper target
+
+## Agent Usage Data Source Facts
+
+- OpenCode currently resolves a single `opencode.db` from a short candidate list:
+  - `OPENCODE_DB_PATH`
+  - `$XDG_DATA_HOME/opencode/opencode.db`
+  - `~/.local/share/opencode/opencode.db`
+  - `~/Library/Application Support/opencode/opencode.db`
+- OpenCode should normally have one real database file plus SQLite sidecars (`-wal`, `-shm`); do not treat sidecars as separate history sources
+- Codex is different: it may have multiple `state_*.sqlite` files with overlapping but non-identical thread history
+- Codex can also have invalid higher-version files that exist on disk but do not contain a `threads` table; those must be ignored
+- Codex session/detail metadata should be built from the union of all valid state DBs, keyed by `thread.id`, keeping the row with the newest `updated_at_ms`
+- Codex token usage should remain transcript-authoritative from `~/.codex/sessions/**/*.jsonl`; DB `tokens_used` is metadata/fallback, not the primary truth for ranged usage
+- Do not regress Codex back to selecting a single preferred `sqlite/` DB path by directory alone; freshness and completeness both matter

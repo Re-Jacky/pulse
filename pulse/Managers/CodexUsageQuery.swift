@@ -38,12 +38,12 @@ enum CodexUsageQuery {
     ) -> URL? {
         if let explicitPath = environment["CODEX_DB_PATH"], explicitPath.isEmpty == false {
             let url = URL(fileURLWithPath: NSString(string: explicitPath).expandingTildeInPath)
-            if fileManager.fileExists(atPath: url.path) {
+            if fileManager.fileExists(atPath: url.path), databaseContainsThreadsTable(databaseURL: url) {
                 return url
             }
         }
 
-        let stateDBs = candidateDatabaseURLs(
+        let stateDBs = validStateDatabaseURLs(
             homeDirectoryURL: homeDirectoryURL,
             fileManager: fileManager
         )
@@ -53,18 +53,49 @@ enum CodexUsageQuery {
         }
 
         return stateDBs.max { lhs, rhs in
+            let lhsDate = stateDatabaseActivityDate(for: lhs)
+            let rhsDate = stateDatabaseActivityDate(for: rhs)
+            if lhsDate != rhsDate { return lhsDate < rhsDate }
             let lhsVersion = lhs.lastPathComponent.stateDBVersion
             let rhsVersion = rhs.lastPathComponent.stateDBVersion
             if lhsVersion != rhsVersion { return lhsVersion < rhsVersion }
-            let lhsPrefersSQLiteDir = prefersSQLiteDirectory(lhs)
-            let rhsPrefersSQLiteDir = prefersSQLiteDirectory(rhs)
-            if lhsPrefersSQLiteDir != rhsPrefersSQLiteDir {
-                return lhsPrefersSQLiteDir == false
-            }
-            let lhsDate = stateDatabaseActivityDate(for: lhs)
-            let rhsDate = stateDatabaseActivityDate(for: rhs)
-            return lhsDate < rhsDate
+            return lhs.path < rhs.path
         }
+    }
+
+    static func loadMergedSnapshot(
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> CodexUsageSnapshot {
+        let databaseURLs = validStateDatabaseURLs(
+            homeDirectoryURL: homeDirectoryURL,
+            fileManager: fileManager
+        )
+
+        guard databaseURLs.isEmpty == false else {
+            throw QueryError.databaseNotFound(path: homeDirectoryURL.appendingPathComponent(".codex").path)
+        }
+
+        var sessionsByID: [String: CodexSessionRecord] = [:]
+
+        for databaseURL in databaseURLs {
+            let snapshot = try loadSnapshot(databaseURL: databaseURL)
+            for session in snapshot.sessions {
+                if let existing = sessionsByID[session.id], existing.updatedAt >= session.updatedAt {
+                    continue
+                }
+                sessionsByID[session.id] = session
+            }
+        }
+
+        return CodexUsageSnapshot(
+            sessions: sessionsByID.values.sorted { lhs, rhs in
+                if lhs.updatedAt == rhs.updatedAt {
+                    return lhs.id < rhs.id
+                }
+                return lhs.updatedAt > rhs.updatedAt
+            }
+        )
     }
 
     static func loadSnapshot(databaseURL: URL) throws -> CodexUsageSnapshot {
@@ -437,6 +468,26 @@ private func candidateDatabaseURLs(
     return candidates
 }
 
+private func validStateDatabaseURLs(
+    homeDirectoryURL: URL,
+    fileManager: FileManager
+) -> [URL] {
+    candidateDatabaseURLs(
+        homeDirectoryURL: homeDirectoryURL,
+        fileManager: fileManager
+    )
+    .filter(databaseContainsThreadsTable(databaseURL:))
+    .sorted { lhs, rhs in
+        let lhsDate = stateDatabaseActivityDate(for: lhs)
+        let rhsDate = stateDatabaseActivityDate(for: rhs)
+        if lhsDate != rhsDate { return lhsDate > rhsDate }
+        let lhsVersion = lhs.lastPathComponent.stateDBVersion
+        let rhsVersion = rhs.lastPathComponent.stateDBVersion
+        if lhsVersion != rhsVersion { return lhsVersion > rhsVersion }
+        return lhs.path < rhs.path
+    }
+}
+
 private func candidateTranscriptURLs(
     homeDirectoryURL: URL,
     fileManager: FileManager
@@ -496,8 +547,26 @@ private func stateDatabaseActivityDate(for url: URL) -> Date {
     }.max() ?? .distantPast
 }
 
-private func prefersSQLiteDirectory(_ url: URL) -> Bool {
-    url.deletingLastPathComponent().lastPathComponent == "sqlite"
+private func databaseContainsThreadsTable(databaseURL: URL) -> Bool {
+    guard let db = try? openReadOnlyDatabase(databaseURL: databaseURL) else {
+        return false
+    }
+    defer { sqlite3_close(db) }
+
+    let sql = """
+        select 1
+        from sqlite_master
+        where type = 'table' and name = 'threads'
+        limit 1
+        """
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+        return false
+    }
+    defer { sqlite3_finalize(statement) }
+
+    return sqlite3_step(statement) == SQLITE_ROW
 }
 
 private extension String {

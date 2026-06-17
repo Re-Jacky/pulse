@@ -3,22 +3,51 @@ import SQLite3
 @testable import Pulse
 
 final class AgentUsageStoreTests: XCTestCase {
-    func testCodexResolveDatabaseURLPrefersActiveSQLiteSubdirectoryDatabase() throws {
+    func testCodexResolveDatabaseURLPrefersNewestActivityAcrossDuplicateVersions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
         let codexRoot = home.appendingPathComponent(".codex")
         let sqliteDir = codexRoot.appendingPathComponent("sqlite")
-        let staleRootDB = codexRoot.appendingPathComponent("state_5.sqlite")
-        let activeSQLiteDB = sqliteDir.appendingPathComponent("state_5.sqlite")
-        let activeSQLiteWAL = sqliteDir.appendingPathComponent("state_5.sqlite-wal")
+        let activeRootDB = codexRoot.appendingPathComponent("state_5.sqlite")
+        let staleSQLiteDB = sqliteDir.appendingPathComponent("state_5.sqlite")
 
         try FileManager.default.createDirectory(at: sqliteDir, withIntermediateDirectories: true)
-        XCTAssertTrue(FileManager.default.createFile(atPath: activeSQLiteDB.path, contents: Data([0x01, 0x02])))
-        XCTAssertTrue(FileManager.default.createFile(atPath: staleRootDB.path, contents: Data([0x01])))
-        XCTAssertTrue(FileManager.default.createFile(atPath: activeSQLiteWAL.path, contents: Data([0x03, 0x04, 0x05])))
-        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: activeSQLiteDB.path)
-        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: staleRootDB.path)
-        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 3_000)], ofItemAtPath: activeSQLiteWAL.path)
+        let rootWriter = try openWritableDatabase(activeRootDB)
+        defer { sqlite3_close(rootWriter) }
+        let sqliteWriter = try openWritableDatabase(staleSQLiteDB)
+        defer { sqlite3_close(sqliteWriter) }
+
+        let schema = """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """
+        try execute(rootWriter, sql: schema)
+        try execute(sqliteWriter, sql: schema)
+
+        try execute(rootWriter, sql: """
+        insert into threads values
+        ('root_thread', 'Root', '/tmp/root', 'gpt-5.4', 'openai', 100, '', 'user', null, null, 1000, 2000, 0);
+        """)
+        try execute(sqliteWriter, sql: """
+        insert into threads values
+        ('sqlite_thread', 'SQLite', '/tmp/sqlite', 'gpt-5.4', 'openai', 100, '', 'user', null, null, 1000, 1000, 0);
+        """)
+
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: staleSQLiteDB.path)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: activeRootDB.path)
 
         let chosen = CodexUsageQuery.resolveDatabaseURL(
             environment: [:],
@@ -28,8 +57,118 @@ final class AgentUsageStoreTests: XCTestCase {
 
         XCTAssertEqual(
             chosen?.resolvingSymlinksInPath().path,
-            activeSQLiteDB.resolvingSymlinksInPath().path
+            activeRootDB.resolvingSymlinksInPath().path
         )
+        try? FileManager.default.removeItem(at: activeRootDB.appendingPathExtension("wal"))
+        try? FileManager.default.removeItem(at: activeRootDB.appendingPathExtension("shm"))
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testCodexLoadMergedSnapshotUnionsHistoricalAndActiveDatabases() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let codexRoot = home.appendingPathComponent(".codex")
+        let sqliteDir = codexRoot.appendingPathComponent("sqlite")
+        let activeRootDB = codexRoot.appendingPathComponent("state_5.sqlite")
+        let historicalSQLiteDB = sqliteDir.appendingPathComponent("state_5.sqlite")
+
+        try FileManager.default.createDirectory(at: sqliteDir, withIntermediateDirectories: true)
+
+        let rootWriter = try openWritableDatabase(activeRootDB)
+        defer { sqlite3_close(rootWriter) }
+        let sqliteWriter = try openWritableDatabase(historicalSQLiteDB)
+        defer { sqlite3_close(sqliteWriter) }
+
+        let schema = """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """
+        try execute(rootWriter, sql: schema)
+        try execute(sqliteWriter, sql: schema)
+
+        try execute(rootWriter, sql: """
+        insert into threads values
+        ('shared_thread', 'Shared New', '/tmp/pulse', 'gpt-5.4', 'openai', 500, '', 'user', null, null, 1000, 5000, 0),
+        ('active_only', 'Active Only', '/tmp/pulse', 'gpt-5.4', 'openai', 300, '', 'user', null, null, 2000, 6000, 0);
+        """)
+        try execute(sqliteWriter, sql: """
+        insert into threads values
+        ('shared_thread', 'Shared Old', '/tmp/pulse', 'gpt-5.4', 'openai', 450, '', 'user', null, null, 1000, 4000, 0),
+        ('historical_only', 'Historical Only', '/tmp/old', 'gpt-5.4', 'openai', 200, '', 'user', null, null, 1500, 3000, 0);
+        """)
+
+        let snapshot = try CodexUsageQuery.loadMergedSnapshot(
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(snapshot.sessions.map(\.id), ["active_only", "shared_thread", "historical_only"])
+        XCTAssertEqual(snapshot.sessions.first(where: { $0.id == "shared_thread" })?.title, "Shared New")
+        XCTAssertEqual(snapshot.sessions.first(where: { $0.id == "shared_thread" })?.tokensUsed, 500)
+        XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 1_000)
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testCodexResolveDatabaseURLIgnoresHigherVersionWithoutThreadsTable() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let codexRoot = home.appendingPathComponent(".codex")
+        let validDB = codexRoot.appendingPathComponent("state_5.sqlite")
+        let invalidHigherVersionDB = codexRoot.appendingPathComponent("state_6.sqlite")
+
+        try FileManager.default.createDirectory(at: codexRoot, withIntermediateDirectories: true)
+
+        let writer = try openWritableDatabase(validDB)
+        defer { sqlite3_close(writer) }
+
+        try execute(writer, sql: """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """)
+        try execute(writer, sql: """
+        insert into threads values
+        ('thread_1', 'Valid', '/tmp/project', 'gpt-5.4', 'openai', 100, '', 'user', null, null, 1000, 2000, 0);
+        """)
+
+        let invalidWriter = try openWritableDatabase(invalidHigherVersionDB)
+        defer { sqlite3_close(invalidWriter) }
+        try execute(invalidWriter, sql: "create table metadata_only (id text primary key);")
+
+        let chosen = CodexUsageQuery.resolveDatabaseURL(
+            environment: [:],
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(chosen?.resolvingSymlinksInPath().path, validDB.resolvingSymlinksInPath().path)
+
         try? FileManager.default.removeItem(at: root)
     }
 
