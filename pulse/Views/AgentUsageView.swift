@@ -120,11 +120,19 @@ struct AgentUsageView: View {
                 .disabled(agentStore.isRefreshing)
             }
 
-            Text("Pulse reads this agent\u{2019}s local usage data from \(databasePath) when you refresh the panel.")
+            Text(dataSourceDescription)
                 .font(.system(size: 11))
                 .foregroundColor(.appSecondaryText)
                 .textSelection(.enabled)
         }
+    }
+
+    private var dataSourceDescription: String {
+        AgentUsageDataSourceDescription.message(
+            for: selection.source,
+            openCodeDatabaseURL: agentStore.repository.openCodeDatabaseURL,
+            codexDatabaseURL: agentStore.repository.codexDatabaseURL
+        )
     }
 
     private var databasePath: String {

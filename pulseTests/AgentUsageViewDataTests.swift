@@ -228,6 +228,19 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.summary.totalTokens, 95)
         XCTAssertEqual(data.tokenFlowData.reduce(0) { $0 + $1.totalTokens }, 95)
     }
+
+    func testDataSourceDescriptionForCodexMentionsDatabaseAndTranscripts() {
+        let description = AgentUsageDataSourceDescription.message(
+            for: .codex,
+            openCodeDatabaseURL: URL(fileURLWithPath: "/Users/zyao/.local/share/opencode/opencode.db"),
+            codexDatabaseURL: URL(fileURLWithPath: "/Users/zyao/.codex/sqlite/state_5.sqlite")
+        )
+
+        XCTAssertEqual(
+            description,
+            "Pulse reads Codex session metadata from /Users/zyao/.codex/sqlite/state_5.sqlite and derives token usage from local transcripts under ~/.codex when you refresh the panel."
+        )
+    }
 }
 
 private func makeOpenCodeSession(id: String, tokens: Int = 100, updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> OpenCodeSessionRecord {

@@ -92,3 +92,18 @@ extension AgentUsageSummary {
         }
     }
 }
+
+enum AgentUsageDataSourceDescription {
+    static func message(for source: AgentSource, openCodeDatabaseURL: URL, codexDatabaseURL: URL?) -> String {
+        switch source {
+        case .all:
+            let codexDescription = codexDatabaseURL?.path ?? "Codex state DB not found"
+            return "Pulse reads OpenCode usage from \(openCodeDatabaseURL.path), reads Codex session metadata from \(codexDescription), and derives Codex token usage from local transcripts under ~/.codex when you refresh the panel."
+        case .openCode:
+            return "Pulse reads this agent's local usage data from \(openCodeDatabaseURL.path) when you refresh the panel."
+        case .codex:
+            let codexDescription = codexDatabaseURL?.path ?? "Codex state DB not found"
+            return "Pulse reads Codex session metadata from \(codexDescription) and derives token usage from local transcripts under ~/.codex when you refresh the panel."
+        }
+    }
+}
