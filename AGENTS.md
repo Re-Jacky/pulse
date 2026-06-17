@@ -34,6 +34,18 @@ Compact repo guide for future OpenCode sessions.
 - When adding Swift files, update the Xcode project too; use `add_files.rb` or edit `pulse.xcodeproj/project.pbxproj` directly
 - Version bumps live in `pulse.xcodeproj/project.pbxproj` (`MARKETING_VERSION`); release workflow `workflow_dispatch` in `.github/workflows/release.yml` publishes from that value
 
+## SQLite Database Open Pattern (DO NOT REGRESS)
+
+All read-only SQLite opens must use the URI form with `immutable=1`:
+```swift
+let uri = "file://\(databaseURL.path)?immutable=1"
+sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
+```
+- `immutable=1` tells SQLite the file is static, avoiding attempts to create/lock WAL/SHM files on read-only filesystems
+- Using a plain path (`sqlite3_open_v2(path, ...)`) breaks DB opens when WAL-mode databases are present on disk
+- Both `CodexUsageQuery.openReadOnlyDatabase` and all `OpenCodeUsageStore` open sites must follow this pattern
+- This has regressed twice; do NOT "simplify" it back to a plain path
+
 ## High-Signal File Map
 
 - `pulse/App/AppDelegate.swift` - status item, panel lifecycle, settings window, theme/app activation, updater wiring
