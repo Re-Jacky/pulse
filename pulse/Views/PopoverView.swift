@@ -59,18 +59,20 @@ struct PopoverView: View {
                 selectedTab = 0
             }
             syncPanelTabSelection()
-            refreshAgentUsageIfNeeded()
+            refreshAgentUsageIfVisible()
         }
         .onChange(of: selectedTab) { _ in
             syncPanelTabSelection()
-            refreshAgentUsageIfNeeded()
+            refreshAgentUsageIfVisible()
         }
         .onAppear {
             if agentUsageSettings.isEnabled == false && selectedTab == 2 {
                 selectedTab = 0
             }
             syncPanelTabSelection()
-            refreshAgentUsageIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pulsePanelDidOpen)) { _ in
+            refreshAgentUsageIfVisible()
         }
     }
 
@@ -78,9 +80,9 @@ struct PopoverView: View {
         NotificationCenter.default.post(name: .pulsePanelTabDidChange, object: selectedTab)
     }
 
-    private func refreshAgentUsageIfNeeded() {
+    private func refreshAgentUsageIfVisible() {
         guard agentUsageSettings.isEnabled, selectedTab == 2 else { return }
-        agentStore.refreshIfNeededAsync()
+        agentStore.refreshAllAsync()
     }
 }
 

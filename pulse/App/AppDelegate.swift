@@ -16,6 +16,7 @@ private enum PanelMetrics {
 
 extension Notification.Name {
     static let pulsePanelTabDidChange = Notification.Name("pulsePanelTabDidChange")
+    static let pulsePanelDidOpen = Notification.Name("pulsePanelDidOpen")
 }
 
 private final class InputPanel: NSPanel {
@@ -167,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 NSApp.setActivationPolicy(.accessory)
             }
         }
+        NotificationCenter.default.post(name: .pulsePanelDidOpen, object: nil)
 
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
