@@ -308,6 +308,10 @@ final class AgentUsageStore: ObservableObject {
                   let m = meta.sessions.first(where: { $0.id == sessionID })
             else { return nil }
 
+            let updatedAt = inRange.compactMap {
+                $0.latestActivityAt ?? approximateOpenCodeActivityDate(for: $0.day, relativeTo: m.updatedAt)
+            }.max() ?? m.updatedAt
+
             return OpenCodeSessionRecord(
                 id: m.id,
                 title: m.title,
@@ -323,7 +327,7 @@ final class AgentUsageStore: ObservableObject {
                 cacheWriteTokens: inRange.reduce(0) { $0 + $1.cacheWriteTokens },
                 cost: inRange.reduce(0.0) { $0 + $1.cost },
                 createdAt: m.createdAt,
-                updatedAt: m.updatedAt
+                updatedAt: updatedAt
             )
         }
 
@@ -366,6 +370,13 @@ final class AgentUsageStore: ObservableObject {
 
     private func dayRange(for range: AgentTimeRange) -> Range<Int> {
         agentUsageDayRange(for: range)
+    }
+
+    private func approximateOpenCodeActivityDate(for day: Int, relativeTo reference: Date) -> Date {
+        let calendar = Calendar.autoupdatingCurrent
+        let referenceDay = agentUsageDayIdentifier(for: reference, calendar: calendar)
+        let deltaDays = day - referenceDay
+        return calendar.date(byAdding: .day, value: deltaDays, to: reference) ?? reference
     }
 
     // MARK: - Derivation Helpers

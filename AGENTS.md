@@ -22,8 +22,10 @@ Compact repo guide for future OpenCode sessions.
 - `AppDelegate` owns the status item, the custom resizable `InputPanel`, the reusable settings window, the theme object, the agent-usage store, and the updater manager
 - The main panel is not an `NSPopover`; it is a borderless `NSPanel` with rounded corners, outside-click dismissal, and temporary `.regular` activation while opening settings
 - `PopoverView` switches tabs with `.opacity` + `.allowsHitTesting`; `selectedTab` is persisted with `@AppStorage("selectedTab")`
+- Because tab content stays mounted behind `.opacity` + `.allowsHitTesting`, `onAppear` is not a reliable hook for "panel reopened" behavior; use the `pulsePanelDidOpen` notification from `AppDelegate.openPanel()` for Agent-tab refresh-on-open behavior
 - `SystemMonitor` is the single source of truth for CPU, memory, GPU, and process data and refreshes every 2 seconds
 - Agent Usage is optional and off by default; `All` mode merges OpenCode and Codex summaries in memory and hides session/model sections
+- Agent usage refresh is intentionally event-driven, not scheduled: refresh when the panel opens onto the Agent tab, and when switching onto the Agent tab during an open session; do not refresh just because the source picker changes between `OpenCode`, `Codex`, and `All`
 - `pulseUpdater` is a separate helper app bundled into `Contents/Helpers/PulseUpdater.app` for installs
 
 ## Repo-Specific Conventions
@@ -68,4 +70,6 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - Codex can also have invalid higher-version files that exist on disk but do not contain a `threads` table; those must be ignored
 - Codex session/detail metadata should be built from the union of all valid state DBs, keyed by `thread.id`, keeping the row with the newest `updated_at_ms`
 - Codex token usage should remain transcript-authoritative from `~/.codex/sessions/**/*.jsonl`; DB `tokens_used` is metadata/fallback, not the primary truth for ranged usage
+- All agent usage time bucketing is local-calendar based, not UTC-based: `Today`, `7 Days`, and `30 Days` should include the user's current local day boundaries for both Codex transcripts and OpenCode message timestamps
+- When working with day buckets, prefer helper paths that normalize through `Calendar` day starts and day identifiers; avoid raw `86400`-second window math for anything user-facing labeled as a day
 - Do not regress Codex back to selecting a single preferred `sqlite/` DB path by directory alone; freshness and completeness both matter

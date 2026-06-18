@@ -401,6 +401,65 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(todayData.summary.totalTokens, 38)
     }
 
+    func testOpenCodeRangedLastUpdatedUsesLatestInRangeActivityDay() {
+        let calendar = Calendar.autoupdatingCurrent
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let todayDay = agentUsageDayIdentifier(for: today, calendar: calendar)
+        let futureUpdatedAt = calendar.date(byAdding: .day, value: 3, to: now) ?? now
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            OpenCodeSessionRecord(
+                id: "ses_1",
+                title: "Session ses_1",
+                directory: "/Users/zyao/Desktop/pulse",
+                agent: "build",
+                modelProviderID: "opencode",
+                modelID: "model-a",
+                modelVariant: nil,
+                inputTokens: 1000,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                cost: 0,
+                createdAt: now.addingTimeInterval(-3600),
+                updatedAt: futureUpdatedAt
+            )
+        ])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(
+                sessionID: "ses_1",
+                day: todayDay,
+                inputTokens: 10,
+                outputTokens: 5,
+                reasoningTokens: 1,
+                cacheReadTokens: 20,
+                cacheWriteTokens: 2,
+                cost: 0.001
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let selection = AgentUsageSelection(
+            source: .openCode,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let data = store.derivedData(for: selection)
+
+        XCTAssertEqual(data.summary.totalTokens, 38)
+        XCTAssertEqual(
+            data.summary.lastUpdated.map { agentUsageDayIdentifier(for: $0, calendar: calendar) },
+            todayDay
+        )
+    }
+
     func testDerivedDataUsesBucketsForLast7DaysIncludingToday() {
         let todayDay = agentUsageDayIdentifier(for: Date())
 

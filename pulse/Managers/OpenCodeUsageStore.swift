@@ -330,10 +330,23 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
             reasoningTokens: Int(sqlite3_column_int64(statement, 4)),
             cacheReadTokens: Int(sqlite3_column_int64(statement, 5)),
             cacheWriteTokens: Int(sqlite3_column_int64(statement, 6)),
-            cost: sqlite3_column_double(statement, 7)
+            cost: sqlite3_column_double(statement, 7),
+            latestActivityAt: createdAt
         )
 
         let existing = bucketsBySessionAndDay[key]
+        let latestActivityAt: Date?
+        switch (existing?.latestActivityAt, bucket.latestActivityAt) {
+        case let (lhs?, rhs?):
+            latestActivityAt = max(lhs, rhs)
+        case let (lhs?, nil):
+            latestActivityAt = lhs
+        case let (nil, rhs?):
+            latestActivityAt = rhs
+        case (nil, nil):
+            latestActivityAt = nil
+        }
+
         bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
             sessionID: sessionID,
             day: day,
@@ -342,7 +355,8 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
             reasoningTokens: (existing?.reasoningTokens ?? 0) + bucket.reasoningTokens,
             cacheReadTokens: (existing?.cacheReadTokens ?? 0) + bucket.cacheReadTokens,
             cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + bucket.cacheWriteTokens,
-            cost: (existing?.cost ?? 0) + bucket.cost
+            cost: (existing?.cost ?? 0) + bucket.cost,
+            latestActivityAt: latestActivityAt
         )
     }
 
