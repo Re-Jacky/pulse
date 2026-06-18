@@ -1,10 +1,19 @@
 name: Release
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pulse.xcodeproj/project.pbxproj'
+      - '.github/workflows/release.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -37,6 +46,67 @@ jobs:
           echo "dmg=dist/Pulse-${VERSION}.dmg" >> "$GITHUB_OUTPUT"
           echo "zip=dist/Pulse-${VERSION}-updater.zip" >> "$GITHUB_OUTPUT"
 
+      - name: Validate pushed version changes
+        id: guard
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          CURRENT_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZERO_SHA="0000000000000000000000000000000000000000"
+
+          if [ "$BEFORE_SHA" = "$ZERO_SHA" ]; then
+            RANGE_COMMITS=$(git rev-list --reverse "$CURRENT_SHA")
+          else
+            RANGE_COMMITS=$(git rev-list --reverse "${BEFORE_SHA}..${CURRENT_SHA}")
+          fi
+
+          if [ -z "$RANGE_COMMITS" ]; then
+            echo "No commits found in push range; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          versions=()
+          while IFS= read -r commit; do
+            [ -n "$commit" ] || continue
+
+            if ! git diff-tree --no-commit-id --name-only -r "$commit" | grep -qx 'pulse.xcodeproj/project.pbxproj'; then
+              continue
+            fi
+
+            version=$(git show "${commit}:pulse.xcodeproj/project.pbxproj" | grep -m1 'MARKETING_VERSION' | sed 's/.*= *//;s/;//')
+            [ -n "$version" ] || continue
+
+            if [ ${#versions[@]} -eq 0 ] || [ "${versions[${#versions[@]}-1]}" != "$version" ]; then
+              versions+=("$version")
+            fi
+          done <<< "$RANGE_COMMITS"
+
+          if [ ${#versions[@]} -eq 0 ]; then
+            echo "MARKETING_VERSION did not change in this push; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ ${#versions[@]} -gt 1 ]; then
+            printf 'Multiple MARKETING_VERSION values detected in one push: %s\n' "${versions[*]}" >&2
+            echo "Push version changes must be released one at a time." >&2
+            exit 1
+          fi
+
+          if [ "${versions[0]}" != "$CURRENT_VERSION" ]; then
+            echo "Push changed MARKETING_VERSION to ${versions[0]}, but HEAD is ${CURRENT_VERSION}." >&2
+            echo "Keep release pushes linear so the final version matches the released version." >&2
+            exit 1
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "pushed_version=${versions[0]}" >> "$GITHUB_OUTPUT"
+
       - name: Show resolved release values
         shell: bash
         run: |
@@ -44,17 +114,26 @@ jobs:
           echo "Tag: ${{ steps.version.outputs.tag }}"
           echo "DMG: ${{ steps.version.outputs.dmg }}"
           echo "ZIP: ${{ steps.version.outputs.zip }}"
+          echo "Should Release: ${{ steps.guard.outputs.should_release }}"
 
-      - name: Fail if release tag already exists
+      - name: Skip if version was not bumped in this push
+        if: steps.guard.outputs.should_release != 'true'
         shell: bash
         run: |
-          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag ${{ steps.version.outputs.tag }} already exists" >&2
+          echo "No releasable version bump detected in this push."
+
+      - name: Fail if release already exists
+        if: steps.guard.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.version.outputs.tag }} already exists" >&2
             exit 1
           fi
 
       - name: Generate release notes
         id: release_notes
+        if: steps.guard.outputs.should_release == 'true'
         shell: bash
         run: |
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
@@ -78,14 +157,17 @@ jobs:
           echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Show generated release notes
+        if: steps.guard.outputs.should_release == 'true'
         shell: bash
         run: cat "${{ steps.release_notes.outputs.notes_file }}"
 
       - name: Build release artifacts
+        if: steps.guard.outputs.should_release == 'true'
         shell: bash
         run: bash scripts/build-dmg.sh
 
       - name: Verify release artifacts exist
+        if: steps.guard.outputs.should_release == 'true'
         shell: bash
         run: |
           if [ ! -f "${{ steps.version.outputs.dmg }}" ]; then
@@ -101,6 +183,7 @@ jobs:
           ls -lh "${{ steps.version.outputs.dmg }}" "${{ steps.version.outputs.zip }}"
 
       - name: Create GitHub Release
+        if: steps.guard.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
@@ -117,11 +200,18 @@ jobs:
         shell: bash
         run: |
           {
-            echo "## Release Published"
+            if [ "${{ steps.guard.outputs.should_release }}" = "true" ]; then
+              echo "## Release Published"
+            else
+              echo "## Release Skipped"
+            fi
             echo ""
             echo "- Version: ${{ steps.version.outputs.version }}"
             echo "- Tag: ${{ steps.version.outputs.tag }}"
-            echo "- Previous Tag: ${{ steps.release_notes.outputs.previous_tag || 'none' }}"
-            echo "- DMG: ${{ steps.version.outputs.dmg }}"
-            echo "- ZIP: ${{ steps.version.outputs.zip }}"
+            echo "- Should Release: ${{ steps.guard.outputs.should_release }}"
+            if [ "${{ steps.guard.outputs.should_release }}" = "true" ]; then
+              echo "- Previous Tag: ${{ steps.release_notes.outputs.previous_tag || 'none' }}"
+              echo "- DMG: ${{ steps.version.outputs.dmg }}"
+              echo "- ZIP: ${{ steps.version.outputs.zip }}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
