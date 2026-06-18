@@ -1,5 +1,6 @@
 import XCTest
 import SQLite3
+import Darwin
 @testable import Pulse
 
 final class AgentUsageStoreTests: XCTestCase {
@@ -172,7 +173,7 @@ final class AgentUsageStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testCodexLoadSnapshotReadsRowsStillInWAL() throws {
+    func testCodexLoadSnapshotReadsRowsPersistedInWALAfterWriterCloses() throws {
         let databaseURL = FileManager.default.temporaryDirectory.appendingPathComponent("CodexUsageQuery-\(UUID().uuidString).sqlite")
         defer {
             try? FileManager.default.removeItem(at: databaseURL)
@@ -181,7 +182,6 @@ final class AgentUsageStoreTests: XCTestCase {
         }
 
         let writer = try openWritableDatabase(databaseURL)
-        defer { sqlite3_close(writer) }
 
         try execute(writer, sql: "pragma journal_mode=WAL;")
         try execute(writer, sql: """
@@ -223,6 +223,7 @@ final class AgentUsageStoreTests: XCTestCase {
             '', 'user', null, null, 3000, 4000, 0
         );
         """)
+        sqlite3_close(writer)
 
         let snapshot = try CodexUsageQuery.loadSnapshot(databaseURL: databaseURL)
 
@@ -372,7 +373,7 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testDerivedDataUsesBucketsForTodayAndCumulativeForAllTime() {
-        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: Date())
 
         let repository = StubAgentUsageRepository()
         repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
@@ -401,7 +402,7 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testDerivedDataUsesBucketsForLast7DaysIncludingToday() {
-        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: Date())
 
         let repository = StubAgentUsageRepository()
         repository.codexSnapshot = CodexUsageSnapshot(sessions: [
@@ -439,7 +440,7 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testDerivedDataUsesBucketsForLast30DaysIncludingToday() {
-        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: Date())
 
         let repository = StubAgentUsageRepository()
         repository.codexSnapshot = CodexUsageSnapshot(sessions: [
@@ -477,50 +478,91 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testCodexLoadDailyBucketsSplitsCrossDaySessionFromTranscript() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let home = root.appendingPathComponent("home")
-        let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
-        let transcriptURL = sessionDir.appendingPathComponent("rollout-test.jsonl")
-        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+        try withTimeZone("UTC") {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let home = root.appendingPathComponent("home")
+            let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
+            let transcriptURL = sessionDir.appendingPathComponent("rollout-test.jsonl")
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
 
-        let transcript = """
-        {"timestamp":"2026-06-16T23:50:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
-        {"timestamp":"2026-06-16T23:50:01Z","type":"turn_context","payload":{"model":"gpt-5.4"}}
-        {"timestamp":"2026-06-16T23:55:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
-        {"timestamp":"2026-06-17T00:05:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":190,"cached_input_tokens":80,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":220}}}}
-        """
-        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+            let transcript = """
+            {"timestamp":"2026-06-16T23:50:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
+            {"timestamp":"2026-06-16T23:50:01Z","type":"turn_context","payload":{"model":"gpt-5.4"}}
+            {"timestamp":"2026-06-16T23:55:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
+            {"timestamp":"2026-06-17T00:05:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":190,"cached_input_tokens":80,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":220}}}}
+            """
+            try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
 
-        let buckets = try CodexUsageQuery.loadDailyBuckets(
-            homeDirectoryURL: home,
-            fileManager: .default
-        )
+            let buckets = try CodexUsageQuery.loadDailyBuckets(
+                homeDirectoryURL: home,
+                fileManager: .default
+            )
 
-        XCTAssertEqual(
-            buckets,
-            [
-                CodexDailyBucket(
-                    sessionID: "thread_1",
-                    day: 20620,
-                    inputTokens: 100,
-                    outputTokens: 20,
-                    reasoningTokens: 5,
-                    cacheReadTokens: 40,
-                    totalTokens: 120
-                ),
-                CodexDailyBucket(
-                    sessionID: "thread_1",
-                    day: 20621,
-                    inputTokens: 90,
-                    outputTokens: 10,
-                    reasoningTokens: 3,
-                    cacheReadTokens: 40,
-                    totalTokens: 100
-                )
-            ]
-        )
+            XCTAssertEqual(
+                buckets,
+                [
+                    CodexDailyBucket(
+                        sessionID: "thread_1",
+                        day: 20620,
+                        inputTokens: 100,
+                        outputTokens: 20,
+                        reasoningTokens: 5,
+                        cacheReadTokens: 40,
+                        totalTokens: 120
+                    ),
+                    CodexDailyBucket(
+                        sessionID: "thread_1",
+                        day: 20621,
+                        inputTokens: 90,
+                        outputTokens: 10,
+                        reasoningTokens: 3,
+                        cacheReadTokens: 40,
+                        totalTokens: 100
+                    )
+                ]
+            )
 
-        try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: root)
+        }
+    }
+
+    func testCodexLoadDailyBucketsUsesLocalCalendarDay() throws {
+        try withTimeZone("America/Los_Angeles") {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let home = root.appendingPathComponent("home")
+            let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/17")
+            let transcriptURL = sessionDir.appendingPathComponent("local-day-test.jsonl")
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+            let transcript = """
+            {"timestamp":"2026-06-17T23:50:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
+            {"timestamp":"2026-06-17T23:55:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
+            {"timestamp":"2026-06-18T00:05:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":190,"cached_input_tokens":80,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":220}}}}
+            """
+            try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+            let buckets = try CodexUsageQuery.loadDailyBuckets(
+                homeDirectoryURL: home,
+                fileManager: .default
+            )
+
+            XCTAssertEqual(
+                buckets,
+                [
+                    CodexDailyBucket(
+                        sessionID: "thread_1",
+                        day: 20621,
+                        inputTokens: 190,
+                        outputTokens: 30,
+                        reasoningTokens: 8,
+                        cacheReadTokens: 80,
+                        totalTokens: 220
+                    )
+                ]
+            )
+
+            try? FileManager.default.removeItem(at: root)
+        }
     }
 
     func testCodexLoadDailyBucketsPreservesNativeTotalTokens() throws {
@@ -552,7 +594,7 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testDerivedDataUsesCodexBucketsForTodayInsteadOfSessionUpdatedAt() {
-        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: Date())
 
         let repository = StubAgentUsageRepository()
         repository.codexSnapshot = CodexUsageSnapshot(sessions: [
@@ -590,7 +632,7 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     func testDerivedDataUsesCodexDetailedBucketFieldsForToday() {
-        let todayDay = Int(Date().timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: Date())
 
         let repository = StubAgentUsageRepository()
         repository.codexSnapshot = CodexUsageSnapshot(sessions: [
@@ -638,6 +680,32 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(data.summary.reasoningTokens, 8)
         XCTAssertEqual(data.summary.cacheReadTokens, 80)
         XCTAssertNil(data.summary.cacheWriteTokens)
+    }
+
+    func testAgentUsageDayRangeMatchesLocalCalendarDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+
+        let formatter = ISO8601DateFormatter()
+        let sameLocalDay = formatter.date(from: "2026-06-18T00:05:00Z")!
+        let nextLocalDay = formatter.date(from: "2026-06-18T08:05:00Z")!
+
+        let expectedStartOfDay = calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 17,
+            hour: 0,
+            minute: 0
+        ))!
+
+        let todayDay = agentUsageDayIdentifier(for: sameLocalDay, calendar: calendar)
+        let nextDay = agentUsageDayIdentifier(for: nextLocalDay, calendar: calendar)
+        let todayRange = agentUsageDayRange(for: .today, now: sameLocalDay, calendar: calendar)
+
+        XCTAssertEqual(todayDay, Int(expectedStartOfDay.timeIntervalSince1970 * 1000) / 86_400_000)
+        XCTAssertTrue(todayRange.contains(todayDay))
+        XCTAssertFalse(todayRange.contains(nextDay))
     }
 
     func testRefreshAllAsyncPublishesLoadingThenCompletes() async throws {
@@ -821,4 +889,22 @@ private func waitUntil(timeout: TimeInterval, condition: @escaping @Sendable () 
         try await Task.sleep(nanoseconds: 10_000_000)
     }
     XCTFail("Condition not met within \(timeout) seconds")
+}
+
+private func withTimeZone(_ identifier: String, perform work: () throws -> Void) throws {
+    let previous = ProcessInfo.processInfo.environment["TZ"]
+    setenv("TZ", identifier, 1)
+    tzset()
+    NSTimeZone.resetSystemTimeZone()
+    defer {
+        if let previous {
+            setenv("TZ", previous, 1)
+        } else {
+            unsetenv("TZ")
+        }
+        tzset()
+        NSTimeZone.resetSystemTimeZone()
+    }
+
+    try work()
 }

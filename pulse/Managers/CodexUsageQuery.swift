@@ -391,7 +391,7 @@ private func accumulateDailyBuckets(
 
         guard deltaUsage.totalTokens > 0 else { continue }
 
-        let day = Int(timestamp.timeIntervalSince1970 * 1000) / 86_400_000
+        let day = agentUsageDayIdentifier(for: timestamp)
         let key = "\(currentSessionID)::\(day)"
         let deltaBucket = CodexDailyBucket(
             sessionID: currentSessionID,

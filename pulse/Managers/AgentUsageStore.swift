@@ -297,7 +297,7 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func aggregatedSnapshot(for range: AgentTimeRange) -> OpenCodeUsageSnapshot {
-        let dayRange = self.dayRange(for: range)
+        let dayRange = agentUsageDayRange(for: range)
         let meta = state.openCodeCumulativeSnapshot
 
         let grouped = Dictionary(grouping: state.openCodeDailyBuckets) { $0.sessionID }
@@ -331,7 +331,7 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func aggregatedCodexSnapshot(for range: AgentTimeRange) -> CodexUsageSnapshot {
-        let dayRange = self.dayRange(for: range)
+        let dayRange = agentUsageDayRange(for: range)
         let meta = state.codexSnapshot
         let grouped = Dictionary(grouping: state.codexDailyBuckets) { $0.sessionID }
 
@@ -365,22 +365,7 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func dayRange(for range: AgentTimeRange) -> Range<Int> {
-        let now = Date()
-        switch range {
-        case .allTime:
-            return 0..<Int.max
-        case .today:
-            let day = Int(now.timeIntervalSince1970 * 1000) / 86400000
-            return day..<(day + 1)
-        case .last7Days:
-            let currentDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
-            let startDay = currentDay - 6
-            return startDay..<(currentDay + 1)
-        case .last30Days:
-            let currentDay = Int(now.timeIntervalSince1970 * 1000) / 86400000
-            let startDay = currentDay - 29
-            return startDay..<(currentDay + 1)
-        }
+        agentUsageDayRange(for: range)
     }
 
     // MARK: - Derivation Helpers
@@ -519,7 +504,7 @@ final class AgentUsageStore: ObservableObject {
         }
 
         return snapshot.sessions.reduce(into: [:]) { totals, session in
-            let day = Int(Calendar.current.startOfDay(for: session.updatedAt).timeIntervalSince1970 * 1000) / 86_400_000
+            let day = agentUsageDayIdentifier(for: session.updatedAt)
             totals[day, default: 0] += session.totalTokens
         }
     }
@@ -537,7 +522,7 @@ final class AgentUsageStore: ObservableObject {
         }
 
         return snapshot.sessions.reduce(into: [:]) { totals, session in
-            let day = Int(Calendar.current.startOfDay(for: session.updatedAt).timeIntervalSince1970 * 1000) / 86_400_000
+            let day = agentUsageDayIdentifier(for: session.updatedAt)
             totals[day, default: 0] += session.tokensUsed
         }
     }

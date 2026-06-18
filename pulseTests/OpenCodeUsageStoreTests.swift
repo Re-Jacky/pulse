@@ -1,5 +1,6 @@
 import XCTest
 import SQLite3
+import Darwin
 @testable import Pulse
 
 final class OpenCodeUsageQueryTests: XCTestCase {
@@ -151,8 +152,10 @@ final class OpenCodeUsageQueryTests: XCTestCase {
 
         XCTAssertEqual(buckets.count, 2)
 
-        let day1 = buckets.first { $0.day == 172800000 / 86400000 }
-        let day2 = buckets.first { $0.day == 259200000 / 86400000 }
+        let day1Date = Date(timeIntervalSince1970: 172800000.0 / 1000)
+        let day2Date = Date(timeIntervalSince1970: 259200000.0 / 1000)
+        let day1 = buckets.first { $0.day == agentUsageDayIdentifier(for: day1Date) }
+        let day2 = buckets.first { $0.day == agentUsageDayIdentifier(for: day2Date) }
 
         XCTAssertNotNil(day1)
         XCTAssertEqual(day1?.sessionID, "ses_1")
@@ -167,6 +170,67 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         XCTAssertEqual(day2?.sessionID, "ses_1")
         XCTAssertEqual(day2?.inputTokens, 50)
         XCTAssertEqual(day2?.cacheReadTokens, 200)
+    }
+
+    func testLoadDailyBucketsGroupsMessagesByLocalCalendarDay() throws {
+        try withTimeZone("America/Los_Angeles") {
+            let databaseURL = try makeDatabase(named: "LocalDayBucketTests.sqlite")
+            defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+            let db = try openWritableDatabase(databaseURL)
+            defer { sqlite3_close(db) }
+
+            try execute(db, sql: """
+            create table session (
+                id text primary key, project_id text not null, title text not null,
+                directory text not null, agent text, model text,
+                cost real default 0 not null,
+                tokens_input integer default 0 not null,
+                tokens_output integer default 0 not null,
+                tokens_reasoning integer default 0 not null,
+                tokens_cache_read integer default 0 not null,
+                tokens_cache_write integer default 0 not null,
+                time_created integer not null, time_updated integer not null
+            );
+            """)
+
+            try execute(db, sql: """
+            create table message (
+                id text primary key, session_id text not null,
+                time_created integer not null, time_updated integer not null, data text not null
+            );
+            """)
+
+            try execute(db, sql: """
+            insert into session (id, project_id, title, directory, cost,
+                tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+                time_created, time_updated)
+            values ('ses_1', 'p1', 'Test', '/tmp/test', 0, 0, 0, 0, 0, 0, 1000, 2000);
+            """)
+
+            let formatter = ISO8601DateFormatter()
+            let firstTimestamp = Int64((formatter.date(from: "2026-06-17T23:55:00Z")?.timeIntervalSince1970 ?? 0) * 1000)
+            let secondTimestamp = Int64((formatter.date(from: "2026-06-18T00:05:00Z")?.timeIntervalSince1970 ?? 0) * 1000)
+
+            try execute(db, sql: """
+            insert into message (id, session_id, time_created, time_updated, data) values
+            ('msg_1', 'ses_1', \(firstTimestamp), \(firstTimestamp),
+             '{"role":"assistant","tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":0.02,"time":{"created":\(firstTimestamp)}}'),
+            ('msg_2', 'ses_1', \(secondTimestamp), \(secondTimestamp),
+             '{"role":"assistant","tokens":{"input":200,"output":30,"reasoning":5,"cache":{"read":500,"write":2}},"cost":0.01,"time":{"created":\(secondTimestamp)}}');
+            """)
+
+            let buckets = try OpenCodeUsageQuery.loadDailyBuckets(databaseURL: databaseURL)
+
+            XCTAssertEqual(buckets.count, 1)
+            XCTAssertEqual(buckets[0].sessionID, "ses_1")
+            XCTAssertEqual(buckets[0].inputTokens, 300)
+            XCTAssertEqual(buckets[0].outputTokens, 80)
+            XCTAssertEqual(buckets[0].reasoningTokens, 15)
+            XCTAssertEqual(buckets[0].cacheReadTokens, 1500)
+            XCTAssertEqual(buckets[0].cacheWriteTokens, 6)
+            XCTAssertEqual(buckets[0].cost, 0.03, accuracy: 0.001)
+        }
     }
 
     private func makeDatabase(named name: String) throws -> URL {
@@ -189,5 +253,23 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw NSError(domain: "OpenCodeUsageStoreTests", code: 2)
         }
+    }
+
+    private func withTimeZone(_ identifier: String, perform work: () throws -> Void) throws {
+        let previous = ProcessInfo.processInfo.environment["TZ"]
+        setenv("TZ", identifier, 1)
+        tzset()
+        NSTimeZone.resetSystemTimeZone()
+        defer {
+            if let previous {
+                setenv("TZ", previous, 1)
+            } else {
+                unsetenv("TZ")
+            }
+            tzset()
+            NSTimeZone.resetSystemTimeZone()
+        }
+
+        try work()
     }
 }

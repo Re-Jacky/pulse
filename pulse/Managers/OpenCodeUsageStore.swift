@@ -290,17 +290,16 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
 
     let sql = """
     SELECT m.session_id,
-           (m.time_created / 86400000) AS day,
-           SUM(coalesce(json_extract(m.data, '$.tokens.input'), 0)),
-           SUM(coalesce(json_extract(m.data, '$.tokens.output'), 0)),
-           SUM(coalesce(json_extract(m.data, '$.tokens.reasoning'), 0)),
-           SUM(coalesce(json_extract(m.data, '$.tokens.cache.read'), 0)),
-           SUM(coalesce(json_extract(m.data, '$.tokens.cache.write'), 0)),
-           SUM(coalesce(json_extract(m.data, '$.cost'), 0))
+           m.time_created,
+           coalesce(json_extract(m.data, '$.tokens.input'), 0),
+           coalesce(json_extract(m.data, '$.tokens.output'), 0),
+           coalesce(json_extract(m.data, '$.tokens.reasoning'), 0),
+           coalesce(json_extract(m.data, '$.tokens.cache.read'), 0),
+           coalesce(json_extract(m.data, '$.tokens.cache.write'), 0),
+           coalesce(json_extract(m.data, '$.cost'), 0)
     FROM message m
     WHERE json_extract(m.data, '$.role') = 'assistant'
-    GROUP BY m.session_id, day
-    ORDER BY m.session_id, day
+    ORDER BY m.session_id, m.time_created
     """
 
     var statement: OpaquePointer?
@@ -309,7 +308,7 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
     }
     defer { sqlite3_finalize(statement) }
 
-    var buckets: [OpenCodeDailyBucket] = []
+    var bucketsBySessionAndDay: [String: OpenCodeDailyBucket] = [:]
 
     while true {
         let stepResult = sqlite3_step(statement)
@@ -318,21 +317,41 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
             throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
         }
 
-        buckets.append(
-            OpenCodeDailyBucket(
-                sessionID: stringColumn(statement, index: 0),
-                day: Int(sqlite3_column_int64(statement, 1)),
-                inputTokens: Int(sqlite3_column_int64(statement, 2)),
-                outputTokens: Int(sqlite3_column_int64(statement, 3)),
-                reasoningTokens: Int(sqlite3_column_int64(statement, 4)),
-                cacheReadTokens: Int(sqlite3_column_int64(statement, 5)),
-                cacheWriteTokens: Int(sqlite3_column_int64(statement, 6)),
-                cost: sqlite3_column_double(statement, 7)
-            )
+        let sessionID = stringColumn(statement, index: 0)
+        let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 1)) / 1000)
+        let day = agentUsageDayIdentifier(for: createdAt)
+        let key = "\(sessionID)::\(day)"
+
+        let bucket = OpenCodeDailyBucket(
+            sessionID: sessionID,
+            day: day,
+            inputTokens: Int(sqlite3_column_int64(statement, 2)),
+            outputTokens: Int(sqlite3_column_int64(statement, 3)),
+            reasoningTokens: Int(sqlite3_column_int64(statement, 4)),
+            cacheReadTokens: Int(sqlite3_column_int64(statement, 5)),
+            cacheWriteTokens: Int(sqlite3_column_int64(statement, 6)),
+            cost: sqlite3_column_double(statement, 7)
+        )
+
+        let existing = bucketsBySessionAndDay[key]
+        bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
+            sessionID: sessionID,
+            day: day,
+            inputTokens: (existing?.inputTokens ?? 0) + bucket.inputTokens,
+            outputTokens: (existing?.outputTokens ?? 0) + bucket.outputTokens,
+            reasoningTokens: (existing?.reasoningTokens ?? 0) + bucket.reasoningTokens,
+            cacheReadTokens: (existing?.cacheReadTokens ?? 0) + bucket.cacheReadTokens,
+            cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + bucket.cacheWriteTokens,
+            cost: (existing?.cost ?? 0) + bucket.cost
         )
     }
 
-    return buckets
+    return bucketsBySessionAndDay.values.sorted { lhs, rhs in
+        if lhs.sessionID == rhs.sessionID {
+            return lhs.day < rhs.day
+        }
+        return lhs.sessionID < rhs.sessionID
+    }
 }
 }
 

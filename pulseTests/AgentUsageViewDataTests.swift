@@ -184,7 +184,7 @@ final class AgentUsageViewDataTests: XCTestCase {
     func testDerivedDataForAllSourceTokenFlowFallsBackPerSourceWhenOnlyOneHasBuckets() {
         let now = Date()
         let today = Calendar.current.startOfDay(for: now)
-        let todayDay = Int(today.timeIntervalSince1970 * 1000) / 86400000
+        let todayDay = agentUsageDayIdentifier(for: today)
 
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
