@@ -196,7 +196,8 @@ enum CodexUsageQuery {
                     outputTokens: bucket.outputTokens,
                     reasoningTokens: bucket.reasoningTokens,
                     cacheReadTokens: bucket.cacheReadTokens,
-                    totalTokens: bucket.totalTokens
+                    totalTokens: bucket.totalTokens,
+                    latestActivityAt: bucket.latestActivityAt
                 )
             }
             .sorted { lhs, rhs in
@@ -400,7 +401,8 @@ private func accumulateDailyBuckets(
             outputTokens: deltaUsage.outputTokens,
             reasoningTokens: deltaUsage.reasoningTokens,
             cacheReadTokens: deltaUsage.cacheReadTokens,
-            totalTokens: deltaUsage.totalTokens
+            totalTokens: deltaUsage.totalTokens,
+            latestActivityAt: timestamp
         )
         let existing = totalsBySessionAndDay[key, default: .zero(sessionID: currentSessionID, day: day)]
         totalsBySessionAndDay[key] = existing.merging(deltaBucket)

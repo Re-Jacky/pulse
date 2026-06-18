@@ -175,17 +175,28 @@ final class AgentUsageStore: ObservableObject {
         let scope = selection.scope
 
         let summary: AgentUsageSummary = {
-            switch selection.source {
+            let baseSummary: AgentUsageSummary = switch selection.source {
             case .all:
-                return AgentUsageSummary.merge(
+                AgentUsageSummary.merge(
                     openCodeSnapshot.summary(for: scope),
                     codexSnapshot.summary(for: scope)
                 )
             case .openCode:
-                return openCodeSnapshot.summary(for: scope)
+                openCodeSnapshot.summary(for: scope)
             case .codex:
-                return codexSnapshot.summary(for: scope)
+                codexSnapshot.summary(for: scope)
             }
+
+            return replacingLastUpdated(
+                in: baseSummary,
+                with: latestActivityDate(
+                    for: selection.source,
+                    scope: scope,
+                    range: selection.timeRange,
+                    openCodeSnapshot: openCodeSnapshot,
+                    codexSnapshot: codexSnapshot
+                )
+            )
         }()
 
         return AgentUsageDerivedViewData(
@@ -200,8 +211,8 @@ final class AgentUsageStore: ObservableObject {
             contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
             providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
             modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
-            selectedOpenCodeSession: selection.source == .openCode ? openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID }) : nil,
-            selectedCodexSession: selection.source == .codex ? codexSnapshot.sessions.first(where: { $0.id == selection.sessionID }) : nil,
+            selectedOpenCodeSession: selection.source == .openCode ? normalizedOpenCodeSession(id: selection.sessionID, range: selection.timeRange, snapshot: openCodeSnapshot) : nil,
+            selectedCodexSession: selection.source == .codex ? normalizedCodexSession(id: selection.sessionID, range: selection.timeRange, snapshot: codexSnapshot) : nil,
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.source != .all && selection.isSessionScope == false,
@@ -345,6 +356,10 @@ final class AgentUsageStore: ObservableObject {
                   let session = meta.sessions.first(where: { $0.id == sessionID })
             else { return nil }
 
+            let updatedAt = inRange.compactMap {
+                $0.latestActivityAt ?? approximateCodexActivityDate(for: $0.day, relativeTo: session.updatedAt)
+            }.max() ?? session.updatedAt
+
             return CodexSessionRecord(
                 id: session.id,
                 title: session.title,
@@ -361,7 +376,7 @@ final class AgentUsageStore: ObservableObject {
                 agentNickname: session.agentNickname,
                 agentRole: session.agentRole,
                 createdAt: session.createdAt,
-                updatedAt: session.updatedAt
+                updatedAt: updatedAt
             )
         }
 
@@ -373,6 +388,13 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func approximateOpenCodeActivityDate(for day: Int, relativeTo reference: Date) -> Date {
+        let calendar = Calendar.autoupdatingCurrent
+        let referenceDay = agentUsageDayIdentifier(for: reference, calendar: calendar)
+        let deltaDays = day - referenceDay
+        return calendar.date(byAdding: .day, value: deltaDays, to: reference) ?? reference
+    }
+
+    private func approximateCodexActivityDate(for day: Int, relativeTo reference: Date) -> Date {
         let calendar = Calendar.autoupdatingCurrent
         let referenceDay = agentUsageDayIdentifier(for: reference, calendar: calendar)
         let deltaDays = day - referenceDay
@@ -437,21 +459,31 @@ final class AgentUsageStore: ObservableObject {
             return []
         case .openCode:
             guard let projectDirectory = selection.projectDirectory else { return [] }
+            let latestBySession = openCodeLatestActivityBySession(
+                range: selection.timeRange,
+                snapshot: openCodeSnapshot
+            )
             return openCodeSnapshot.sessionOptions(for: projectDirectory).map {
-                SearchableSelectorOption(
+                let updatedAt = latestBySession[$0.id] ?? $0.updatedAt
+                return SearchableSelectorOption(
                     id: $0.id,
                     title: $0.title,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)"
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime(updatedAt)) \u{2022} \($0.modelDisplayName)"
                 )
             }
         case .codex:
             guard let projectDirectory = selection.projectDirectory else { return [] }
+            let latestBySession = codexLatestActivityBySession(
+                range: selection.timeRange,
+                snapshot: codexSnapshot
+            )
             return codexSnapshot.sessionOptions(for: projectDirectory).map {
+                let updatedAt = latestBySession[$0.id] ?? $0.updatedAt
                 let effort = $0.reasoningEffort.isEmpty ? "" : " \u{2022} \($0.reasoningEffort)"
                 return SearchableSelectorOption(
                     id: $0.id,
                     title: $0.title,
-                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime($0.updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime(updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
                 )
             }
         }
@@ -617,7 +649,17 @@ final class AgentUsageStore: ObservableObject {
         case .all:
             break
         case .openCode:
-            let summary = openCodeSnapshot.summary(for: scope)
+            let latestBySession = openCodeLatestActivityBySession(range: selection.timeRange, snapshot: openCodeSnapshot)
+            let summary = replacingLastUpdated(
+                in: openCodeSnapshot.summary(for: scope),
+                with: latestActivityDate(
+                    for: .openCode,
+                    scope: scope,
+                    range: selection.timeRange,
+                    openCodeSnapshot: openCodeSnapshot,
+                    codexSnapshot: codexSnapshot
+                )
+            )
             switch scope {
             case .allProjects:
                 rows.append(AgentUsageDetailRow(id: "projectsCount", title: "Projects Count", valueText: "\(openCodeSnapshot.projectOptions.count)", secondaryText: nil))
@@ -630,15 +672,26 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
             case .session:
                 let session = openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                let updatedAt = selection.sessionID.flatMap { latestBySession[$0] } ?? session?.updatedAt
                 rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.directory ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "agent", title: "Agent", valueText: session?.agent ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "providerModel", title: "Provider / Model", valueText: session.map { OpenCodeUsageSnapshot.modelDisplayName(providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant) } ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
-                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: session.map { shortDateTime($0.updatedAt) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: updatedAt.map(shortDateTime) ?? "-", secondaryText: nil))
             }
         case .codex:
-            let summary = codexSnapshot.summary(for: scope)
+            let latestBySession = codexLatestActivityBySession(range: selection.timeRange, snapshot: codexSnapshot)
+            let summary = replacingLastUpdated(
+                in: codexSnapshot.summary(for: scope),
+                with: latestActivityDate(
+                    for: .codex,
+                    scope: scope,
+                    range: selection.timeRange,
+                    openCodeSnapshot: openCodeSnapshot,
+                    codexSnapshot: codexSnapshot
+                )
+            )
             switch scope {
             case .allProjects:
                 rows.append(AgentUsageDetailRow(id: "projectsCount", title: "Projects Count", valueText: "\(codexSnapshot.projectOptions.count)", secondaryText: nil))
@@ -651,6 +704,7 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
             case .session:
                 let session = codexSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                let updatedAt = selection.sessionID.flatMap { latestBySession[$0] } ?? session?.updatedAt
                 rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.cwd ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "model", title: "Model", valueText: session.map { "\($0.modelProvider) / \($0.model)" } ?? "-", secondaryText: nil))
@@ -658,10 +712,157 @@ final class AgentUsageStore: ObservableObject {
                     rows.append(AgentUsageDetailRow(id: "reasoningEffort", title: "Reasoning Effort", valueText: session.reasoningEffort, secondaryText: nil))
                 }
                 rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
-                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: session.map { shortDateTime($0.updatedAt) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: updatedAt.map(shortDateTime) ?? "-", secondaryText: nil))
             }
         }
         return rows
+    }
+
+    private func replacingLastUpdated(in summary: AgentUsageSummary, with lastUpdated: Date?) -> AgentUsageSummary {
+        AgentUsageSummary(
+            totalTokens: summary.totalTokens,
+            inputTokens: summary.inputTokens,
+            outputTokens: summary.outputTokens,
+            reasoningTokens: summary.reasoningTokens,
+            cacheReadTokens: summary.cacheReadTokens,
+            cacheWriteTokens: summary.cacheWriteTokens,
+            sessionsCount: summary.sessionsCount,
+            cost: summary.cost,
+            lastUpdated: lastUpdated ?? summary.lastUpdated
+        )
+    }
+
+    private func latestActivityDate(
+        for source: AgentSource,
+        scope: AgentScope,
+        range: AgentTimeRange,
+        openCodeSnapshot: OpenCodeUsageSnapshot,
+        codexSnapshot: CodexUsageSnapshot
+    ) -> Date? {
+        switch source {
+        case .all:
+            return [
+                latestActivityDate(for: .openCode, scope: scope, range: range, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+                latestActivityDate(for: .codex, scope: scope, range: range, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+            ].compactMap { $0 }.max()
+        case .openCode:
+            let latestBySession = openCodeLatestActivityBySession(range: range, snapshot: openCodeSnapshot)
+            let filtered = latestBySession.filter { openCodeSessionIDs(in: scope, snapshot: openCodeSnapshot).contains($0.key) }
+            return filtered.values.max() ?? openCodeSnapshot.summary(for: scope).lastUpdated
+        case .codex:
+            let latestBySession = codexLatestActivityBySession(range: range, snapshot: codexSnapshot)
+            let filtered = latestBySession.filter { codexSessionIDs(in: scope, snapshot: codexSnapshot).contains($0.key) }
+            return filtered.values.max() ?? codexSnapshot.summary(for: scope).lastUpdated
+        }
+    }
+
+    private func openCodeLatestActivityBySession(
+        range: AgentTimeRange,
+        snapshot: OpenCodeUsageSnapshot
+    ) -> [String: Date] {
+        let dayRange = dayRange(for: range)
+        let metadataBySession = Dictionary(uniqueKeysWithValues: state.openCodeCumulativeSnapshot.sessions.map { ($0.id, $0) })
+
+        return state.openCodeDailyBuckets.reduce(into: [:]) { latestBySession, bucket in
+            guard dayRange.contains(bucket.day) else { return }
+            guard let metadata = metadataBySession[bucket.sessionID] else { return }
+            let activityAt = bucket.latestActivityAt ?? approximateOpenCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
+            latestBySession[bucket.sessionID] = max(latestBySession[bucket.sessionID] ?? .distantPast, activityAt)
+        }
+    }
+
+    private func codexLatestActivityBySession(
+        range: AgentTimeRange,
+        snapshot: CodexUsageSnapshot
+    ) -> [String: Date] {
+        let dayRange = dayRange(for: range)
+        let metadataBySession = Dictionary(uniqueKeysWithValues: state.codexSnapshot.sessions.map { ($0.id, $0) })
+
+        return state.codexDailyBuckets.reduce(into: [:]) { latestBySession, bucket in
+            guard dayRange.contains(bucket.day) else { return }
+            guard let metadata = metadataBySession[bucket.sessionID] else { return }
+            let activityAt = bucket.latestActivityAt ?? approximateCodexActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
+            latestBySession[bucket.sessionID] = max(latestBySession[bucket.sessionID] ?? .distantPast, activityAt)
+        }
+    }
+
+    private func openCodeSessionIDs(in scope: AgentScope, snapshot: OpenCodeUsageSnapshot) -> Set<String> {
+        switch scope {
+        case .allProjects:
+            return Set(snapshot.sessions.map(\.id))
+        case .project(let directory):
+            return Set(snapshot.sessions.filter { $0.directory == directory }.map(\.id))
+        case .session(_, let sessionID):
+            return [sessionID]
+        }
+    }
+
+    private func codexSessionIDs(in scope: AgentScope, snapshot: CodexUsageSnapshot) -> Set<String> {
+        switch scope {
+        case .allProjects:
+            return Set(snapshot.sessions.filter { $0.isSubagent == false }.map(\.id))
+        case .project(let directory):
+            return Set(snapshot.sessions.filter { $0.cwd == directory && $0.isSubagent == false }.map(\.id))
+        case .session(_, let sessionID):
+            return [sessionID]
+        }
+    }
+
+    private func normalizedOpenCodeSession(
+        id: String?,
+        range: AgentTimeRange,
+        snapshot: OpenCodeUsageSnapshot
+    ) -> OpenCodeSessionRecord? {
+        guard let id, let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
+        let latestBySession = openCodeLatestActivityBySession(range: range, snapshot: snapshot)
+        guard let updatedAt = latestBySession[id] else { return session }
+
+        return OpenCodeSessionRecord(
+            id: session.id,
+            title: session.title,
+            directory: session.directory,
+            agent: session.agent,
+            modelProviderID: session.modelProviderID,
+            modelID: session.modelID,
+            modelVariant: session.modelVariant,
+            inputTokens: session.inputTokens,
+            outputTokens: session.outputTokens,
+            reasoningTokens: session.reasoningTokens,
+            cacheReadTokens: session.cacheReadTokens,
+            cacheWriteTokens: session.cacheWriteTokens,
+            cost: session.cost,
+            createdAt: session.createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    private func normalizedCodexSession(
+        id: String?,
+        range: AgentTimeRange,
+        snapshot: CodexUsageSnapshot
+    ) -> CodexSessionRecord? {
+        guard let id, let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
+        let latestBySession = codexLatestActivityBySession(range: range, snapshot: snapshot)
+        guard let updatedAt = latestBySession[id] else { return session }
+
+        return CodexSessionRecord(
+            id: session.id,
+            title: session.title,
+            cwd: session.cwd,
+            model: session.model,
+            modelProvider: session.modelProvider,
+            tokensUsed: session.tokensUsed,
+            inputTokens: session.inputTokens,
+            outputTokens: session.outputTokens,
+            reasoningTokens: session.reasoningTokens,
+            cacheReadTokens: session.cacheReadTokens,
+            reasoningEffort: session.reasoningEffort,
+            threadSource: session.threadSource,
+            agentNickname: session.agentNickname,
+            agentRole: session.agentRole,
+            createdAt: session.createdAt,
+            updatedAt: updatedAt
+        )
     }
 
     private func buildProviderBreakdown(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [ProviderBreakdown] {

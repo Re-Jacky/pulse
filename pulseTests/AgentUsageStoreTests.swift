@@ -460,6 +460,228 @@ final class AgentUsageStoreTests: XCTestCase {
         )
     }
 
+    func testOpenCodeAllTimeUsesActivityTimestampForSummarySessionOptionAndSessionContext() {
+        let oldMetadataTime = Date(timeIntervalSince1970: 1_000)
+        let latestActivityTime = Date(timeIntervalSince1970: 5_000)
+        let activityDay = agentUsageDayIdentifier(for: latestActivityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            OpenCodeSessionRecord(
+                id: "ses_1",
+                title: "Session ses_1",
+                directory: "/Users/zyao/Desktop/pulse",
+                agent: "build",
+                modelProviderID: "opencode",
+                modelID: "model-a",
+                modelVariant: nil,
+                inputTokens: 1000,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                cost: 0,
+                createdAt: oldMetadataTime,
+                updatedAt: oldMetadataTime
+            )
+        ])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(
+                sessionID: "ses_1",
+                day: activityDay,
+                inputTokens: 10,
+                outputTokens: 5,
+                reasoningTokens: 1,
+                cacheReadTokens: 20,
+                cacheWriteTokens: 2,
+                cost: 0.001,
+                latestActivityAt: latestActivityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let projectSelection = AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let projectData = store.derivedData(for: projectSelection)
+
+        XCTAssertEqual(projectData.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(projectData.sessionOptions.count, 1)
+        XCTAssertTrue(projectData.sessionOptions[0].subtitle.contains(formatAgentUsageDate(latestActivityTime)))
+
+        let sessionSelection = AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: "ses_1",
+            modelGroupBy: .model
+        )
+        let sessionData = store.derivedData(for: sessionSelection)
+        XCTAssertEqual(sessionData.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(
+            sessionData.contextRows.first(where: { $0.id == "lastUpdated" })?.valueText,
+            formatAgentUsageDate(latestActivityTime)
+        )
+    }
+
+    func testOpenCodeAllProjectsAllTimeUsesActivityTimestampForSummaryAndContext() {
+        let oldMetadataTime = Date(timeIntervalSince1970: 1_000)
+        let latestActivityTime = Date(timeIntervalSince1970: 5_000)
+        let activityDay = agentUsageDayIdentifier(for: latestActivityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            OpenCodeSessionRecord(
+                id: "ses_1",
+                title: "Session ses_1",
+                directory: "/Users/zyao/Desktop/pulse",
+                agent: "build",
+                modelProviderID: "opencode",
+                modelID: "model-a",
+                modelVariant: nil,
+                inputTokens: 1000,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                cost: 0,
+                createdAt: oldMetadataTime,
+                updatedAt: oldMetadataTime
+            )
+        ])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(
+                sessionID: "ses_1",
+                day: activityDay,
+                inputTokens: 10,
+                outputTokens: 5,
+                reasoningTokens: 1,
+                cacheReadTokens: 20,
+                cacheWriteTokens: 2,
+                cost: 0.001,
+                latestActivityAt: latestActivityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let selection = AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let data = store.derivedData(for: selection)
+
+        XCTAssertEqual(data.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(
+            data.contextRows.first(where: { $0.id == "lastUpdated" })?.valueText,
+            formatAgentUsageDate(latestActivityTime)
+        )
+    }
+
+    func testCodexAllTimeUsesActivityTimestampForSummarySessionOptionAndSessionContext() {
+        let oldMetadataTime = Date(timeIntervalSince1970: 2_000)
+        let latestActivityTime = Date(timeIntervalSince1970: 7_000)
+        let activityDay = agentUsageDayIdentifier(for: latestActivityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: oldMetadataTime)
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: activityDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120,
+                latestActivityAt: latestActivityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let projectSelection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let projectData = store.derivedData(for: projectSelection)
+
+        XCTAssertEqual(projectData.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(projectData.sessionOptions.count, 1)
+        XCTAssertTrue(projectData.sessionOptions[0].subtitle.contains(formatAgentUsageDate(latestActivityTime)))
+
+        let sessionSelection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: "cx_1",
+            modelGroupBy: .model
+        )
+        let sessionData = store.derivedData(for: sessionSelection)
+        XCTAssertEqual(sessionData.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(
+            sessionData.contextRows.first(where: { $0.id == "lastUpdated" })?.valueText,
+            formatAgentUsageDate(latestActivityTime)
+        )
+    }
+
+    func testCodexAllProjectsAllTimeUsesActivityTimestampForSummaryAndContext() {
+        let oldMetadataTime = Date(timeIntervalSince1970: 2_000)
+        let latestActivityTime = Date(timeIntervalSince1970: 7_000)
+        let activityDay = agentUsageDayIdentifier(for: latestActivityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: oldMetadataTime)
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: activityDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120,
+                latestActivityAt: latestActivityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let selection = AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+        let data = store.derivedData(for: selection)
+
+        XCTAssertEqual(data.summary.lastUpdated, latestActivityTime)
+        XCTAssertEqual(
+            data.contextRows.first(where: { $0.id == "lastUpdated" })?.valueText,
+            formatAgentUsageDate(latestActivityTime)
+        )
+    }
+
     func testDerivedDataUsesBucketsForLast7DaysIncludingToday() {
         let todayDay = agentUsageDayIdentifier(for: Date())
 
@@ -567,7 +789,8 @@ final class AgentUsageStoreTests: XCTestCase {
                         outputTokens: 20,
                         reasoningTokens: 5,
                         cacheReadTokens: 40,
-                        totalTokens: 120
+                        totalTokens: 120,
+                        latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T23:55:00Z")
                     ),
                     CodexDailyBucket(
                         sessionID: "thread_1",
@@ -576,7 +799,8 @@ final class AgentUsageStoreTests: XCTestCase {
                         outputTokens: 10,
                         reasoningTokens: 3,
                         cacheReadTokens: 40,
-                        totalTokens: 100
+                        totalTokens: 100,
+                        latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-17T00:05:00Z")
                     )
                 ]
             )
@@ -615,7 +839,8 @@ final class AgentUsageStoreTests: XCTestCase {
                         outputTokens: 30,
                         reasoningTokens: 8,
                         cacheReadTokens: 80,
-                        totalTokens: 220
+                        totalTokens: 220,
+                        latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-18T00:05:00Z")
                     )
                 ]
             )
@@ -854,6 +1079,12 @@ private func makeCodexSession(
         createdAt: Date(timeIntervalSince1970: 1000),
         updatedAt: updatedAt
     )
+}
+
+private func formatAgentUsageDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+    return formatter.string(from: date)
 }
 
 private final class StubAgentUsageRepository: AgentUsageRepositorying {

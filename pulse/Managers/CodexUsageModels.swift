@@ -36,6 +36,27 @@ struct CodexDailyBucket: Equatable {
     let reasoningTokens: Int
     let cacheReadTokens: Int
     let totalTokens: Int
+    let latestActivityAt: Date?
+
+    init(
+        sessionID: String,
+        day: Int,
+        inputTokens: Int,
+        outputTokens: Int,
+        reasoningTokens: Int,
+        cacheReadTokens: Int,
+        totalTokens: Int,
+        latestActivityAt: Date? = nil
+    ) {
+        self.sessionID = sessionID
+        self.day = day
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.reasoningTokens = reasoningTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.totalTokens = totalTokens
+        self.latestActivityAt = latestActivityAt
+    }
 
     static func zero(sessionID: String, day: Int) -> CodexDailyBucket {
         CodexDailyBucket(
@@ -45,19 +66,33 @@ struct CodexDailyBucket: Equatable {
             outputTokens: 0,
             reasoningTokens: 0,
             cacheReadTokens: 0,
-            totalTokens: 0
+            totalTokens: 0,
+            latestActivityAt: nil
         )
     }
 
     func merging(_ other: CodexDailyBucket) -> CodexDailyBucket {
-        CodexDailyBucket(
+        let mergedLatestActivityAt: Date?
+        switch (latestActivityAt, other.latestActivityAt) {
+        case let (lhs?, rhs?):
+            mergedLatestActivityAt = max(lhs, rhs)
+        case let (lhs?, nil):
+            mergedLatestActivityAt = lhs
+        case let (nil, rhs?):
+            mergedLatestActivityAt = rhs
+        case (nil, nil):
+            mergedLatestActivityAt = nil
+        }
+
+        return CodexDailyBucket(
             sessionID: sessionID,
             day: day,
             inputTokens: inputTokens + other.inputTokens,
             outputTokens: outputTokens + other.outputTokens,
             reasoningTokens: reasoningTokens + other.reasoningTokens,
             cacheReadTokens: cacheReadTokens + other.cacheReadTokens,
-            totalTokens: totalTokens + other.totalTokens
+            totalTokens: totalTokens + other.totalTokens,
+            latestActivityAt: mergedLatestActivityAt
         )
     }
 }
