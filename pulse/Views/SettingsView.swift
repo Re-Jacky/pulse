@@ -32,19 +32,25 @@ struct SettingsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 14) {
-                Group {
-                    switch selectedSection {
-                    case .theme:
-                        themeContent
-                    case .agentUsage:
-                        agentUsageContent
-                    case .updates:
-                        updateContent
+            VStack(spacing: 0) {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Group {
+                            switch selectedSection {
+                            case .theme:
+                                themeContent
+                            case .agentUsage:
+                                agentUsageContent
+                            case .updates:
+                                updateContent
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 VStack(spacing: 10) {
                     Divider()
@@ -62,9 +68,10 @@ struct SettingsView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
             }
-            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(minWidth: 520, minHeight: 280)
@@ -105,6 +112,23 @@ struct SettingsView: View {
 
             Toggle("Enable Agent Usage", isOn: $agentUsageSettings.isEnabled)
                 .toggleStyle(.switch)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Sources")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Selected sources appear in the Agent tab and are included in totals. If none are selected, the Agent tab is hidden.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(AgentSource.selectableCases) { source in
+                    Toggle(source.displayName, isOn: sourceBinding(for: source))
+                        .toggleStyle(.checkbox)
+                }
+            }
+            .disabled(agentUsageSettings.isEnabled == false)
         }
     }
 
@@ -183,5 +207,22 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .buttonStyle(.plain)
         .focusEffectDisabled()
+    }
+
+    private func sourceBinding(for source: AgentSource) -> Binding<Bool> {
+        Binding(
+            get: {
+                agentUsageSettings.selectedSources.contains(source)
+            },
+            set: { isSelected in
+                var next = agentUsageSettings.selectedSources
+                if isSelected {
+                    next.insert(source)
+                } else {
+                    next.remove(source)
+                }
+                agentUsageSettings.selectedSources = next
+            }
+        )
     }
 }

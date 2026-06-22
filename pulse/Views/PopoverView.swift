@@ -9,7 +9,7 @@ struct PopoverView: View {
 
     private var availableTabs: [(title: String, tag: Int)] {
         var tabs: [(String, Int)] = [("Stats", 0), ("Processes", 1)]
-        if agentUsageSettings.isEnabled {
+        if agentUsageSettings.effectiveEnabled {
             tabs.append(("Agent", 2))
         }
         return tabs
@@ -43,7 +43,7 @@ struct PopoverView: View {
                         .opacity(selectedTab == 1 ? 1 : 0)
                         .allowsHitTesting(selectedTab == 1)
 
-                    if agentUsageSettings.isEnabled {
+                    if agentUsageSettings.effectiveEnabled {
                         AgentUsageView()
                             .opacity(selectedTab == 2 ? 1 : 0)
                             .allowsHitTesting(selectedTab == 2)
@@ -52,9 +52,9 @@ struct PopoverView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: agentUsageSettings.isEnabled ? 460 : 300, minHeight: 360)
+        .frame(minWidth: agentUsageSettings.effectiveEnabled ? 460 : 300, minHeight: 360)
         .id(themeManager.currentTheme)
-        .onChange(of: agentUsageSettings.isEnabled) { isEnabled in
+        .onChange(of: agentUsageSettings.effectiveEnabled) { isEnabled in
             if isEnabled == false && selectedTab == 2 {
                 selectedTab = 0
             }
@@ -66,7 +66,7 @@ struct PopoverView: View {
             refreshAgentUsageIfVisible()
         }
         .onAppear {
-            if agentUsageSettings.isEnabled == false && selectedTab == 2 {
+            if agentUsageSettings.effectiveEnabled == false && selectedTab == 2 {
                 selectedTab = 0
             }
             syncPanelTabSelection()
@@ -81,7 +81,7 @@ struct PopoverView: View {
     }
 
     private func refreshAgentUsageIfVisible() {
-        guard agentUsageSettings.isEnabled, selectedTab == 2 else { return }
+        guard agentUsageSettings.effectiveEnabled, selectedTab == 2 else { return }
         agentStore.refreshAllAsync()
     }
 }

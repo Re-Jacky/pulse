@@ -10,6 +10,7 @@ final class AgentUsageStore: ObservableObject {
     private struct RefreshContext {
         let nextGeneration: Int
         let previousState: AgentUsageLoadedState
+        let enabledSources: Set<AgentSource>
     }
 
     private struct RefreshResult {
@@ -40,10 +41,13 @@ final class AgentUsageStore: ObservableObject {
     @Published private(set) var lastError: LoadError?
 
     let repository: AgentUsageRepositorying
-    let availableSources: [AgentSource]
+
+    @Published private(set) var availableSources: [AgentSource]
 
     private var hasLoadedGeneralData = false
     private var derivedDataCache: (key: DerivedDataCacheKey, value: AgentUsageDerivedViewData)?
+    private let supportedSources: [AgentSource]
+    private var enabledSources: Set<AgentSource>
 
     init(repository: AgentUsageRepositorying? = nil) {
         let defaultRepository = AgentUsageRepository(
@@ -53,10 +57,24 @@ final class AgentUsageStore: ObservableObject {
 
         self.repository = repository ?? defaultRepository
         self.state = .empty
-        self.availableSources = makeAvailableSources(
+        self.supportedSources = makeAvailableSources(
             openCodeDatabaseURL: self.repository.openCodeDatabaseURL,
             codexDatabaseURL: self.repository.codexDatabaseURL
         )
+        self.enabledSources = Set(AgentSource.selectableCases)
+        self.availableSources = Self.visibleSources(
+            supportedSources: self.supportedSources,
+            enabledSources: self.enabledSources
+        )
+    }
+
+    func setEnabledSources(_ sources: Set<AgentSource>) {
+        enabledSources = sources.intersection(Set(AgentSource.selectableCases))
+        availableSources = Self.visibleSources(
+            supportedSources: supportedSources,
+            enabledSources: enabledSources
+        )
+        derivedDataCache = nil
     }
 
     func refreshIfNeeded() {
@@ -241,7 +259,8 @@ final class AgentUsageStore: ObservableObject {
 
         let context = RefreshContext(
             nextGeneration: state.refreshGeneration + 1,
-            previousState: state
+            previousState: state,
+            enabledSources: enabledSources
         )
 
         state = AgentUsageLoadedState(
@@ -268,26 +287,36 @@ final class AgentUsageStore: ObservableObject {
         var firstError: LoadError?
         var loadedAnySource = false
 
-        do {
-            openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
-            dailyBuckets = try repository.loadOpenCodeDailyBuckets()
-            loadedAnySource = true
-        } catch let error as OpenCodeUsageQuery.QueryError {
-            firstError = .openCode(error)
-        } catch {
-            firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
+        if context.enabledSources.contains(.openCode) {
+            do {
+                openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
+                dailyBuckets = try repository.loadOpenCodeDailyBuckets()
+                loadedAnySource = true
+            } catch let error as OpenCodeUsageQuery.QueryError {
+                firstError = .openCode(error)
+            } catch {
+                firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
+            }
+        } else {
+            openCodeSnapshot = OpenCodeUsageSnapshot(sessions: [])
+            dailyBuckets = []
         }
 
-        do {
-            codexSnapshot = try repository.loadCodexSnapshot()
-            codexDailyBuckets = try repository.loadCodexDailyBuckets()
-            loadedAnySource = true
-        } catch let error as CodexUsageQuery.QueryError {
-            if firstError == nil { firstError = .codex(error) }
-        } catch {
-            if firstError == nil {
-                firstError = .codex(.queryStepFailed(message: error.localizedDescription))
+        if context.enabledSources.contains(.codex) {
+            do {
+                codexSnapshot = try repository.loadCodexSnapshot()
+                codexDailyBuckets = try repository.loadCodexDailyBuckets()
+                loadedAnySource = true
+            } catch let error as CodexUsageQuery.QueryError {
+                if firstError == nil { firstError = .codex(error) }
+            } catch {
+                if firstError == nil {
+                    firstError = .codex(.queryStepFailed(message: error.localizedDescription))
+                }
             }
+        } else {
+            codexSnapshot = CodexUsageSnapshot(sessions: [])
+            codexDailyBuckets = []
         }
 
         return RefreshResult(
@@ -945,4 +974,18 @@ private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: UR
         sources = realSources
     }
     return sources
+}
+
+private extension AgentUsageStore {
+    static func visibleSources(supportedSources: [AgentSource], enabledSources: Set<AgentSource>) -> [AgentSource] {
+        let filteredRealSources = supportedSources
+            .filter { $0 != .all }
+            .filter { enabledSources.contains($0) }
+
+        if filteredRealSources.count >= 2 {
+            return [.all] + filteredRealSources
+        }
+
+        return filteredRealSources
+    }
 }

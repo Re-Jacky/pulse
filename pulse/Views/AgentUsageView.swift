@@ -10,8 +10,12 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
 
     private var selection: AgentUsageSelection {
-        AgentUsageSelection(
-            source: AgentSource(rawValue: selectedSourceRawValue) ?? .all,
+        let requestedSource = AgentSource(rawValue: selectedSourceRawValue) ?? .all
+        let source = agentStore.availableSources.contains(requestedSource)
+            ? requestedSource
+            : (agentStore.availableSources.first ?? .all)
+        return AgentUsageSelection(
+            source: source,
             timeRange: AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime,
             projectDirectory: selectedProjectDirectory.isEmpty ? nil : selectedProjectDirectory,
             sessionID: selectedSessionID.isEmpty ? nil : selectedSessionID,
@@ -58,6 +62,7 @@ struct AgentUsageView: View {
             .padding(16)
         }
         .onAppear {
+            syncSelectedSourceIfNeeded()
             if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
@@ -66,6 +71,9 @@ struct AgentUsageView: View {
             if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
+        }
+        .onChange(of: agentStore.availableSources) { _ in
+            syncSelectedSourceIfNeeded()
         }
     }
 
@@ -183,6 +191,15 @@ struct AgentUsageView: View {
                     selectedSessionID = option.id == "__all__" ? "" : option.id
                 }
             }
+        }
+    }
+
+    private func syncSelectedSourceIfNeeded() {
+        guard let fallbackSource = agentStore.availableSources.first else { return }
+        if agentStore.availableSources.contains(AgentSource(rawValue: selectedSourceRawValue) ?? .all) == false {
+            selectedSourceRawValue = fallbackSource.rawValue
+            selectedProjectDirectory = ""
+            selectedSessionID = ""
         }
     }
 

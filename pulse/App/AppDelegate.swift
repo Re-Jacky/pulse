@@ -14,6 +14,13 @@ private enum PanelMetrics {
     static let agentMinHeight: CGFloat = baseMinHeight * 2
 }
 
+private enum SettingsWindowMetrics {
+    static let defaultWidth: CGFloat = 800
+    static let defaultHeight: CGFloat = 600
+    static let minWidth: CGFloat = 520
+    static let minHeight: CGFloat = 280
+}
+
 extension Notification.Name {
     static let pulsePanelTabDidChange = Notification.Name("pulsePanelTabDidChange")
     static let pulsePanelDidOpen = Notification.Name("pulsePanelDidOpen")
@@ -34,7 +41,7 @@ private final class InputPanel: NSPanel {
         )
         let isZoomed = abs(frame.width - target.width) < 2 && abs(frame.height - target.height) < 2
         if isZoomed {
-            let agentEnabled = UserDefaults.standard.object(forKey: AgentUsageSettings.userDefaultsKey) as? Bool == true
+            let agentEnabled = AgentUsageSettings.isEffectivelyEnabled(userDefaults: .standard)
             let selectedTab = UserDefaults.standard.integer(forKey: PanelMetrics.selectedTabDefaultsKey)
             let targetWidth = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
             let targetHeight = agentEnabled && selectedTab == 2 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
@@ -59,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var panel: InputPanel?
     private var eventMonitor: Any?
     private var settingsWindow: NSWindow?
+    private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
     private let monitor = SystemMonitor()
     private let themeManager = ThemeManager()
@@ -68,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        agentUsageStore.setEnabledSources(agentUsageSettings.enabledSources)
         setupMainMenu()
         setupThemeObservation()
         setupFeatureObservation()
@@ -199,9 +208,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func setupFeatureObservation() {
         agentUsageSettings.$isEnabled
+            .combineLatest(agentUsageSettings.$selectedSources)
             .receive(on: RunLoop.main)
-            .sink { [weak self] isEnabled in
-                self?.updatePanelLayout(agentEnabled: isEnabled, selectedTab: self?.currentSelectedTab ?? 0, animated: true)
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                agentUsageStore.setEnabledSources(agentUsageSettings.enabledSources)
+                updatePanelLayout(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: currentSelectedTab, animated: true)
             }
             .store(in: &cancellables)
     }
@@ -212,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] selectedTab in
                 guard let self else { return }
-                updatePanelLayout(agentEnabled: agentUsageSettings.isEnabled, selectedTab: selectedTab, animated: true)
+                updatePanelLayout(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: selectedTab, animated: true)
             }
             .store(in: &cancellables)
     }
@@ -228,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func makePanel() -> InputPanel {
-        let metrics = panelMetrics(agentEnabled: agentUsageSettings.isEnabled, selectedTab: currentSelectedTab)
+        let metrics = panelMetrics(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: currentSelectedTab)
         let p = InputPanel(
             contentRect: NSRect(x: 0, y: 0, width: metrics.width, height: metrics.height),
             styleMask: [.borderless, .resizable, .fullSizeContentView],
@@ -325,6 +337,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.deminiaturize(nil)
         }
         if !window.isVisible {
+            if hasPresentedSettingsWindow == false {
+                window.setFrame(
+                    NSRect(x: window.frame.origin.x, y: window.frame.origin.y, width: SettingsWindowMetrics.defaultWidth, height: SettingsWindowMetrics.defaultHeight),
+                    display: false
+                )
+            }
             window.center()
         }
 
@@ -332,11 +350,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         NSApp.arrangeInFront(nil)
+        hasPresentedSettingsWindow = true
     }
 
     private func makeSettingsWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 280),
+            contentRect: NSRect(x: 0, y: 0, width: SettingsWindowMetrics.defaultWidth, height: SettingsWindowMetrics.defaultHeight),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -344,7 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = "Settings"
         window.center()
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 520, height: 280)
+        window.minSize = NSSize(width: SettingsWindowMetrics.minWidth, height: SettingsWindowMetrics.minHeight)
         window.appearance = themeManager.currentTheme.nsAppearance
         window.isExcludedFromWindowsMenu = false
         window.delegate = self

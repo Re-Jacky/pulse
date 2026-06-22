@@ -5,6 +5,8 @@ enum AgentSource: String, CaseIterable, Identifiable, Hashable {
     case openCode = "opencode"
     case codex = "codex"
 
+    static let selectableCases: [AgentSource] = [.openCode, .codex]
+
     var id: String { rawValue }
 
     var displayName: String {

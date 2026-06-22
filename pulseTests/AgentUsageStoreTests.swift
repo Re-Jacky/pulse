@@ -309,6 +309,44 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(store.lastError, .openCode(.databaseNotFound(path: "/tmp/missing-opencode.db")))
     }
 
+    func testDerivedDataAllSourceCountsOnlyEnabledSources() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 100)])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 200)])
+
+        let store = AgentUsageStore(repository: repository)
+        store.setEnabledSources([.codex])
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 200)
+        XCTAssertEqual(store.availableSources, [.codex])
+    }
+
+    func testRefreshAllSkipsDeselectedSources() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 100)])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 200)])
+
+        let store = AgentUsageStore(repository: repository)
+        store.setEnabledSources([.codex])
+        store.refreshAll()
+
+        XCTAssertEqual(repository.openCodeLoadCount, 0)
+        XCTAssertEqual(repository.openCodeBucketLoadCount, 0)
+        XCTAssertEqual(repository.codexLoadCount, 1)
+        XCTAssertEqual(repository.codexBucketLoadCount, 1)
+        XCTAssertTrue(store.state.openCodeCumulativeSnapshot.sessions.isEmpty)
+        XCTAssertTrue(store.state.openCodeDailyBuckets.isEmpty)
+    }
+
     func testEnsureCodexDetailLoadedUsesCacheWithinSameRefreshGeneration() {
         let repository = StubAgentUsageRepository()
         repository.codexDetail = CodexSessionDetail(threadID: "thread_1", edges: [], goals: [])
