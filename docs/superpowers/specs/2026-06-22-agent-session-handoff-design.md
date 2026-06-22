@@ -76,8 +76,8 @@ Clicking it opens a compact chooser surface that:
 - Lists only enabled target agents
 - Excludes impossible or meaningless options
 - Shows a short target-specific explanation
-- Shows a generated command
-- Provides a `Copy` button for that command
+- Shows one or more generated continuation options depending on the target
+- Provides a `Copy` button for each command or prompt option
 
 Pulse creates or refreshes the bundle before presenting the command so the copied command always points at a valid current artifact.
 
@@ -171,7 +171,9 @@ Pulse must generate different commands for different targets.
 
 ### Continue in OpenCode
 
-OpenCode already supports import-oriented workflows, so the generated command should use a Pulse bundle path in an OpenCode-specific way.
+OpenCode already supports import-oriented workflows, so the generated UI should expose two copy options.
+
+Option 1: native import command
 
 V1 command shape:
 
@@ -181,9 +183,19 @@ opencode import ~/.pulse/handoffs/<bundle-id>/bundle.json
 
 If OpenCode import requires a target-compatible transformed JSON rather than the canonical Pulse bundle, Pulse may write an additional derived file under the same bundle directory and point the command at that derived file instead.
 
+Option 2: reusable prompt for an existing OpenCode session
+
+Pulse also writes a target-ready prompt that can be pasted into an already-running or resumed OpenCode session when the user does not want to create a new imported session.
+
+The UI should therefore provide:
+
+- `Copy Import Command`
+- `Copy Prompt`
+
 Requirement:
 
-- The imported or continued OpenCode session must use the Pulse-attributed title from the bundle.
+- The imported OpenCode session must use the Pulse-attributed title from the bundle.
+- The OpenCode prompt must explicitly instruct the receiving session to continue under the Pulse-attributed title from the bundle.
 
 ### Continue in Codex
 
@@ -200,6 +212,7 @@ If implementation learns that a more robust Codex command form is preferable, th
 - Pulse writes a bundle
 - Pulse writes a Codex-ready continuation prompt
 - Pulse shows a `Copy` button for the resulting Codex command
+- Pulse may also expose a direct `Copy Prompt` option if implementation determines that pasting into an existing Codex session is reliable enough, but this is not required for V1
 
 Requirement:
 
