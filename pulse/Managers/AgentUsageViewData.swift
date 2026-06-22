@@ -1,11 +1,11 @@
 import Foundation
 
-enum AgentModelGroupBy: String, Equatable {
+enum AgentModelGroupBy: String, Equatable, Hashable {
     case model
     case provider
 }
 
-struct AgentUsageSelection: Equatable {
+struct AgentUsageSelection: Equatable, Hashable {
     let source: AgentSource
     let timeRange: AgentTimeRange
     let projectDirectory: String?

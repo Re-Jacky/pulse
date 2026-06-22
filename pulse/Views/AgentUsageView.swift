@@ -19,14 +19,13 @@ struct AgentUsageView: View {
         )
     }
 
-    private var data: AgentUsageDerivedViewData {
-        agentStore.derivedData(for: selection)
-    }
-
     var body: some View {
+        let selection = self.selection
+        let data = agentStore.derivedData(for: selection)
+
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                header
+                header(selection: selection)
 
                 if agentStore.isLoading {
                     ProgressView("Loading \(data.selection.source.displayName) usage...")
@@ -36,15 +35,15 @@ struct AgentUsageView: View {
                     errorState(error)
                 } else {
                     timeRangeSelector
-                    selectorsBlock
-                    detailBlock
+                    selectorsBlock(selection: selection, data: data)
+                    detailBlock(selection: selection, data: data)
 
                     if data.showsTokenFlow && data.tokenFlowData.isEmpty == false {
                         AgentUsageFlowChartView(dataPoints: data.tokenFlowData)
                     }
 
                     if data.showsByModel {
-                        byModelBlock
+                        byModelBlock(data: data)
                     }
 
                     if let threadID = data.codexDetailThreadID,
@@ -85,7 +84,7 @@ struct AgentUsageView: View {
         }
     }
 
-    private var header: some View {
+    private func header(selection: AgentUsageSelection) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 HStack(spacing: 8) {
@@ -120,14 +119,14 @@ struct AgentUsageView: View {
                 .disabled(agentStore.isRefreshing)
             }
 
-            Text(dataSourceDescription)
+            Text(dataSourceDescription(for: selection))
                 .font(.system(size: 11))
                 .foregroundColor(.appSecondaryText)
                 .textSelection(.enabled)
         }
     }
 
-    private var dataSourceDescription: String {
+    private func dataSourceDescription(for selection: AgentUsageSelection) -> String {
         AgentUsageDataSourceDescription.message(
             for: selection.source,
             openCodeDatabaseURL: agentStore.repository.openCodeDatabaseURL,
@@ -145,7 +144,7 @@ struct AgentUsageView: View {
         }
     }
 
-    private var selectorsBlock: some View {
+    private func selectorsBlock(selection: AgentUsageSelection, data: AgentUsageDerivedViewData) -> some View {
         VStack(spacing: 12) {
             SearchableSelectorView(
                 label: "Project",
@@ -187,7 +186,7 @@ struct AgentUsageView: View {
         }
     }
 
-    private var detailBlock: some View {
+    private func detailBlock(selection: AgentUsageSelection, data: AgentUsageDerivedViewData) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Usage")
                 .font(.system(size: 13, weight: .semibold))
@@ -225,7 +224,7 @@ struct AgentUsageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var byModelBlock: some View {
+    private func byModelBlock(data: AgentUsageDerivedViewData) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text("By")
