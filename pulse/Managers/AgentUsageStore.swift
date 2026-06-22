@@ -2,6 +2,10 @@ import Foundation
 import Combine
 
 final class AgentUsageStore: ObservableObject {
+    private struct DerivedDataCacheKey: Equatable {
+        let selection: AgentUsageSelection
+        let refreshGeneration: Int
+    }
 
     private struct RefreshContext {
         let nextGeneration: Int
@@ -39,6 +43,7 @@ final class AgentUsageStore: ObservableObject {
     let availableSources: [AgentSource]
 
     private var hasLoadedGeneralData = false
+    private var derivedDataCache: (key: DerivedDataCacheKey, value: AgentUsageDerivedViewData)?
 
     init(repository: AgentUsageRepositorying? = nil) {
         let defaultRepository = AgentUsageRepository(
@@ -150,6 +155,7 @@ final class AgentUsageStore: ObservableObject {
     #if DEBUG
     func replaceStateForTesting(_ state: AgentUsageLoadedState) {
         self.state = state
+        derivedDataCache = nil
     }
     #endif
 
@@ -157,6 +163,10 @@ final class AgentUsageStore: ObservableObject {
 
     func derivedData(for inputSelection: AgentUsageSelection) -> AgentUsageDerivedViewData {
         let selection = reconcile(inputSelection)
+        let cacheKey = DerivedDataCacheKey(selection: selection, refreshGeneration: state.refreshGeneration)
+        if let derivedDataCache, derivedDataCache.key == cacheKey {
+            return derivedDataCache.value
+        }
 
         let openCodeSnapshot: OpenCodeUsageSnapshot
         if selection.timeRange == .allTime {
@@ -199,7 +209,7 @@ final class AgentUsageStore: ObservableObject {
             )
         }()
 
-        return AgentUsageDerivedViewData(
+        let derivedData = AgentUsageDerivedViewData(
             selection: selection,
             scope: scope,
             summary: summary,
@@ -218,6 +228,9 @@ final class AgentUsageStore: ObservableObject {
             showsByModel: selection.source != .all && selection.isSessionScope == false,
             showsTokenFlow: selection.source == .all && selection.timeRange != .today
         )
+
+        derivedDataCache = (cacheKey, derivedData)
+        return derivedData
     }
 
     // MARK: - Bucket Aggregation
@@ -297,6 +310,7 @@ final class AgentUsageStore: ObservableObject {
             refreshGeneration: result.refreshGeneration,
             codexDetailCache: [:]
         )
+        derivedDataCache = nil
 
         lastError = result.lastError
         if result.loadedAnySource {

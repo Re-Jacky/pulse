@@ -1,6 +1,6 @@
 import Foundation
 
-enum AgentSource: String, CaseIterable, Identifiable {
+enum AgentSource: String, CaseIterable, Identifiable, Hashable {
     case all = "all"
     case openCode = "opencode"
     case codex = "codex"
@@ -16,7 +16,7 @@ enum AgentSource: String, CaseIterable, Identifiable {
     }
 }
 
-enum AgentTimeRange: String, CaseIterable, Identifiable {
+enum AgentTimeRange: String, CaseIterable, Identifiable, Hashable {
     case allTime = "all_time"
     case today = "today"
     case last7Days = "last_7_days"
