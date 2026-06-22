@@ -9,7 +9,7 @@ final class AgentLightsSettingsTests: XCTestCase {
         let settings = AgentLightsSettings(userDefaults: defaults)
 
         XCTAssertFalse(settings.isEnabled)
-        XCTAssertEqual(settings.selectedAgents, Set(AgentLightsAgent.allCases))
+        XCTAssertEqual(settings.selectedAgents, Set(AgentStatusAgent.allCases))
         XCTAssertEqual(settings.enabledAgents, [])
     }
 
@@ -55,7 +55,7 @@ final class AgentLightsSettingsTests: XCTestCase {
 
         let settings = AgentLightsSettings(userDefaults: defaults)
 
-        XCTAssertEqual(settings.selectedAgents, Set(AgentLightsAgent.allCases))
+        XCTAssertEqual(settings.selectedAgents, Set(AgentStatusAgent.allCases))
     }
 
     func testEmptySavedSelectedAgentsRecoverToAllSupportedAgents() {
@@ -65,6 +65,17 @@ final class AgentLightsSettingsTests: XCTestCase {
 
         let settings = AgentLightsSettings(userDefaults: defaults)
 
-        XCTAssertEqual(settings.selectedAgents, Set(AgentLightsAgent.allCases))
+        XCTAssertEqual(settings.selectedAgents, Set(AgentStatusAgent.allCases))
+    }
+
+    func testEnabledAgentsUsesCanonicalStatusAgentOrderingWhenEnabled() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defaults.removePersistentDomain(forName: #function)
+
+        let settings = AgentLightsSettings(userDefaults: defaults)
+        settings.selectedAgents = [.codex]
+        settings.isEnabled = true
+
+        XCTAssertEqual(settings.enabledAgents, [.codex])
     }
 }
