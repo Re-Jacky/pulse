@@ -23,6 +23,8 @@
 		10000000000000000000003C /* UpdateInstallPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003D /* UpdateInstallPlanner.swift */; };
 		100000000000000000000036 /* UpdateGitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000037 /* UpdateGitHubClient.swift */; };
 		100000000000000000000038 /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000039 /* UpdateManager.swift */; };
+		100000000000000000000058 /* AgentLightsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000059 /* AgentLightsSettings.swift */; };
+		100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000057 /* AgentLightsSettingsTests.swift */; };
 		100000000000000000000040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000041 /* main.swift */; };
 		100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000043 /* UpdaterAppDelegate.swift */; };
 		100000000000000000000044 /* UpdaterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000045 /* UpdaterWindowController.swift */; };
@@ -96,6 +98,8 @@
 		10000000000000000000003D /* UpdateInstallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateInstallPlanner.swift; sourceTree = "<group>"; };
 		100000000000000000000037 /* UpdateGitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateGitHubClient.swift; sourceTree = "<group>"; };
 		100000000000000000000039 /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateManager.swift; sourceTree = "<group>"; };
+		100000000000000000000059 /* AgentLightsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentLightsSettings.swift; sourceTree = "<group>"; };
+		100000000000000000000057 /* AgentLightsSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLightsSettingsTests.swift; sourceTree = "<group>"; };
 		100000000000000000000041 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		100000000000000000000043 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
 		100000000000000000000045 /* UpdaterWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterWindowController.swift; sourceTree = "<group>"; };
@@ -187,6 +191,7 @@
 				100000000000000000000031 /* AgentUsageStoreTests.swift */,
 				10000000000000000000003B /* UpdateInstallPlannerTests.swift */,
 				100000000000000000000033 /* UpdateManagerTests.swift */,
+				100000000000000000000057 /* AgentLightsSettingsTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
@@ -207,6 +212,7 @@
 		5FBA87F2FBD639833E1B72BD /* Managers */ = {
 			isa = PBXGroup;
 			children = (
+				100000000000000000000059 /* AgentLightsSettings.swift */,
 				100000000000000000000015 /* AgentUsageSettings.swift */,
 				10000000000000000000002B /* AgentUsageRepository.swift */,
 				100000000000000000000011 /* AppVersionInfo.swift */,
@@ -432,6 +438,7 @@
 				100000000000000000000030 /* AgentUsageStoreTests.swift in Sources */,
 				10000000000000000000003A /* UpdateInstallPlannerTests.swift in Sources */,
 				100000000000000000000032 /* UpdateManagerTests.swift in Sources */,
+				100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 			);
@@ -468,6 +475,7 @@
 				87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */,
 				525A1EB1F76074255369A695 /* PopoverView.swift in Sources */,
 				100000000000000000000024 /* SearchableSelectorView.swift in Sources */,
+				100000000000000000000058 /* AgentLightsSettings.swift in Sources */,
 				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
 				10000000000000000000002A /* AgentUsageRepository.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,

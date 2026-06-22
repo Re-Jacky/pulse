@@ -426,19 +426,27 @@ This is slightly sticky, but it is more aligned with the product requirement tha
 
 ## Settings
 
-Pulse should add a dedicated settings section for live agent-status integrations.
+Pulse should add a dedicated `Agent Lights` tab in the Settings window. This tab is separate from the existing `Agent Usage` settings because the two features have different responsibilities and data sources.
 
-V1 settings should include:
+V1 `Agent Lights` settings should include:
 
-- feature enable toggle
-- per-agent enable toggle
+- `Enable Agent Lights` feature toggle
+- per-agent enable toggles for supported agents
 - integration setup guidance for OpenCode and Codex
 - cleanup actions for persisted slots
 
 Feature enable behavior:
 
-- when off, live status groups are hidden from the menu bar
-- when on, each enabled agent shows at least icon plus one placeholder slot
+- when `Enable Agent Lights` is off, no live-status agent groups are shown in the menu bar
+- when `Enable Agent Lights` is on, only enabled agents show menu bar groups
+- each enabled agent shows at least icon plus one placeholder slot
+- disabling one agent hides only that agent's group without affecting other enabled agents
+
+The `Agent Usage` tab remains independent:
+
+- turning `Agent Usage` on does not implicitly enable `Agent Lights`
+- turning `Agent Lights` on does not implicitly enable `Agent Usage`
+- agent selection for one feature does not automatically change selection for the other feature
 
 ## Testing Strategy
 
