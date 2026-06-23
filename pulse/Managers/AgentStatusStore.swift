@@ -18,12 +18,44 @@ final class InMemoryAgentStatusPersistence: AgentStatusPersistence {
     }
 }
 
+final class UserDefaultsAgentStatusPersistence: AgentStatusPersistence {
+    private let defaults: UserDefaults
+    private let key = "agentStatusStore"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func load() -> PersistedAgentStatusStore? {
+        guard let data = defaults.data(forKey: key) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(PersistedAgentStatusStore.self, from: data)
+    }
+
+    func save(_ store: PersistedAgentStatusStore) {
+        guard let data = try? JSONEncoder().encode(store) else {
+            return
+        }
+
+        defaults.set(data, forKey: key)
+    }
+}
+
 @MainActor
 final class AgentStatusStore: ObservableObject {
     @Published private(set) var groups: [AgentStatusGroup]
 
     private let persistence: AgentStatusPersistence
     private let visibleSlotCap = 4
+
+    convenience init(enabledAgents: [AgentStatusAgent]) {
+        self.init(
+            persistence: UserDefaultsAgentStatusPersistence(),
+            enabledAgents: enabledAgents
+        )
+    }
 
     init(persistence: AgentStatusPersistence, enabledAgents: [AgentStatusAgent]) {
         self.persistence = persistence
@@ -58,6 +90,31 @@ final class AgentStatusStore: ObservableObject {
             groups[groupIndex].slots = [Self.placeholder(for: agent)]
         }
 
+        updateOverflowCount(for: groupIndex)
+        persist()
+    }
+
+    func clearIdleSlots(for agent: AgentStatusAgent) {
+        guard let groupIndex = groups.firstIndex(where: { $0.agent == agent }) else {
+            return
+        }
+
+        groups[groupIndex].slots.removeAll { $0.state == .idle }
+
+        if groups[groupIndex].slots.isEmpty {
+            groups[groupIndex].slots = [Self.placeholder(for: agent)]
+        }
+
+        updateOverflowCount(for: groupIndex)
+        persist()
+    }
+
+    func clearAllSlots(for agent: AgentStatusAgent) {
+        guard let groupIndex = groups.firstIndex(where: { $0.agent == agent }) else {
+            return
+        }
+
+        groups[groupIndex].slots = [Self.placeholder(for: agent)]
         updateOverflowCount(for: groupIndex)
         persist()
     }

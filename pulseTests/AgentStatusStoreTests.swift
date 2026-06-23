@@ -197,6 +197,186 @@ final class AgentStatusStoreTests: XCTestCase {
 
         XCTAssertEqual(store.groups[0].slots.map(\.state), [.error])
     }
+
+    @MainActor
+    func testClearIdleSlotsLeavesOnePlaceholder() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "idle-1",
+                projectPath: "/tmp/p1",
+                sessionTitle: "P1",
+                timestamp: Date(timeIntervalSince1970: 500),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "idle-2",
+                projectPath: "/tmp/p2",
+                sessionTitle: "P2",
+                timestamp: Date(timeIntervalSince1970: 501),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+
+        store.clearIdleSlots(for: .openCode)
+
+        XCTAssertEqual(store.groups[0].slots.map(\.state), [.empty])
+    }
+
+    @MainActor
+    func testClearIdleSlotsPreservesWorkingAndErrorSlotsAndRecalculatesOverflow() {
+        let persistence = SpyAgentStatusPersistence(
+            persisted: PersistedAgentStatusStore(
+                groups: [
+                    PersistedAgentStatusGroup(
+                        agent: .codex,
+                        slots: [
+                            AgentSessionSlot(
+                                id: UUID(uuidString: "DDDDDDDD-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+                                agent: .codex,
+                                sessionID: "disabled-codex",
+                                projectPath: "/tmp/codex",
+                                projectName: "codex",
+                                sessionTitle: "Hidden Codex",
+                                state: .idle,
+                                lastTransitionAt: Date(timeIntervalSince1970: 450),
+                                lastSeenAt: Date(timeIntervalSince1970: 450)
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+        let store = AgentStatusStore(
+            persistence: persistence,
+            enabledAgents: [.openCode]
+        )
+
+        let eventKinds: [PulseAgentStatusEventKind] = [
+            .sessionWorking,
+            .sessionIdle,
+            .sessionError,
+            .sessionIdle,
+            .sessionWorking,
+            .sessionError
+        ]
+        for (index, kind) in eventKinds.enumerated() {
+            store.apply(
+                PulseAgentStatusEvent(
+                    agent: .openCode,
+                    sessionID: "session-\(index)",
+                    projectPath: "/tmp/session-\(index)",
+                    sessionTitle: "Session \(index)",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(900 + index)),
+                    kind: kind,
+                    message: nil
+                )
+            )
+        }
+
+        store.clearIdleSlots(for: .openCode)
+
+        XCTAssertEqual(store.groups[0].slots.map(\.state), [.working, .error, .working, .error])
+        XCTAssertEqual(store.groups[0].overflowCount, 0)
+        XCTAssertEqual(
+            persistence.savedStore?.groups.first(where: { $0.agent == .codex })?.slots.first?.sessionID,
+            "disabled-codex"
+        )
+    }
+
+    @MainActor
+    func testClearAllSlotsLeavesOnePlaceholderAndResetsOverflow() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+
+        for index in 0..<5 {
+            store.apply(
+                PulseAgentStatusEvent(
+                    agent: .codex,
+                    sessionID: "session-\(index)",
+                    projectPath: "/tmp/\(index)",
+                    sessionTitle: "T\(index)",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(600 + index)),
+                    kind: .sessionWorking,
+                    message: nil
+                )
+            )
+        }
+
+        store.clearAllSlots(for: .codex)
+
+        XCTAssertEqual(store.groups[0].slots.map(\.state), [.empty])
+        XCTAssertEqual(store.groups[0].overflowCount, 0)
+    }
+
+    @MainActor
+    func testOverflowCountTracksSlotsBeyondVisibleCap() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+
+        for index in 0..<5 {
+            store.apply(
+                PulseAgentStatusEvent(
+                    agent: .codex,
+                    sessionID: "session-\(index)",
+                    projectPath: "/tmp/\(index)",
+                    sessionTitle: "T\(index)",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(700 + index)),
+                    kind: .sessionWorking,
+                    message: nil
+                )
+            )
+        }
+
+        XCTAssertEqual(store.groups[0].slots.count, 5)
+        XCTAssertEqual(store.groups[0].overflowCount, 1)
+    }
+
+    func testUserDefaultsPersistenceRoundTripsSavedStore() {
+        let suiteName = "AgentStatusStoreTests.\(#function)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let persistence = UserDefaultsAgentStatusPersistence(defaults: defaults)
+        let expected = PersistedAgentStatusStore(
+            groups: [
+                PersistedAgentStatusGroup(
+                    agent: .openCode,
+                    slots: [
+                        AgentSessionSlot(
+                            id: UUID(uuidString: "CCCCCCCC-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+                            agent: .openCode,
+                            sessionID: "session-userdefaults",
+                            projectPath: "/tmp/userdefaults",
+                            projectName: "userdefaults",
+                            sessionTitle: "Persist me",
+                            state: .working,
+                            lastTransitionAt: Date(timeIntervalSince1970: 800),
+                            lastSeenAt: Date(timeIntervalSince1970: 801)
+                        )
+                    ]
+                )
+            ]
+        )
+
+        persistence.save(expected)
+
+        XCTAssertEqual(persistence.load(), expected)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
 }
 
 private final class SpyAgentStatusPersistence: AgentStatusPersistence {
