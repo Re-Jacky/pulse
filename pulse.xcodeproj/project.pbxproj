@@ -28,6 +28,8 @@
 		100000000000000000000060 /* AgentStatusStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000061 /* AgentStatusStoreTests.swift */; };
 		100000000000000000000062 /* AgentStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000063 /* AgentStatusModels.swift */; };
 		100000000000000000000064 /* AgentStatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000065 /* AgentStatusStore.swift */; };
+		100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000067 /* PulseAgentStatusServer.swift */; };
+		100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000069 /* PulseAgentStatusServerTests.swift */; };
 		100000000000000000000040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000041 /* main.swift */; };
 		100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000043 /* UpdaterAppDelegate.swift */; };
 		100000000000000000000044 /* UpdaterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000045 /* UpdaterWindowController.swift */; };
@@ -106,6 +108,8 @@
 		100000000000000000000061 /* AgentStatusStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000063 /* AgentStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusModels.swift; sourceTree = "<group>"; };
 		100000000000000000000065 /* AgentStatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusStore.swift; sourceTree = "<group>"; };
+		100000000000000000000067 /* PulseAgentStatusServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PulseAgentStatusServer.swift; sourceTree = "<group>"; };
+		100000000000000000000069 /* PulseAgentStatusServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseAgentStatusServerTests.swift; sourceTree = "<group>"; };
 		100000000000000000000041 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		100000000000000000000043 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
 		100000000000000000000045 /* UpdaterWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterWindowController.swift; sourceTree = "<group>"; };
@@ -199,6 +203,7 @@
 				100000000000000000000033 /* UpdateManagerTests.swift */,
 				100000000000000000000057 /* AgentLightsSettingsTests.swift */,
 				100000000000000000000061 /* AgentStatusStoreTests.swift */,
+				100000000000000000000069 /* PulseAgentStatusServerTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
@@ -222,6 +227,7 @@
 				100000000000000000000059 /* AgentLightsSettings.swift */,
 				100000000000000000000063 /* AgentStatusModels.swift */,
 				100000000000000000000065 /* AgentStatusStore.swift */,
+				100000000000000000000067 /* PulseAgentStatusServer.swift */,
 				100000000000000000000015 /* AgentUsageSettings.swift */,
 				10000000000000000000002B /* AgentUsageRepository.swift */,
 				100000000000000000000011 /* AppVersionInfo.swift */,
@@ -449,6 +455,7 @@
 				100000000000000000000032 /* UpdateManagerTests.swift in Sources */,
 				100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */,
 				100000000000000000000060 /* AgentStatusStoreTests.swift in Sources */,
+				100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 			);
@@ -488,6 +495,7 @@
 				100000000000000000000058 /* AgentLightsSettings.swift in Sources */,
 				100000000000000000000062 /* AgentStatusModels.swift in Sources */,
 				100000000000000000000064 /* AgentStatusStore.swift in Sources */,
+				100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */,
 				100000000000000000000014 /* AgentUsageSettings.swift in Sources */,
 				10000000000000000000002A /* AgentUsageRepository.swift in Sources */,
 				100000000000000000000010 /* AppVersionInfo.swift in Sources */,
