@@ -15,27 +15,6 @@
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
-		100000000000000000000028 /* AgentUsageViewDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000029 /* AgentUsageViewDataTests.swift */; };
-		100000000000000000000030 /* AgentUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000031 /* AgentUsageStoreTests.swift */; };
-		100000000000000000000032 /* UpdateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000033 /* UpdateManagerTests.swift */; };
-		10000000000000000000003A /* UpdateInstallPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003B /* UpdateInstallPlannerTests.swift */; };
-		100000000000000000000034 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
-		10000000000000000000003C /* UpdateInstallPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003D /* UpdateInstallPlanner.swift */; };
-		100000000000000000000036 /* UpdateGitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000037 /* UpdateGitHubClient.swift */; };
-		100000000000000000000038 /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000039 /* UpdateManager.swift */; };
-		100000000000000000000058 /* AgentLightsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000059 /* AgentLightsSettings.swift */; };
-		100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000057 /* AgentLightsSettingsTests.swift */; };
-		100000000000000000000060 /* AgentStatusStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000061 /* AgentStatusStoreTests.swift */; };
-		100000000000000000000062 /* AgentStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000063 /* AgentStatusModels.swift */; };
-		100000000000000000000064 /* AgentStatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000065 /* AgentStatusStore.swift */; };
-		100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000067 /* PulseAgentStatusServer.swift */; };
-		100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000069 /* PulseAgentStatusServerTests.swift */; };
-		100000000000000000000040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000041 /* main.swift */; };
-		100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000043 /* UpdaterAppDelegate.swift */; };
-		100000000000000000000044 /* UpdaterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000045 /* UpdaterWindowController.swift */; };
-		100000000000000000000046 /* UpdaterInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000047 /* UpdaterInstaller.swift */; };
-		100000000000000000000048 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
-		100000000000000000000049 /* PulseUpdater.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = 10000000000000000000004B /* PulseUpdater.app */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
 		100000000000000000000024 /* SearchableSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000025 /* SearchableSelectorView.swift */; };
 		100000000000000000000026 /* AgentUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000027 /* AgentUsageView.swift */; };
@@ -43,9 +22,29 @@
 		10000000000000000000002A /* AgentUsageRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000002B /* AgentUsageRepository.swift */; };
 		10000000000000000000002C /* AgentUsageViewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000002D /* AgentUsageViewData.swift */; };
 		100000000000000000000030 /* AgentUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000031 /* AgentUsageStoreTests.swift */; };
+		100000000000000000000032 /* UpdateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000033 /* UpdateManagerTests.swift */; };
+		100000000000000000000034 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
+		100000000000000000000036 /* UpdateGitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000037 /* UpdateGitHubClient.swift */; };
+		100000000000000000000038 /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000039 /* UpdateManager.swift */; };
+		10000000000000000000003A /* UpdateInstallPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003B /* UpdateInstallPlannerTests.swift */; };
+		10000000000000000000003C /* UpdateInstallPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000003D /* UpdateInstallPlanner.swift */; };
+		100000000000000000000040 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000041 /* main.swift */; };
+		100000000000000000000042 /* UpdaterAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000043 /* UpdaterAppDelegate.swift */; };
+		100000000000000000000044 /* UpdaterWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000045 /* UpdaterWindowController.swift */; };
+		100000000000000000000046 /* UpdaterInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000047 /* UpdaterInstaller.swift */; };
+		100000000000000000000048 /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000035 /* UpdateModels.swift */; };
+		100000000000000000000049 /* PulseUpdater.app in CopyFiles */ = {isa = PBXBuildFile; fileRef = 10000000000000000000004B /* PulseUpdater.app */; };
+		100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000057 /* AgentLightsSettingsTests.swift */; };
+		100000000000000000000058 /* AgentLightsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000059 /* AgentLightsSettings.swift */; };
+		100000000000000000000060 /* AgentStatusStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000061 /* AgentStatusStoreTests.swift */; };
+		100000000000000000000062 /* AgentStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000063 /* AgentStatusModels.swift */; };
+		100000000000000000000064 /* AgentStatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000065 /* AgentStatusStore.swift */; };
+		100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000067 /* PulseAgentStatusServer.swift */; };
+		100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000069 /* PulseAgentStatusServerTests.swift */; };
 		1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */; };
 		1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */; };
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
+		2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */; };
 		37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
@@ -86,6 +85,19 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		10000000000000000000004A /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = ../Helpers;
+			dstSubfolderSpec = 10;
+			files = (
+				100000000000000000000049 /* PulseUpdater.app in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		100000000000000000000002 /* AppVersionInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionInfoTests.swift; sourceTree = "<group>"; };
 		100000000000000000000004 /* pulseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -95,28 +107,6 @@
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
-		100000000000000000000029 /* AgentUsageViewDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageViewDataTests.swift; sourceTree = "<group>"; };
-		100000000000000000000031 /* AgentUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageStoreTests.swift; sourceTree = "<group>"; };
-		100000000000000000000033 /* UpdateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManagerTests.swift; sourceTree = "<group>"; };
-		10000000000000000000003B /* UpdateInstallPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallPlannerTests.swift; sourceTree = "<group>"; };
-		100000000000000000000035 /* UpdateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateModels.swift; sourceTree = "<group>"; };
-		10000000000000000000003D /* UpdateInstallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateInstallPlanner.swift; sourceTree = "<group>"; };
-		100000000000000000000037 /* UpdateGitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateGitHubClient.swift; sourceTree = "<group>"; };
-		100000000000000000000039 /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateManager.swift; sourceTree = "<group>"; };
-		100000000000000000000059 /* AgentLightsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentLightsSettings.swift; sourceTree = "<group>"; };
-		100000000000000000000057 /* AgentLightsSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLightsSettingsTests.swift; sourceTree = "<group>"; };
-		100000000000000000000061 /* AgentStatusStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusStoreTests.swift; sourceTree = "<group>"; };
-		100000000000000000000063 /* AgentStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusModels.swift; sourceTree = "<group>"; };
-		100000000000000000000065 /* AgentStatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusStore.swift; sourceTree = "<group>"; };
-		100000000000000000000067 /* PulseAgentStatusServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PulseAgentStatusServer.swift; sourceTree = "<group>"; };
-		100000000000000000000069 /* PulseAgentStatusServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseAgentStatusServerTests.swift; sourceTree = "<group>"; };
-		100000000000000000000041 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		100000000000000000000043 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
-		100000000000000000000045 /* UpdaterWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterWindowController.swift; sourceTree = "<group>"; };
-		100000000000000000000047 /* UpdaterInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterInstaller.swift; sourceTree = "<group>"; };
-		10000000000000000000004B /* PulseUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		10000000000000000000002B /* AgentUsageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageRepository.swift; sourceTree = "<group>"; };
-		10000000000000000000002D /* AgentUsageViewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageViewData.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
 		100000000000000000000027 /* AgentUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageView.swift; sourceTree = "<group>"; };
@@ -124,9 +114,28 @@
 		10000000000000000000002B /* AgentUsageRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageRepository.swift; sourceTree = "<group>"; };
 		10000000000000000000002D /* AgentUsageViewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageViewData.swift; sourceTree = "<group>"; };
 		100000000000000000000031 /* AgentUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000033 /* UpdateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManagerTests.swift; sourceTree = "<group>"; };
+		100000000000000000000035 /* UpdateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateModels.swift; sourceTree = "<group>"; };
+		100000000000000000000037 /* UpdateGitHubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateGitHubClient.swift; sourceTree = "<group>"; };
+		100000000000000000000039 /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateManager.swift; sourceTree = "<group>"; };
+		10000000000000000000003B /* UpdateInstallPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstallPlannerTests.swift; sourceTree = "<group>"; };
+		10000000000000000000003D /* UpdateInstallPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/UpdateInstallPlanner.swift; sourceTree = "<group>"; };
+		100000000000000000000041 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		100000000000000000000043 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
+		100000000000000000000045 /* UpdaterWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterWindowController.swift; sourceTree = "<group>"; };
+		100000000000000000000047 /* UpdaterInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterInstaller.swift; sourceTree = "<group>"; };
+		10000000000000000000004B /* PulseUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000057 /* AgentLightsSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLightsSettingsTests.swift; sourceTree = "<group>"; };
+		100000000000000000000059 /* AgentLightsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentLightsSettings.swift; sourceTree = "<group>"; };
+		100000000000000000000061 /* AgentStatusStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000063 /* AgentStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusModels.swift; sourceTree = "<group>"; };
+		100000000000000000000065 /* AgentStatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusStore.swift; sourceTree = "<group>"; };
+		100000000000000000000067 /* PulseAgentStatusServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PulseAgentStatusServer.swift; sourceTree = "<group>"; };
+		100000000000000000000069 /* PulseAgentStatusServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseAgentStatusServerTests.swift; sourceTree = "<group>"; };
 		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
 		2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageFlowChartView.swift; sourceTree = "<group>"; };
 		301784F7059433DCC99F2522 /* AgentSourcePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentSourcePicker.swift; sourceTree = "<group>"; };
+		32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemView.swift; sourceTree = "<group>"; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
@@ -152,19 +161,6 @@
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		10000000000000000000004A /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "../Helpers";
-			dstSubfolderSpec = 10;
-			files = (
-				100000000000000000000049 /* PulseUpdater.app in CopyFiles */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		100000000000000000000005 /* Frameworks */ = {
@@ -263,6 +259,7 @@
 				301784F7059433DCC99F2522 /* AgentSourcePicker.swift */,
 				B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */,
 				2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */,
+				32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -516,6 +513,7 @@
 				37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */,
 				00BAAAB49755D0A4A036CC98 /* AgentUsageFlowChartView.swift in Sources */,
 				1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */,
+				2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

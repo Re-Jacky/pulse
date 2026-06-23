@@ -61,17 +61,22 @@ private final class InputPanel: NSPanel {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var panel: InputPanel?
     private var eventMonitor: Any?
     private var settingsWindow: NSWindow?
     private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
+    private var menuBarStatusView: MenuBarStatusItemView?
     private let monitor = SystemMonitor()
     private let themeManager = ThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
+    private let agentLightsSettings = AgentLightsSettings()
+    private let agentStatusStore = AgentStatusStore(enabledAgents: AgentStatusAgent.allCases)
+    private lazy var agentStatusServer = PulseAgentStatusServer(store: agentStatusStore)
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "pulse"))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -88,16 +93,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         updateManager.performPostUpgradeTasks()
 
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
-            button.image?.isTemplate = true
-            button.action = #selector(handleClick)
-            button.target = self
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
+        setupStatusItem()
+        agentStatusServer.start()
 
         // Pre-build the panel so the first open is instant.
         panel = makePanel()
+    }
+
+    private func setupStatusItem() {
+        statusItem.length = MenuBarStatusItemView.defaultWidth
+
+        guard let button = statusItem.button else {
+            return
+        }
+
+        button.image = nil
+        button.action = nil
+        button.target = nil
+        button.sendAction(on: [])
+        button.subviews.forEach { $0.removeFromSuperview() }
+
+        let statusView = MenuBarStatusItemView(frame: button.bounds)
+        statusView.autoresizingMask = [.width, .height]
+        statusView.onLeftClick = { [weak self] in
+            self?.togglePanel()
+        }
+        statusView.onRightClick = { [weak self] in
+            self?.showContextMenu()
+        }
+        statusView.onPreferredWidthChange = { [weak self, weak statusView] width in
+            guard let self else { return }
+            self.statusItem.length = width
+            statusView?.frame = self.statusItem.button?.bounds ?? .zero
+        }
+        statusView.bind(to: agentStatusStore, settings: agentLightsSettings)
+
+        button.addSubview(statusView)
+        menuBarStatusView = statusView
     }
 
     private func setupMainMenu() {
@@ -131,15 +163,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
-    }
-
-    @objc private func handleClick() {
-        guard let event = NSApp.currentEvent else { return }
-        if event.type == .rightMouseUp {
-            showContextMenu()
-        } else {
-            togglePanel()
-        }
     }
 
     @objc private func togglePanel() {
