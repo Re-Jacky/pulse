@@ -8,9 +8,9 @@ struct PopoverView: View {
     @EnvironmentObject var updateManager: UpdateManager
 
     private var availableTabs: [(title: String, tag: Int)] {
-        var tabs: [(String, Int)] = [("Stats", 0), ("Processes", 1)]
+        var tabs: [(String, Int)] = [("Stats", 0), ("Processes", 1), ("Status", 2)]
         if agentUsageSettings.effectiveEnabled {
-            tabs.append(("Agent", 2))
+            tabs.append(("Agent", 3))
         }
         return tabs
     }
@@ -43,19 +43,23 @@ struct PopoverView: View {
                         .opacity(selectedTab == 1 ? 1 : 0)
                         .allowsHitTesting(selectedTab == 1)
 
+                    AgentStatusManagementView()
+                        .opacity(selectedTab == 2 ? 1 : 0)
+                        .allowsHitTesting(selectedTab == 2)
+
                     if agentUsageSettings.effectiveEnabled {
                         AgentUsageView()
-                            .opacity(selectedTab == 2 ? 1 : 0)
-                            .allowsHitTesting(selectedTab == 2)
+                            .opacity(selectedTab == 3 ? 1 : 0)
+                            .allowsHitTesting(selectedTab == 3)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: agentUsageSettings.effectiveEnabled ? 460 : 300, minHeight: 360)
+        .frame(minWidth: agentUsageSettings.effectiveEnabled || selectedTab == 2 ? 460 : 300, minHeight: 360)
         .id(themeManager.currentTheme)
         .onChange(of: agentUsageSettings.effectiveEnabled) { isEnabled in
-            if isEnabled == false && selectedTab == 2 {
+            if isEnabled == false && selectedTab == 3 {
                 selectedTab = 0
             }
             syncPanelTabSelection()
@@ -66,7 +70,7 @@ struct PopoverView: View {
             refreshAgentUsageIfVisible()
         }
         .onAppear {
-            if agentUsageSettings.effectiveEnabled == false && selectedTab == 2 {
+            if agentUsageSettings.effectiveEnabled == false && selectedTab == 3 {
                 selectedTab = 0
             }
             syncPanelTabSelection()
@@ -81,7 +85,7 @@ struct PopoverView: View {
     }
 
     private func refreshAgentUsageIfVisible() {
-        guard agentUsageSettings.effectiveEnabled, selectedTab == 2 else { return }
+        guard agentUsageSettings.effectiveEnabled, selectedTab == 3 else { return }
         agentStore.refreshAllAsync()
     }
 }

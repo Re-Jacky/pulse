@@ -46,6 +46,7 @@
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
 		2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */; };
 		37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */; };
+		4574B222A7AC14CC2FFF51D5 /* AgentStatusManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
 		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
@@ -135,6 +136,7 @@
 		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
 		2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageFlowChartView.swift; sourceTree = "<group>"; };
 		301784F7059433DCC99F2522 /* AgentSourcePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentSourcePicker.swift; sourceTree = "<group>"; };
+		30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentStatusManagementView.swift; sourceTree = "<group>"; };
 		32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemView.swift; sourceTree = "<group>"; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 				B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */,
 				2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */,
 				32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */,
+				30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -514,6 +517,7 @@
 				00BAAAB49755D0A4A036CC98 /* AgentUsageFlowChartView.swift in Sources */,
 				1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */,
 				2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */,
+				4574B222A7AC14CC2FFF51D5 /* AgentStatusManagementView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

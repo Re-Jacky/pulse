@@ -43,8 +43,8 @@ private final class InputPanel: NSPanel {
         if isZoomed {
             let agentEnabled = AgentUsageSettings.isEffectivelyEnabled(userDefaults: .standard)
             let selectedTab = UserDefaults.standard.integer(forKey: PanelMetrics.selectedTabDefaultsKey)
-            let targetWidth = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
-            let targetHeight = agentEnabled && selectedTab == 2 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
+            let targetWidth = agentEnabled || selectedTab == 2 ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+            let targetHeight = agentEnabled && selectedTab == 3 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
             setFrame(
                 NSRect(
                     x: current.origin.x,
@@ -287,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
                 .environmentObject(agentUsageStore)
+                .environmentObject(agentStatusStore)
                 .environmentObject(updateManager)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
@@ -305,9 +306,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func panelMetrics(agentEnabled: Bool, selectedTab: Int) -> (width: CGFloat, height: CGFloat, minWidth: CGFloat, minHeight: CGFloat) {
-        let width = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
-        let minWidth = agentEnabled ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
-        let isAgentTabActive = agentEnabled && selectedTab == 2
+        let isStatusTabActive = selectedTab == 2
+        let width = agentEnabled || isStatusTabActive ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+        let minWidth = agentEnabled || isStatusTabActive ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
+        let isAgentTabActive = agentEnabled && selectedTab == 3
         let height = isAgentTabActive ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
         let minHeight = isAgentTabActive ? PanelMetrics.agentMinHeight : PanelMetrics.baseMinHeight
         return (width, height, minWidth, minHeight)
