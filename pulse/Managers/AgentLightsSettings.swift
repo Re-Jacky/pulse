@@ -26,10 +26,14 @@ final class AgentLightsSettings: ObservableObject {
         self.userDefaults = userDefaults
         isEnabled = userDefaults.object(forKey: Keys.isEnabled) as? Bool ?? false
 
-        let savedRawValues = userDefaults.stringArray(forKey: Keys.selectedAgents)
-            ?? AgentStatusAgent.allCases.map(\.rawValue)
-        let restoredAgents = Set(savedRawValues.compactMap(AgentStatusAgent.init(rawValue:)))
-        selectedAgents = restoredAgents.isEmpty ? Set(AgentStatusAgent.allCases) : restoredAgents
+        if let savedRawValues = userDefaults.stringArray(forKey: Keys.selectedAgents) {
+            let restoredAgents = Set(savedRawValues.compactMap(AgentStatusAgent.init(rawValue:)))
+            selectedAgents = savedRawValues.isEmpty || restoredAgents.isEmpty == false
+                ? restoredAgents
+                : Set(AgentStatusAgent.allCases)
+        } else {
+            selectedAgents = Set(AgentStatusAgent.allCases)
+        }
     }
 
     var enabledAgents: [AgentStatusAgent] {

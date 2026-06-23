@@ -119,6 +119,14 @@ final class AgentStatusStore: ObservableObject {
         persist()
     }
 
+    func visibleGroups(enabledAgents: Set<AgentStatusAgent>, featureEnabled: Bool) -> [AgentStatusGroup] {
+        guard featureEnabled else {
+            return []
+        }
+
+        return groups.filter { enabledAgents.contains($0.agent) }
+    }
+
     private func updateSlot(at slotIndex: Int, in groupIndex: Int, with event: PulseAgentStatusEvent) {
         let existingID = groups[groupIndex].slots[slotIndex].id
         groups[groupIndex].slots[slotIndex] = makeSlot(from: event, existingID: existingID)

@@ -58,14 +58,26 @@ final class AgentLightsSettingsTests: XCTestCase {
         XCTAssertEqual(settings.selectedAgents, Set(AgentStatusAgent.allCases))
     }
 
-    func testEmptySavedSelectedAgentsRecoverToAllSupportedAgents() {
+    func testEmptySavedSelectedAgentsRestoresToNoSelectedAgents() {
         let defaults = UserDefaults(suiteName: #function)!
         defaults.removePersistentDomain(forName: #function)
         defaults.set([], forKey: "agentLights.selectedAgents")
 
         let settings = AgentLightsSettings(userDefaults: defaults)
 
-        XCTAssertEqual(settings.selectedAgents, Set(AgentStatusAgent.allCases))
+        XCTAssertEqual(settings.selectedAgents, [])
+    }
+
+    func testEmptySelectedAgentsPersistsAcrossInstances() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defaults.removePersistentDomain(forName: #function)
+
+        let settings = AgentLightsSettings(userDefaults: defaults)
+        settings.selectedAgents = []
+
+        let restored = AgentLightsSettings(userDefaults: defaults)
+
+        XCTAssertEqual(restored.selectedAgents, [])
     }
 
     func testEnabledAgentsUsesCanonicalStatusAgentOrderingWhenEnabled() {

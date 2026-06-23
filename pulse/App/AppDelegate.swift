@@ -397,6 +397,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             rootView: SettingsView()
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
+                .environmentObject(agentLightsSettings)
+                .environmentObject(agentStatusStore)
                 .environmentObject(updateManager)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
