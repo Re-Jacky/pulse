@@ -2,7 +2,7 @@ import AppKit
 import Combine
 
 final class MenuBarStatusItemView: NSControl {
-    static let defaultWidth: CGFloat = 28
+    static let defaultWidth: CGFloat = 1
 
     var onLeftClick: (() -> Void)?
     var onRightClick: (() -> Void)?
@@ -61,12 +61,9 @@ final class MenuBarStatusItemView: NSControl {
         super.draw(dirtyRect)
 
         let visibleGroups = visibleGroups
-        var cursorX: CGFloat = 5
-        drawPulseBadge(at: NSPoint(x: cursorX, y: bounds.midY))
-        cursorX += 18
+        var cursorX: CGFloat = 4
 
         for group in visibleGroups {
-            cursorX += 4
             drawAgentBadge(group.agent, at: NSPoint(x: cursorX, y: bounds.midY))
             cursorX += 17
 
@@ -89,7 +86,7 @@ final class MenuBarStatusItemView: NSControl {
 
     override func accessibilityLabel() -> String? {
         guard settingsEnabled else {
-            return "Pulse"
+            return "Agent Lights"
         }
 
         let descriptions = visibleGroups.map { group in
@@ -97,11 +94,11 @@ final class MenuBarStatusItemView: NSControl {
             return "\(group.agent.displayName): \(states)"
         }
 
-        return descriptions.isEmpty ? "Pulse" : "Pulse, " + descriptions.joined(separator: "; ")
+        return descriptions.isEmpty ? "Agent Lights" : "Agent Lights, " + descriptions.joined(separator: "; ")
     }
 
     override func accessibilityHelp() -> String? {
-        "Open Pulse"
+        "Open Agent Lights"
     }
 
     override func accessibilityPerformPress() -> Bool {
@@ -144,10 +141,14 @@ final class MenuBarStatusItemView: NSControl {
     }
 
     private var preferredWidth: CGFloat {
-        var width = Self.defaultWidth
+        guard visibleGroups.isEmpty == false else {
+            return Self.defaultWidth
+        }
+
+        var width: CGFloat = 8
 
         for group in visibleGroups {
-            width += 21
+            width += 17
             width += CGFloat(visibleSlots(for: group).count) * 10
             if group.overflowCount > 0 {
                 width += 13
@@ -159,17 +160,6 @@ final class MenuBarStatusItemView: NSControl {
 
     private func visibleSlots(for group: AgentStatusGroup) -> ArraySlice<AgentSessionSlot> {
         group.slots.prefix(4)
-    }
-
-    private func drawPulseBadge(at center: NSPoint) {
-        let rect = NSRect(x: center.x, y: center.y - 6, width: 12, height: 12)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-        NSColor.controlAccentColor.withAlphaComponent(0.9).setFill()
-        path.fill()
-
-        let dot = NSBezierPath(ovalIn: NSRect(x: rect.midX - 2, y: rect.midY - 2, width: 4, height: 4))
-        NSColor.white.withAlphaComponent(0.95).setFill()
-        dot.fill()
     }
 
     private func drawAgentBadge(_ agent: AgentStatusAgent, at center: NSPoint) {

@@ -14,6 +14,13 @@ private enum PanelMetrics {
     static let agentMinHeight: CGFloat = baseMinHeight * 2
 }
 
+private enum AgentStatusPanelMetrics {
+    static let width: CGFloat = 460
+    static let height: CGFloat = 420
+    static let minWidth: CGFloat = 360
+    static let minHeight: CGFloat = 280
+}
+
 private enum SettingsWindowMetrics {
     static let defaultWidth: CGFloat = 800
     static let defaultHeight: CGFloat = 600
@@ -43,8 +50,8 @@ private final class InputPanel: NSPanel {
         if isZoomed {
             let agentEnabled = AgentUsageSettings.isEffectivelyEnabled(userDefaults: .standard)
             let selectedTab = UserDefaults.standard.integer(forKey: PanelMetrics.selectedTabDefaultsKey)
-            let targetWidth = agentEnabled || selectedTab == 2 ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
-            let targetHeight = agentEnabled && selectedTab == 3 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
+            let targetWidth = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+            let targetHeight = agentEnabled && selectedTab == 2 ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
             setFrame(
                 NSRect(
                     x: current.origin.x,
@@ -64,8 +71,11 @@ private final class InputPanel: NSPanel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private var agentStatusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: MenuBarStatusItemView.defaultWidth)
     private var panel: InputPanel?
+    private var agentStatusPanel: InputPanel?
     private var eventMonitor: Any?
+    private var agentStatusEventMonitor: Any?
     private var settingsWindow: NSWindow?
     private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
@@ -94,6 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updateManager.performPostUpgradeTasks()
 
         setupStatusItem()
+        setupAgentStatusItem()
         agentStatusServer.start()
 
         // Pre-build the panel so the first open is instant.
@@ -101,9 +112,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func setupStatusItem() {
-        statusItem.length = MenuBarStatusItemView.defaultWidth
-
         guard let button = statusItem.button else {
+            return
+        }
+
+        button.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: "System Monitor")
+        button.image?.isTemplate = true
+        button.action = #selector(handleClick)
+        button.target = self
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    private func setupAgentStatusItem() {
+        agentStatusItem.isVisible = false
+
+        guard let button = agentStatusItem.button else {
             return
         }
 
@@ -116,20 +139,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let statusView = MenuBarStatusItemView(frame: button.bounds)
         statusView.autoresizingMask = [.width, .height]
         statusView.onLeftClick = { [weak self] in
-            self?.togglePanel()
+            self?.toggleAgentStatusPanel()
         }
         statusView.onRightClick = { [weak self] in
-            self?.showContextMenu()
+            self?.toggleAgentStatusPanel()
         }
         statusView.onPreferredWidthChange = { [weak self, weak statusView] width in
             guard let self else { return }
-            self.statusItem.length = width
-            statusView?.frame = self.statusItem.button?.bounds ?? .zero
+            self.agentStatusItem.length = width
+            statusView?.frame = self.agentStatusItem.button?.bounds ?? .zero
         }
         statusView.bind(to: agentStatusStore, settings: agentLightsSettings)
 
         button.addSubview(statusView)
         menuBarStatusView = statusView
+        updateAgentStatusItemVisibility()
     }
 
     private func setupMainMenu() {
@@ -165,6 +189,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.windowsMenu = windowMenu
     }
 
+    @objc private func handleClick() {
+        guard let event = NSApp.currentEvent else { return }
+        if event.type == .rightMouseUp {
+            showContextMenu()
+        } else {
+            togglePanel()
+        }
+    }
+
     @objc private func togglePanel() {
         if let panel, panel.isVisible {
             closePanel()
@@ -174,6 +207,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func openPanel() {
+        closeAgentStatusPanel()
+
         let p: InputPanel
         if let existing = panel {
             p = existing
@@ -218,6 +253,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc private func toggleAgentStatusPanel() {
+        if let agentStatusPanel, agentStatusPanel.isVisible {
+            closeAgentStatusPanel()
+        } else {
+            openAgentStatusPanel()
+        }
+    }
+
+    private func openAgentStatusPanel() {
+        closePanel()
+
+        let p: InputPanel
+        if let existing = agentStatusPanel {
+            p = existing
+        } else {
+            p = makeAgentStatusPanel()
+            agentStatusPanel = p
+        }
+
+        if let button = agentStatusItem.button,
+           let screen = button.window?.screen ?? NSScreen.main {
+            let buttonRect = button.convert(button.bounds, to: nil)
+            let screenRect = button.window?.convertToScreen(buttonRect) ?? .zero
+            let x = screenRect.midX - p.frame.width / 2
+            let y = screenRect.minY - p.frame.height - 4
+            let clamped = max(screen.visibleFrame.minX, min(x, screen.visibleFrame.maxX - p.frame.width))
+            p.setFrameOrigin(NSPoint(x: clamped, y: y))
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        p.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            if self.settingsWindow?.isVisible != true {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+
+        agentStatusEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.closeAgentStatusPanel()
+        }
+    }
+
+    private func closeAgentStatusPanel() {
+        agentStatusPanel?.orderOut(nil)
+        if settingsWindow?.isVisible != true && panel?.isVisible != true {
+            NSApp.setActivationPolicy(.accessory)
+        }
+        if let monitor = agentStatusEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            agentStatusEventMonitor = nil
+        }
+    }
+
     private func setupThemeObservation() {
         applyCurrentTheme()
 
@@ -239,6 +328,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 updatePanelLayout(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: currentSelectedTab, animated: true)
             }
             .store(in: &cancellables)
+
+        agentLightsSettings.$isEnabled
+            .combineLatest(agentLightsSettings.$selectedAgents)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _ in
+                self?.updateAgentStatusItemVisibility()
+            }
+            .store(in: &cancellables)
     }
 
     private func setupPanelObservation() {
@@ -257,6 +354,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel?.appearance = appearance
         panel?.contentViewController?.view.appearance = appearance
         panel?.contentView?.needsDisplay = true
+        agentStatusPanel?.appearance = appearance
+        agentStatusPanel?.contentViewController?.view.appearance = appearance
+        agentStatusPanel?.contentView?.needsDisplay = true
         settingsWindow?.appearance = appearance
         settingsWindow?.contentViewController?.view.appearance = appearance
         settingsWindow?.contentView?.needsDisplay = true
@@ -287,7 +387,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(themeManager)
                 .environmentObject(agentUsageSettings)
                 .environmentObject(agentUsageStore)
-                .environmentObject(agentStatusStore)
                 .environmentObject(updateManager)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
@@ -306,10 +405,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func panelMetrics(agentEnabled: Bool, selectedTab: Int) -> (width: CGFloat, height: CGFloat, minWidth: CGFloat, minHeight: CGFloat) {
-        let isStatusTabActive = selectedTab == 2
-        let width = agentEnabled || isStatusTabActive ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
-        let minWidth = agentEnabled || isStatusTabActive ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
-        let isAgentTabActive = agentEnabled && selectedTab == 3
+        let width = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
+        let minWidth = agentEnabled ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
+        let isAgentTabActive = agentEnabled && selectedTab == 2
         let height = isAgentTabActive ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
         let minHeight = isAgentTabActive ? PanelMetrics.agentMinHeight : PanelMetrics.baseMinHeight
         return (width, height, minWidth, minHeight)
@@ -333,6 +431,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         frame.origin.y = topEdge - metrics.height
         panel.setFrame(frame, display: true, animate: animated)
         panel.minSize = NSSize(width: metrics.minWidth, height: metrics.minHeight)
+    }
+
+    private func makeAgentStatusPanel() -> InputPanel {
+        let panel = InputPanel(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: AgentStatusPanelMetrics.width,
+                height: AgentStatusPanelMetrics.height
+            ),
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.isMovableByWindowBackground = false
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+        panel.minSize = NSSize(width: AgentStatusPanelMetrics.minWidth, height: AgentStatusPanelMetrics.minHeight)
+        panel.appearance = themeManager.currentTheme.nsAppearance
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+
+        let controller = NSHostingController(
+            rootView: ZStack {
+                VisualEffectView(material: .underWindowBackground, blendingMode: .withinWindow)
+                    .ignoresSafeArea()
+                AgentStatusManagementView()
+                    .environmentObject(agentStatusStore)
+            }
+            .id(themeManager.currentTheme)
+        )
+        controller.view.appearance = themeManager.currentTheme.nsAppearance
+        panel.contentViewController = controller
+
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 12
+            contentView.layer?.masksToBounds = true
+        }
+
+        return panel
+    }
+
+    private func updateAgentStatusItemVisibility() {
+        let shouldShow = agentLightsSettings.isEnabled && agentLightsSettings.selectedAgents.isEmpty == false
+        agentStatusItem.isVisible = shouldShow
+        if shouldShow == false {
+            closeAgentStatusPanel()
+        }
     }
 
     private func showContextMenu() {
