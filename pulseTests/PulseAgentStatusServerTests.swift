@@ -134,20 +134,26 @@ final class PulseAgentStatusServerTests: XCTestCase {
             enabledAgents: [.codex]
         )
         let server = PulseAgentStatusServer(store: store)
-        let parentPayload = """
-        {"agent":"codex","sessionID":"thread_parent","projectPath":"/tmp/pulse","title":"Parent","timestamp":"1970-01-01T00:01:40Z","kind":"session.idle"}
-        """.data(using: .utf8)!
-        let childPayload = """
-        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:41Z","kind":"session.working","parentSessionID":"thread_parent","isSubagent":true}
-        """.data(using: .utf8)!
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
 
-        try server.handlePayload(parentPayload)
-        try server.handlePayload(childPayload)
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        try harness.runHook(with: """
+        {"hook_event_name":"UserPromptSubmit","session_id":"thread_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!)
+        try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:40Z"))
+
+        try harness.runHook(with: """
+        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        """.data(using: .utf8)!)
+        try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:41Z"))
 
         XCTAssertEqual(store.groups[0].slots.count, 1)
         XCTAssertEqual(store.groups[0].slots.first?.sessionID, "thread_parent")
         XCTAssertEqual(store.groups[0].slots.first?.state, .working)
-        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .working)
     }
 
     @MainActor
@@ -157,23 +163,36 @@ final class PulseAgentStatusServerTests: XCTestCase {
             enabledAgents: [.codex]
         )
         let server = PulseAgentStatusServer(store: store)
-        let parentPayload = """
-        {"agent":"codex","sessionID":"thread_parent","projectPath":"/tmp/pulse","title":"Parent","timestamp":"1970-01-01T00:01:40Z","kind":"session.idle"}
-        """.data(using: .utf8)!
-        let childWorkingPayload = """
-        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:41Z","kind":"session.working","parentSessionID":"thread_parent","isSubagent":true}
-        """.data(using: .utf8)!
-        let childIdlePayload = """
-        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:42Z","kind":"session.idle","parentSessionID":"thread_parent","isSubagent":true}
-        """.data(using: .utf8)!
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
 
-        try server.handlePayload(parentPayload)
-        try server.handlePayload(childWorkingPayload)
-        try server.handlePayload(childIdlePayload)
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        try harness.runHook(with: """
+        {"hook_event_name":"Stop","session_id":"thread_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!)
+        try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:40Z"))
+
+        try harness.runHook(with: """
+        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        """.data(using: .utf8)!)
+        try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:41Z"))
+
+        try harness.runHook(with: """
+        {"hook_event_name":"SubagentStop","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        """.data(using: .utf8)!)
+        try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:42Z"))
 
         XCTAssertEqual(store.groups[0].slots.count, 1)
         XCTAssertEqual(store.groups[0].slots.first?.sessionID, "thread_parent")
         XCTAssertEqual(store.groups[0].slots.first?.state, .idle)
         XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+    }
+
+    private func normalizedPayloadData(from payload: [String: Any], timestamp: String) throws -> Data {
+        var copy = payload
+        copy["timestamp"] = timestamp
+        return try JSONSerialization.data(withJSONObject: copy, options: [])
     }
 }

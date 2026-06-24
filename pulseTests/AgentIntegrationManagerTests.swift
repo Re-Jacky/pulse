@@ -131,15 +131,12 @@ final class AgentIntegrationManagerTests: XCTestCase {
     }
 
     func testCodexInstallerWritesHooksJsonWithPulseHooks() throws {
-        let fs = InMemoryAgentIntegrationFileSystem()
-        let installer = CodexIntegrationInstaller(
-            fileSystem: fs,
-            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
-        )
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
 
-        try installer.install()
+        try harness.installCodexIntegration()
 
-        let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
+        let hook = try XCTUnwrap(harness.readFile(named: "pulse-agent-lights-hook.sh"))
         XCTAssertTrue(hook.contains("PULSE_MANAGED_VERSION"))
         XCTAssertTrue(hook.contains("hook_event_name"))
         XCTAssertTrue(hook.contains("parentSessionID"))
@@ -150,7 +147,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(hook.contains("source === \"startup\""))
         XCTAssertTrue(hook.contains("process.exit(0);"))
 
-        let config = try XCTUnwrap(fs.readCreatedFile(named: "hooks.json"))
+        let config = try XCTUnwrap(harness.readFile(named: "hooks.json"))
         XCTAssertTrue(config.contains("\"SessionStart\""))
         XCTAssertTrue(config.contains("\"UserPromptSubmit\""))
         XCTAssertTrue(config.contains("\"SubagentStart\""))
@@ -160,20 +157,35 @@ final class AgentIntegrationManagerTests: XCTestCase {
     }
 
     func testCodexHookNormalizesOnlyRealParentSessionsAsSubagents() throws {
-        let fs = InMemoryAgentIntegrationFileSystem()
-        let installer = CodexIntegrationInstaller(
-            fileSystem: fs,
-            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
-        )
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
 
-        try installer.install()
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
 
-        let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
-        XCTAssertTrue(hook.contains("function normalizeParentSessionID"))
-        XCTAssertTrue(hook.contains("parentSessionID.startsWith(\"thread_\")"))
-        XCTAssertTrue(hook.contains("const normalizedParentSessionID = normalizeParentSessionID(parentSessionID);"))
-        XCTAssertTrue(hook.contains("const isSubagent = normalizedParentSessionID.length > 0 && eventName.startsWith(\"Subagent\");"))
-        XCTAssertTrue(hook.contains("...(normalizedParentSessionID.length > 0 ? { parentSessionID: normalizedParentSessionID } : {})"))
+        let nonMainParentPayload = """
+        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"turn_child"}
+        """.data(using: .utf8)!
+        try harness.runHook(with: nonMainParentPayload)
+
+        let nonMainCapturedPayload = try harness.capturedSenderPayload()
+        XCTAssertEqual(nonMainCapturedPayload["agent"] as? String, "codex")
+        XCTAssertEqual(nonMainCapturedPayload["sessionID"] as? String, "thread_child")
+        XCTAssertEqual(nonMainCapturedPayload["kind"] as? String, "session.working")
+        XCTAssertNil(nonMainCapturedPayload["isSubagent"])
+        XCTAssertNil(nonMainCapturedPayload["parentSessionID"])
+
+        let realParentPayload = """
+        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        """.data(using: .utf8)!
+        try harness.runHook(with: realParentPayload)
+
+        let normalizedPayload = try harness.capturedSenderPayload()
+        XCTAssertEqual(normalizedPayload["agent"] as? String, "codex")
+        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_child")
+        XCTAssertEqual(normalizedPayload["kind"] as? String, "session.working")
+        XCTAssertEqual(normalizedPayload["isSubagent"] as? Bool, true)
+        XCTAssertEqual(normalizedPayload["parentSessionID"] as? String, "thread_parent")
     }
 
     func testCodexInstallerPreservesExistingHooksJsonEntries() throws {
@@ -290,6 +302,187 @@ final class AgentIntegrationManagerTests: XCTestCase {
         )
 
         XCTAssertEqual(manager.status(for: .openCode).state, .outdated)
+    }
+}
+
+final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
+    private let fileManager: FileManager
+    private let rootURL: URL
+    let homeDirectoryURL: URL
+    private let captureURL: URL
+    private let nodeShimDirectoryURL: URL
+
+    init(fileManager: FileManager = .default) throws {
+        self.fileManager = fileManager
+        rootURL = fileManager.temporaryDirectory.appendingPathComponent("CodexHookRegression-\(UUID().uuidString)", isDirectory: true)
+        homeDirectoryURL = rootURL.appendingPathComponent("home", isDirectory: true)
+        captureURL = rootURL.appendingPathComponent("captured-sender-payload.json", isDirectory: false)
+        nodeShimDirectoryURL = rootURL.appendingPathComponent("bin", isDirectory: true)
+        try fileManager.createDirectory(at: homeDirectoryURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: nodeShimDirectoryURL, withIntermediateDirectories: true)
+        try installNodeShim()
+    }
+
+    func cleanup() {
+        try? fileManager.removeItem(at: rootURL)
+    }
+
+    func installCodexIntegration() throws {
+        try CodexIntegrationInstaller(
+            fileSystem: self,
+            homeDirectoryURL: homeDirectoryURL
+        ).install()
+    }
+
+    func installSenderCaptureScript() throws {
+        try writeFile(at: senderURL, contents: """
+        #!/bin/sh
+        set -eu
+        : "${PULSE_CAPTURE_PATH:?}"
+        printf '%s' "$1" > "$PULSE_CAPTURE_PATH"
+        """)
+        try setExecutableBit(for: senderURL)
+    }
+
+    func runHook(with payload: Data) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [hookScriptURL.path]
+        var environment = ProcessInfo.processInfo.environment
+        environment["HOME"] = homeDirectoryURL.path
+        environment["PULSE_CAPTURE_PATH"] = captureURL.path
+        environment["PATH"] = nodeShimDirectoryURL.path
+        process.environment = environment
+
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        try process.run()
+        stdinPipe.fileHandleForWriting.write(payload)
+        try stdinPipe.fileHandleForWriting.close()
+        process.waitUntilExit()
+
+        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        XCTAssertEqual(process.terminationStatus, 0, "Hook failed: \(stderr)")
+
+        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        XCTAssertTrue(stdout.contains("\"continue\":true"), "Hook did not continue: \(stdout)")
+    }
+
+    func capturedSenderPayload() throws -> [String: Any] {
+        let data = try Data(contentsOf: captureURL)
+        let object = try JSONSerialization.jsonObject(with: data, options: [])
+        return try XCTUnwrap(object as? [String: Any])
+    }
+
+    func readFile(named name: String) -> String? {
+        readFile(at: fileURL(named: name))
+    }
+
+    func fileExists(at url: URL) -> Bool {
+        fileManager.fileExists(atPath: url.path)
+    }
+
+    func readFile(at url: URL) -> String? {
+        try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    func writeFile(at url: URL, contents: String) throws {
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    func removeItem(at url: URL) throws {
+        try fileManager.removeItem(at: url)
+    }
+
+    func setExecutableBit(for url: URL) throws {
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    }
+
+    private var senderURL: URL {
+        homeDirectoryURL
+            .appendingPathComponent(".pulse-agent-lights", isDirectory: true)
+            .appendingPathComponent("pulse-agent-event-sender.sh")
+    }
+
+    private var hookScriptURL: URL {
+        homeDirectoryURL
+            .appendingPathComponent(".codex", isDirectory: true)
+            .appendingPathComponent("hooks", isDirectory: true)
+            .appendingPathComponent("pulse-agent-lights-hook.sh")
+    }
+
+    private func fileURL(named name: String) -> URL {
+        switch name {
+        case "pulse-agent-lights-hook.sh":
+            return hookScriptURL
+        case "hooks.json":
+            return homeDirectoryURL
+                .appendingPathComponent(".codex", isDirectory: true)
+                .appendingPathComponent("hooks.json")
+        case "pulse-agent-event-sender.sh":
+            return senderURL
+        default:
+            return rootURL.appendingPathComponent(name)
+        }
+    }
+
+    private func installNodeShim() throws {
+        guard let nodeExecutableURL = Self.resolveNodeExecutableURL(fileManager: fileManager) else {
+            throw NSError(
+                domain: "CodexHookRegressionHarness",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to locate a node executable for the Codex hook harness"]
+            )
+        }
+
+        let nodeShimURL = nodeShimDirectoryURL.appendingPathComponent("node")
+        try writeFile(
+            at: nodeShimURL,
+            contents: """
+            #!/bin/sh
+            exec "\(nodeExecutableURL.path)" "$@"
+            """
+        )
+        try setExecutableBit(for: nodeShimURL)
+    }
+
+    private static func resolveNodeExecutableURL(fileManager: FileManager) -> URL? {
+        let candidates = [
+            URL(fileURLWithPath: "/opt/homebrew/bin/node"),
+            URL(fileURLWithPath: "/usr/local/bin/node"),
+            URL(fileURLWithPath: "/usr/bin/node")
+        ]
+
+        if let match = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) {
+            return match
+        }
+
+        let nvmRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent(".nvm", isDirectory: true)
+            .appendingPathComponent("versions", isDirectory: true)
+            .appendingPathComponent("node", isDirectory: true)
+
+        guard let enumerator = fileManager.enumerator(
+            at: nvmRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        for case let url as URL in enumerator where url.lastPathComponent == "node" {
+            if fileManager.isExecutableFile(atPath: url.path) {
+                return url
+            }
+        }
+
+        return nil
     }
 }
 
