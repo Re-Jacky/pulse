@@ -131,12 +131,15 @@ final class AgentIntegrationManagerTests: XCTestCase {
     }
 
     func testCodexInstallerWritesHooksJsonWithPulseHooks() throws {
-        let harness = try CodexHookRegressionHarness()
-        defer { harness.cleanup() }
+        let fs = InMemoryAgentIntegrationFileSystem()
+        let installer = CodexIntegrationInstaller(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
 
-        try harness.installCodexIntegration()
+        try installer.install()
 
-        let hook = try XCTUnwrap(harness.readFile(named: "pulse-agent-lights-hook.sh"))
+        let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
         XCTAssertTrue(hook.contains("PULSE_MANAGED_VERSION"))
         XCTAssertTrue(hook.contains("hook_event_name"))
         XCTAssertTrue(hook.contains("parentSessionID"))
@@ -147,7 +150,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(hook.contains("source === \"startup\""))
         XCTAssertTrue(hook.contains("process.exit(0);"))
 
-        let config = try XCTUnwrap(harness.readFile(named: "hooks.json"))
+        let config = try XCTUnwrap(fs.readCreatedFile(named: "hooks.json"))
         XCTAssertTrue(config.contains("\"SessionStart\""))
         XCTAssertTrue(config.contains("\"UserPromptSubmit\""))
         XCTAssertTrue(config.contains("\"SubagentStart\""))
@@ -156,36 +159,35 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(config.contains("pulse-agent-lights-hook.sh"))
     }
 
-    func testCodexHookNormalizesOnlyRealParentSessionsAsSubagents() throws {
+    func testCodexHookNormalizesStableThreadIDsAndParentThreadMetadata() throws {
         let harness = try CodexHookRegressionHarness()
         defer { harness.cleanup() }
 
         try harness.installCodexIntegration()
         try harness.installSenderCaptureScript()
 
-        let nonMainParentPayload = """
-        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"turn_child"}
+        let mainPayload = """
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl","session_id":"thread_parent","thread_id":"thread_parent","cwd":"/tmp/pulse"}
         """.data(using: .utf8)!
-        try harness.runHook(with: nonMainParentPayload)
 
-        let nonMainCapturedPayload = try harness.capturedSenderPayload()
-        XCTAssertEqual(nonMainCapturedPayload["agent"] as? String, "codex")
-        XCTAssertEqual(nonMainCapturedPayload["sessionID"] as? String, "thread_child")
-        XCTAssertEqual(nonMainCapturedPayload["kind"] as? String, "session.working")
-        XCTAssertNil(nonMainCapturedPayload["isSubagent"])
-        XCTAssertNil(nonMainCapturedPayload["parentSessionID"])
+        let mainNormalizedPayload = try harness.normalizedSenderPayload(from: mainPayload)
+        XCTAssertEqual(mainNormalizedPayload["agent"] as? String, "codex")
+        XCTAssertEqual(mainNormalizedPayload["sessionID"] as? String, "thread_parent")
+        XCTAssertNotEqual(mainNormalizedPayload["sessionID"] as? String, "/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl")
+        XCTAssertEqual(mainNormalizedPayload["kind"] as? String, "session.working")
+        XCTAssertNil(mainNormalizedPayload["parentSessionID"])
+        XCTAssertNil(mainNormalizedPayload["isSubagent"])
 
-        let realParentPayload = """
-        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        let childPayload = """
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
         """.data(using: .utf8)!
-        try harness.runHook(with: realParentPayload)
 
-        let normalizedPayload = try harness.capturedSenderPayload()
-        XCTAssertEqual(normalizedPayload["agent"] as? String, "codex")
-        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_child")
-        XCTAssertEqual(normalizedPayload["kind"] as? String, "session.working")
-        XCTAssertEqual(normalizedPayload["isSubagent"] as? Bool, true)
-        XCTAssertEqual(normalizedPayload["parentSessionID"] as? String, "thread_parent")
+        let childNormalizedPayload = try harness.normalizedSenderPayload(from: childPayload)
+        XCTAssertEqual(childNormalizedPayload["agent"] as? String, "codex")
+        XCTAssertEqual(childNormalizedPayload["sessionID"] as? String, "thread_child")
+        XCTAssertEqual(childNormalizedPayload["kind"] as? String, "session.working")
+        XCTAssertEqual(childNormalizedPayload["parentSessionID"] as? String, "thread_parent")
+        XCTAssertEqual(childNormalizedPayload["isSubagent"] as? Bool, true)
     }
 
     func testCodexInstallerPreservesExistingHooksJsonEntries() throws {
@@ -344,7 +346,14 @@ final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
         try setExecutableBit(for: senderURL)
     }
 
+    func normalizedSenderPayload(from rawPayload: Data) throws -> [String: Any] {
+        try runHook(with: rawPayload)
+        return try capturedSenderPayload()
+    }
+
     func runHook(with payload: Data) throws {
+        try clearCapturedPayload()
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [hookScriptURL.path]
@@ -379,10 +388,6 @@ final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
         return try XCTUnwrap(object as? [String: Any])
     }
 
-    func readFile(named name: String) -> String? {
-        readFile(at: fileURL(named: name))
-    }
-
     func fileExists(at url: URL) -> Bool {
         fileManager.fileExists(atPath: url.path)
     }
@@ -404,6 +409,12 @@ final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 
+    private func clearCapturedPayload() throws {
+        if fileManager.fileExists(atPath: captureURL.path) {
+            try fileManager.removeItem(at: captureURL)
+        }
+    }
+
     private var senderURL: URL {
         homeDirectoryURL
             .appendingPathComponent(".pulse-agent-lights", isDirectory: true)
@@ -415,21 +426,6 @@ final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("hooks", isDirectory: true)
             .appendingPathComponent("pulse-agent-lights-hook.sh")
-    }
-
-    private func fileURL(named name: String) -> URL {
-        switch name {
-        case "pulse-agent-lights-hook.sh":
-            return hookScriptURL
-        case "hooks.json":
-            return homeDirectoryURL
-                .appendingPathComponent(".codex", isDirectory: true)
-                .appendingPathComponent("hooks.json")
-        case "pulse-agent-event-sender.sh":
-            return senderURL
-        default:
-            return rootURL.appendingPathComponent(name)
-        }
     }
 
     private func installNodeShim() throws {

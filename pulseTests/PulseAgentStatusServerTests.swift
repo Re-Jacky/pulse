@@ -128,7 +128,7 @@ final class PulseAgentStatusServerTests: XCTestCase {
     }
 
     @MainActor
-    func testHandlePayloadAggregatesCodexSubagentIntoParentSession() throws {
+    func testHandlePayloadAggregatesCodexSubagentThreadIntoParentSession() throws {
         let store = AgentStatusStore(
             persistence: InMemoryAgentStatusPersistence(),
             enabledAgents: [.codex]
@@ -141,12 +141,12 @@ final class PulseAgentStatusServerTests: XCTestCase {
         try harness.installSenderCaptureScript()
 
         try harness.runHook(with: """
-        {"hook_event_name":"UserPromptSubmit","session_id":"thread_parent","cwd":"/tmp/pulse"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl","session_id":"thread_parent","thread_id":"thread_parent","cwd":"/tmp/pulse"}
         """.data(using: .utf8)!)
         try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:40Z"))
 
         try harness.runHook(with: """
-        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
         """.data(using: .utf8)!)
         try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:41Z"))
 
@@ -170,24 +170,24 @@ final class PulseAgentStatusServerTests: XCTestCase {
         try harness.installSenderCaptureScript()
 
         try harness.runHook(with: """
-        {"hook_event_name":"Stop","session_id":"thread_parent","cwd":"/tmp/pulse"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl","session_id":"thread_parent","thread_id":"thread_parent","cwd":"/tmp/pulse"}
         """.data(using: .utf8)!)
         try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:40Z"))
 
         try harness.runHook(with: """
-        {"hook_event_name":"SubagentStart","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
         """.data(using: .utf8)!)
         try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:41Z"))
 
         try harness.runHook(with: """
-        {"hook_event_name":"SubagentStop","session_id":"thread_child","cwd":"/tmp/pulse","parent_id":"thread_parent"}
+        {"hook_event_name":"Stop","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
         """.data(using: .utf8)!)
         try server.handlePayload(try normalizedPayloadData(from: harness.capturedSenderPayload(), timestamp: "1970-01-01T00:01:42Z"))
 
         XCTAssertEqual(store.groups[0].slots.count, 1)
         XCTAssertEqual(store.groups[0].slots.first?.sessionID, "thread_parent")
-        XCTAssertEqual(store.groups[0].slots.first?.state, .idle)
-        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+        XCTAssertEqual(store.groups[0].slots.first?.state, .working)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .working)
     }
 
     private func normalizedPayloadData(from payload: [String: Any], timestamp: String) throws -> Data {
