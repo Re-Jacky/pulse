@@ -126,4 +126,54 @@ final class PulseAgentStatusServerTests: XCTestCase {
         XCTAssertEqual(store.groups[0].slots.first?.state, .working)
         XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
     }
+
+    @MainActor
+    func testHandlePayloadAggregatesCodexSubagentIntoParentSession() throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+        let server = PulseAgentStatusServer(store: store)
+        let parentPayload = """
+        {"agent":"codex","sessionID":"thread_parent","projectPath":"/tmp/pulse","title":"Parent","timestamp":"1970-01-01T00:01:40Z","kind":"session.idle"}
+        """.data(using: .utf8)!
+        let childPayload = """
+        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:41Z","kind":"session.working","parentSessionID":"thread_parent","isSubagent":true}
+        """.data(using: .utf8)!
+
+        try server.handlePayload(parentPayload)
+        try server.handlePayload(childPayload)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionID, "thread_parent")
+        XCTAssertEqual(store.groups[0].slots.first?.state, .working)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+    }
+
+    @MainActor
+    func testHandlePayloadLetsCodexParentReturnToBaseStateAfterChildStops() throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+        let server = PulseAgentStatusServer(store: store)
+        let parentPayload = """
+        {"agent":"codex","sessionID":"thread_parent","projectPath":"/tmp/pulse","title":"Parent","timestamp":"1970-01-01T00:01:40Z","kind":"session.idle"}
+        """.data(using: .utf8)!
+        let childWorkingPayload = """
+        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:41Z","kind":"session.working","parentSessionID":"thread_parent","isSubagent":true}
+        """.data(using: .utf8)!
+        let childIdlePayload = """
+        {"agent":"codex","sessionID":"thread_child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:42Z","kind":"session.idle","parentSessionID":"thread_parent","isSubagent":true}
+        """.data(using: .utf8)!
+
+        try server.handlePayload(parentPayload)
+        try server.handlePayload(childWorkingPayload)
+        try server.handlePayload(childIdlePayload)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionID, "thread_parent")
+        XCTAssertEqual(store.groups[0].slots.first?.state, .idle)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+    }
 }

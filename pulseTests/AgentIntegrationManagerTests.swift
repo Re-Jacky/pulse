@@ -159,6 +159,23 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(config.contains("pulse-agent-lights-hook.sh"))
     }
 
+    func testCodexHookNormalizesOnlyRealParentSessionsAsSubagents() throws {
+        let fs = InMemoryAgentIntegrationFileSystem()
+        let installer = CodexIntegrationInstaller(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        try installer.install()
+
+        let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
+        XCTAssertTrue(hook.contains("function normalizeParentSessionID"))
+        XCTAssertTrue(hook.contains("parentSessionID.startsWith(\"thread_\")"))
+        XCTAssertTrue(hook.contains("const normalizedParentSessionID = normalizeParentSessionID(parentSessionID);"))
+        XCTAssertTrue(hook.contains("const isSubagent = normalizedParentSessionID.length > 0 && eventName.startsWith(\"Subagent\");"))
+        XCTAssertTrue(hook.contains("...(normalizedParentSessionID.length > 0 ? { parentSessionID: normalizedParentSessionID } : {})"))
+    }
+
     func testCodexInstallerPreservesExistingHooksJsonEntries() throws {
         let fs = InMemoryAgentIntegrationFileSystem(seed: .userOwnedCodexHooks)
         let installer = CodexIntegrationInstaller(
