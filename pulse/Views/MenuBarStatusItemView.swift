@@ -293,17 +293,11 @@ final class MenuBarStatusItemView: NSControl {
 
         switch state {
         case .empty:
-            NSColor.separatorColor.setStroke()
+            AgentSessionLightColor.nsColor(for: state).setStroke()
             path.lineWidth = 1
             path.stroke()
-        case .working:
-            NSColor.systemOrange.setFill()
-            path.fill()
-        case .idle:
-            NSColor.systemGreen.setFill()
-            path.fill()
-        case .error:
-            NSColor.systemRed.setFill()
+        case .working, .idle, .error:
+            AgentSessionLightColor.nsColor(for: state).setFill()
             path.fill()
         }
     }
@@ -353,6 +347,10 @@ extension MenuBarStatusItemView {
 
     func performLeftMouseUpForTesting(at point: NSPoint) {
         completeMouseActivation(at: point)
+    }
+
+    static func color(for state: AgentSessionLightState) -> NSColor {
+        AgentSessionLightColor.nsColor(for: state)
     }
 }
 #endif

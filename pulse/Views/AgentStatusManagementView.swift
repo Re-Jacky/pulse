@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AgentStatusManagementView: View {
@@ -206,18 +207,17 @@ struct AgentStatusManagementView: View {
     }
 
     private func color(for state: AgentSessionLightState) -> Color {
-        switch state {
-        case .empty:
-            return .appDivider
-        case .working:
-            return .orange
-        case .idle:
-            return .green
-        case .error:
-            return .red
-        }
+        AgentSessionLightColor.swiftUIColor(for: state)
     }
 }
+
+#if DEBUG
+extension AgentStatusManagementView {
+    static func color(for state: AgentSessionLightState) -> NSColor {
+        AgentSessionLightColor.nsColor(for: state)
+    }
+}
+#endif
 
 private struct SlotDetailLine: Identifiable {
     let id = UUID()
