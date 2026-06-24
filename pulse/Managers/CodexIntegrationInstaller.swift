@@ -90,9 +90,6 @@ struct CodexIntegrationInstaller {
             payload.threadID,
             payload.conversation_id,
             payload.conversationId,
-            payload.turn_id,
-            payload.turnId,
-            payload.id,
             payload.transcript_path,
             payload.transcriptPath
           );
@@ -105,9 +102,6 @@ struct CodexIntegrationInstaller {
             payload.parent_session_id,
             payload.parentSessionID,
             payload.parentSessionId,
-            payload.parent_id,
-            payload.parentId,
-            payload.parent,
             readNestedParentThreadID(payload.source)
           );
         }
@@ -130,15 +124,18 @@ struct CodexIntegrationInstaller {
             return true;
           }
 
+          const threadSource = String(payload.thread_source ?? payload.threadSource ?? "");
+          const hasThreadSourceMetadata = threadSource === "subagent" || hasNestedSubagentSource(payload.source);
+
+          if (hasThreadSourceMetadata) {
+            return normalizedParentSessionID.length > 0;
+          }
+
           if (normalizedParentSessionID.length > 0) {
             return true;
           }
 
-          if (String(payload.thread_source ?? payload.threadSource ?? "") === "subagent") {
-            return true;
-          }
-
-          return hasNestedSubagentSource(payload.source);
+          return false;
         }
 
         const sessionID = normalizeSessionID(payload);

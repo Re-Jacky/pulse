@@ -144,9 +144,15 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(hook.contains("hook_event_name"))
         XCTAssertTrue(hook.contains("parentSessionID"))
         XCTAssertTrue(hook.contains("isSubagent"))
+        XCTAssertTrue(hook.contains("payload.session_id"))
         XCTAssertTrue(hook.contains("payload.transcript_path"))
         XCTAssertTrue(hook.contains("payload.thread_id"))
-        XCTAssertTrue(hook.contains("payload.turn_id"))
+        XCTAssertFalse(hook.contains("payload.turn_id"))
+        XCTAssertFalse(hook.contains("payload.turnId"))
+        XCTAssertFalse(hook.contains("payload.id"))
+        XCTAssertFalse(hook.contains("payload.parent_id"))
+        XCTAssertFalse(hook.contains("payload.parentId"))
+        XCTAssertTrue(hook.contains("payload.parent_thread_id"))
         XCTAssertTrue(hook.contains("source === \"startup\""))
         XCTAssertTrue(hook.contains("process.exit(0);"))
 
@@ -188,6 +194,39 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertEqual(childNormalizedPayload["kind"] as? String, "session.working")
         XCTAssertEqual(childNormalizedPayload["parentSessionID"] as? String, "thread_parent")
         XCTAssertEqual(childNormalizedPayload["isSubagent"] as? Bool, true)
+    }
+
+    func testCodexHookUsesTranscriptPathInsteadOfTurnIdentifierForSessionID() throws {
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
+
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        let payload = """
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_turn-2026-06-24.jsonl","turn_id":"turn_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!
+
+        let normalizedPayload = try harness.normalizedSenderPayload(from: payload)
+        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "/Users/zyao/.codex/sessions/thread_turn-2026-06-24.jsonl")
+        XCTAssertNotEqual(normalizedPayload["sessionID"] as? String, "turn_parent")
+    }
+
+    func testCodexHookIgnoresGenericParentIdentifierForSubagentClassification() throws {
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
+
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        let payload = """
+        {"hook_event_name":"UserPromptSubmit","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_id":"turn_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!
+
+        let normalizedPayload = try harness.normalizedSenderPayload(from: payload)
+        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_child")
+        XCTAssertNil(normalizedPayload["parentSessionID"])
+        XCTAssertNil(normalizedPayload["isSubagent"])
     }
 
     func testCodexInstallerPreservesExistingHooksJsonEntries() throws {
