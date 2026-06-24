@@ -53,32 +53,99 @@ struct CodexIntegrationInstaller {
         const payload = JSON.parse(readFileSync(0, "utf8") || "{}");
         const eventName = String(payload.hook_event_name ?? payload.event ?? payload.hookEventName ?? "");
         const source = String(payload.source ?? "");
-        const sessionID = String(
-          payload.transcript_path ??
-          payload.transcriptPath ??
-          payload.session_id ??
-          payload.sessionID ??
-          payload.sessionId ??
-          payload.conversation_id ??
-          payload.conversationId ??
-          payload.thread_id ??
-          payload.threadId ??
-          payload.turn_id ??
-          payload.turnId ??
-          ""
-        );
-        const parentSessionID = String(
-          payload.parent_session_id ??
-          payload.parentSessionID ??
-          payload.parentSessionId ??
-          payload.parent_id ??
-          payload.parentId ??
-          payload.parent ??
-          ""
-        );
+        function firstNonEmptyString(...values) {
+          for (const value of values) {
+            if (typeof value === "string" && value.length > 0) {
+              return value;
+            }
+          }
+
+          return "";
+        }
+
+        function readNestedParentThreadID(sourceValue) {
+          if (typeof sourceValue !== "object" || sourceValue === null) {
+            return "";
+          }
+
+          return firstNonEmptyString(
+            sourceValue.subagent?.thread_spawn?.parent_thread_id,
+            sourceValue.subagent?.thread_spawn?.parentThreadId,
+            sourceValue.subagent?.parent_thread_id,
+            sourceValue.subagent?.parentThreadId,
+            sourceValue.thread_spawn?.parent_thread_id,
+            sourceValue.thread_spawn?.parentThreadId,
+            sourceValue.parent_thread_id,
+            sourceValue.parentThreadId
+          );
+        }
+
+        function normalizeSessionID(payload) {
+          return firstNonEmptyString(
+            payload.session_id,
+            payload.sessionID,
+            payload.sessionId,
+            payload.thread_id,
+            payload.threadId,
+            payload.threadID,
+            payload.conversation_id,
+            payload.conversationId,
+            payload.turn_id,
+            payload.turnId,
+            payload.id,
+            payload.transcript_path,
+            payload.transcriptPath
+          );
+        }
+
+        function normalizeParentSessionID(payload) {
+          return firstNonEmptyString(
+            payload.parent_thread_id,
+            payload.parentThreadId,
+            payload.parent_session_id,
+            payload.parentSessionID,
+            payload.parentSessionId,
+            payload.parent_id,
+            payload.parentId,
+            payload.parent,
+            readNestedParentThreadID(payload.source)
+          );
+        }
+
+        function hasNestedSubagentSource(sourceValue) {
+          if (typeof sourceValue !== "object" || sourceValue === null) {
+            return false;
+          }
+
+          return firstNonEmptyString(
+            sourceValue.subagent?.thread_spawn?.parent_thread_id,
+            sourceValue.subagent?.thread_spawn?.parentThreadId,
+            sourceValue.subagent?.parent_thread_id,
+            sourceValue.subagent?.parentThreadId
+          ).length > 0;
+        }
+
+        function isSubagentEvent(payload, eventNameValue, normalizedParentSessionID) {
+          if (eventNameValue.startsWith("Subagent")) {
+            return true;
+          }
+
+          if (normalizedParentSessionID.length > 0) {
+            return true;
+          }
+
+          if (String(payload.thread_source ?? payload.threadSource ?? "") === "subagent") {
+            return true;
+          }
+
+          return hasNestedSubagentSource(payload.source);
+        }
+
+        const sessionID = normalizeSessionID(payload);
+        const parentSessionID = normalizeParentSessionID(payload);
         const projectPath = String(payload.cwd ?? payload.directory ?? payload.project_path ?? payload.projectPath ?? process.cwd());
         const title = String(payload.title ?? payload.session_title ?? payload.sessionTitle ?? "");
-        const isSubagent = eventName.startsWith("Subagent");
+        const isSubagent = isSubagentEvent(payload, eventName, parentSessionID);
         const kind = eventName === "Stop" || eventName === "SubagentStop" ? "session.idle" : "session.working";
         const sender = "\(senderURL.path)";
         const normalizedTitle = title.length > 0 ? title : (projectPath.split("/").filter(Boolean).pop() || "Codex Session");
