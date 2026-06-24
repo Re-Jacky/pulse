@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 enum AgentStatusAgent: String, CaseIterable, Codable, Hashable, Identifiable {
     case openCode = "opencode"
@@ -39,6 +40,30 @@ struct PulseAgentStatusEvent: Codable, Equatable {
     let timestamp: Date
     let kind: PulseAgentStatusEventKind
     let message: String?
+    let parentSessionID: String?
+    let isSubagent: Bool
+
+    init(
+        agent: AgentStatusAgent,
+        sessionID: String,
+        projectPath: String,
+        sessionTitle: String,
+        timestamp: Date,
+        kind: PulseAgentStatusEventKind,
+        message: String?,
+        parentSessionID: String? = nil,
+        isSubagent: Bool = false
+    ) {
+        self.agent = agent
+        self.sessionID = sessionID
+        self.projectPath = projectPath
+        self.sessionTitle = sessionTitle
+        self.timestamp = timestamp
+        self.kind = kind
+        self.message = message
+        self.parentSessionID = parentSessionID
+        self.isSubagent = isSubagent
+    }
 }
 
 struct AgentSessionSlot: Identifiable, Codable, Equatable {
@@ -49,8 +74,33 @@ struct AgentSessionSlot: Identifiable, Codable, Equatable {
     var projectName: String?
     var sessionTitle: String?
     var state: AgentSessionLightState
+    var sessionState: AgentSessionLightState?
     var lastTransitionAt: Date?
     var lastSeenAt: Date?
+
+    init(
+        id: UUID,
+        agent: AgentStatusAgent,
+        sessionID: String?,
+        projectPath: String?,
+        projectName: String?,
+        sessionTitle: String?,
+        state: AgentSessionLightState,
+        sessionState: AgentSessionLightState? = nil,
+        lastTransitionAt: Date?,
+        lastSeenAt: Date?
+    ) {
+        self.id = id
+        self.agent = agent
+        self.sessionID = sessionID
+        self.projectPath = projectPath
+        self.projectName = projectName
+        self.sessionTitle = sessionTitle
+        self.state = state
+        self.sessionState = sessionState
+        self.lastTransitionAt = lastTransitionAt
+        self.lastSeenAt = lastSeenAt
+    }
 
     var isPlaceholder: Bool {
         state == .empty && sessionID == nil
@@ -72,4 +122,14 @@ struct PersistedAgentStatusStore: Codable, Equatable {
 struct PersistedAgentStatusGroup: Codable, Equatable {
     let agent: AgentStatusAgent
     var slots: [AgentSessionSlot]
+}
+
+@MainActor
+@Observable
+final class AgentStatusPanelSelection {
+    var selectedAgent: AgentStatusAgent
+
+    init(selectedAgent: AgentStatusAgent = .openCode) {
+        self.selectedAgent = selectedAgent
+    }
 }

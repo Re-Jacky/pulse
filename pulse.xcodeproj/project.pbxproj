@@ -63,8 +63,17 @@
 		AA000004000000000000002A /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA000004000000000000002B /* IOKit.framework */; };
 		AA000005000000000000001A /* ProcessMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000000000000001B /* ProcessMonitor.swift */; };
 		AA0000AA000000000000001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000AA000000000000001B /* Assets.xcassets */; };
+		B071DEC4AEE5182E2557A705 /* CodexHooksManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */; };
 		BE927B2A06123921C62EE3A0 /* CodexUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A555DA5BBA52686079843F84 /* CodexUsageModels.swift */; };
 		BF2915F50115C7E2E9B4DEB8 /* AgentSourcePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 301784F7059433DCC99F2522 /* AgentSourcePicker.swift */; };
+		C0D300000000000000000001 /* AgentIntegrationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300000000000000000002 /* AgentIntegrationModels.swift */; };
+		C0D300000000000000000003 /* AgentIntegrationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300000000000000000004 /* AgentIntegrationManagerTests.swift */; };
+		C0D300000000000000000005 /* AgentIntegrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300000000000000000006 /* AgentIntegrationManager.swift */; };
+		C0D300000000000000000007 /* PulseAgentEventSenderTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300000000000000000008 /* PulseAgentEventSenderTemplate.swift */; };
+		C0D300000000000000000009 /* OpenCodeIntegrationInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D30000000000000000000A /* OpenCodeIntegrationInstaller.swift */; };
+		C0D30000000000000000000B /* CodexIntegrationInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D30000000000000000000C /* CodexIntegrationInstaller.swift */; };
+		D1E000000000000000000001 /* MenuBarStatusItemViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E000000000000000000002 /* MenuBarStatusItemViewTests.swift */; };
+		D1E000000000000000000003 /* AgentStatusManagementViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */; };
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
@@ -141,6 +150,7 @@
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
+		810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexHooksManifest.swift; sourceTree = "<group>"; };
 		8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageModels.swift; sourceTree = "<group>"; };
 		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A555DA5BBA52686079843F84 /* CodexUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageModels.swift; sourceTree = "<group>"; };
@@ -158,6 +168,14 @@
 		AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexSessionDetailView.swift; sourceTree = "<group>"; };
 		B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeDailyBucket.swift; sourceTree = "<group>"; };
+		C0D300000000000000000002 /* AgentIntegrationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentIntegrationModels.swift; sourceTree = "<group>"; };
+		C0D300000000000000000004 /* AgentIntegrationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentIntegrationManagerTests.swift; sourceTree = "<group>"; };
+		C0D300000000000000000006 /* AgentIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentIntegrationManager.swift; sourceTree = "<group>"; };
+		C0D300000000000000000008 /* PulseAgentEventSenderTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PulseAgentEventSenderTemplate.swift; sourceTree = "<group>"; };
+		C0D30000000000000000000A /* OpenCodeIntegrationInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeIntegrationInstaller.swift; sourceTree = "<group>"; };
+		C0D30000000000000000000C /* CodexIntegrationInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/CodexIntegrationInstaller.swift; sourceTree = "<group>"; };
+		D1E000000000000000000002 /* MenuBarStatusItemViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemViewTests.swift; sourceTree = "<group>"; };
+		D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusManagementViewTests.swift; sourceTree = "<group>"; };
 		D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
@@ -202,6 +220,9 @@
 				100000000000000000000057 /* AgentLightsSettingsTests.swift */,
 				100000000000000000000061 /* AgentStatusStoreTests.swift */,
 				100000000000000000000069 /* PulseAgentStatusServerTests.swift */,
+				D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */,
+				D1E000000000000000000002 /* MenuBarStatusItemViewTests.swift */,
+				C0D300000000000000000004 /* AgentIntegrationManagerTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
@@ -223,6 +244,11 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000059 /* AgentLightsSettings.swift */,
+				C0D300000000000000000006 /* AgentIntegrationManager.swift */,
+				C0D300000000000000000002 /* AgentIntegrationModels.swift */,
+				C0D300000000000000000008 /* PulseAgentEventSenderTemplate.swift */,
+				C0D30000000000000000000A /* OpenCodeIntegrationInstaller.swift */,
+				C0D30000000000000000000C /* CodexIntegrationInstaller.swift */,
 				100000000000000000000063 /* AgentStatusModels.swift */,
 				100000000000000000000065 /* AgentStatusStore.swift */,
 				100000000000000000000067 /* PulseAgentStatusServer.swift */,
@@ -242,6 +268,7 @@
 				12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */,
 				F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */,
 				B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */,
+				810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */,
 			);
 			name = Managers;
 			sourceTree = "<group>";
@@ -456,6 +483,9 @@
 				100000000000000000000056 /* AgentLightsSettingsTests.swift in Sources */,
 				100000000000000000000060 /* AgentStatusStoreTests.swift in Sources */,
 				100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */,
+				D1E000000000000000000003 /* AgentStatusManagementViewTests.swift in Sources */,
+				D1E000000000000000000001 /* MenuBarStatusItemViewTests.swift in Sources */,
+				C0D300000000000000000003 /* AgentIntegrationManagerTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 			);
@@ -493,6 +523,11 @@
 				525A1EB1F76074255369A695 /* PopoverView.swift in Sources */,
 				100000000000000000000024 /* SearchableSelectorView.swift in Sources */,
 				100000000000000000000058 /* AgentLightsSettings.swift in Sources */,
+				C0D300000000000000000005 /* AgentIntegrationManager.swift in Sources */,
+				C0D300000000000000000001 /* AgentIntegrationModels.swift in Sources */,
+				C0D300000000000000000007 /* PulseAgentEventSenderTemplate.swift in Sources */,
+				C0D300000000000000000009 /* OpenCodeIntegrationInstaller.swift in Sources */,
+				C0D30000000000000000000B /* CodexIntegrationInstaller.swift in Sources */,
 				100000000000000000000062 /* AgentStatusModels.swift in Sources */,
 				100000000000000000000064 /* AgentStatusStore.swift in Sources */,
 				100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */,
@@ -518,6 +553,7 @@
 				1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */,
 				2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */,
 				4574B222A7AC14CC2FFF51D5 /* AgentStatusManagementView.swift in Sources */,
+				B071DEC4AEE5182E2557A705 /* CodexHooksManifest.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

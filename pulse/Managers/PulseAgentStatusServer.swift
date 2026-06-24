@@ -15,6 +15,8 @@ final class PulseAgentStatusServer {
         let timestamp: Date
         let kind: PulseAgentStatusEventKind
         let message: String?
+        let parentSessionID: String?
+        let isSubagent: Bool?
 
         var event: PulseAgentStatusEvent {
             PulseAgentStatusEvent(
@@ -24,7 +26,9 @@ final class PulseAgentStatusServer {
                 sessionTitle: title,
                 timestamp: timestamp,
                 kind: kind,
-                message: message
+                message: message,
+                parentSessionID: parentSessionID,
+                isSubagent: isSubagent ?? false
             )
         }
     }

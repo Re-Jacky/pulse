@@ -11,7 +11,9 @@ final class AgentStatusStoreTests: XCTestCase {
             sessionTitle: "Fix menu bar",
             timestamp: Date(timeIntervalSince1970: 123),
             kind: .sessionWorking,
-            message: "running"
+            message: "running",
+            parentSessionID: "parent-1",
+            isSubagent: true
         )
 
         let data = try JSONEncoder().encode(event)
@@ -38,6 +40,7 @@ final class AgentStatusStoreTests: XCTestCase {
                             projectName: "pulse",
                             sessionTitle: "Implement lights",
                             state: .working,
+                            sessionState: .working,
                             lastTransitionAt: Date(timeIntervalSince1970: 200),
                             lastSeenAt: Date(timeIntervalSince1970: 250)
                         )
@@ -125,6 +128,7 @@ final class AgentStatusStoreTests: XCTestCase {
                                 projectName: "codex",
                                 sessionTitle: "Idle Codex",
                                 state: .idle,
+                                sessionState: .idle,
                                 lastTransitionAt: Date(timeIntervalSince1970: 300),
                                 lastSeenAt: Date(timeIntervalSince1970: 300)
                             )
@@ -199,6 +203,282 @@ final class AgentStatusStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSubagentWorkingKeepsParentVisibleAsWorkingWithoutAddingChildSlot() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 100),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 101),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testParentFallsBackToOwnIdleStateWhenLastWorkingSubagentStops() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 200),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 201),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 202),
+                kind: .sessionIdle,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testSubagentErrorDoesNotChangeParentToError() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 300),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 301),
+                kind: .sessionError,
+                message: "boom",
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testParentInheritsExistingSubagentWorkWhenPrimaryEventArrivesLater() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 400),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 401),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testMessageParentIDsDoNotCreateSubagentAggregation() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 450),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 451),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "msg_parent",
+                isSubagent: false
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "session-1")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .working)
+    }
+
+    @MainActor
+    func testOlderPrimaryWorkingEventDoesNotOverrideNewerIdleState() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 500),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 499),
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].lastSeenAt, Date(timeIntervalSince1970: 500))
+    }
+
+    @MainActor
+    func testEqualTimestampIdleWinsOverWorkingForPrimarySession() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+        let timestamp = Date(timeIntervalSince1970: 600)
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: timestamp,
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .openCode,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: timestamp,
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].lastSeenAt, timestamp)
+    }
+
+    @MainActor
     func testClearIdleSlotsLeavesOnePlaceholder() {
         let store = AgentStatusStore(
             persistence: InMemoryAgentStatusPersistence(),
@@ -249,6 +529,7 @@ final class AgentStatusStoreTests: XCTestCase {
                                 projectName: "codex",
                                 sessionTitle: "Hidden Codex",
                                 state: .idle,
+                                sessionState: .idle,
                                 lastTransitionAt: Date(timeIntervalSince1970: 450),
                                 lastSeenAt: Date(timeIntervalSince1970: 450)
                             )
@@ -364,6 +645,7 @@ final class AgentStatusStoreTests: XCTestCase {
                             projectName: "userdefaults",
                             sessionTitle: "Persist me",
                             state: .working,
+                            sessionState: .working,
                             lastTransitionAt: Date(timeIntervalSince1970: 800),
                             lastSeenAt: Date(timeIntervalSince1970: 801)
                         )

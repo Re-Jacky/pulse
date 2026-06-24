@@ -2,13 +2,19 @@ import SwiftUI
 
 struct AgentStatusManagementView: View {
     @EnvironmentObject var agentStatusStore: AgentStatusStore
+    @EnvironmentObject var agentIntegrationManager: AgentIntegrationManager
+    @Environment(AgentStatusPanelSelection.self) private var panelSelection
+
+    private var selectedAgent: AgentStatusAgent {
+        panelSelection.selectedAgent
+    }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
 
-                ForEach(agentStatusStore.groups) { group in
+                ForEach(Self.visibleGroups(agentStatusStore.groups, selection: panelSelection)) { group in
                     groupSection(group)
                 }
             }
@@ -19,22 +25,100 @@ struct AgentStatusManagementView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Agent Status")
+            Text(selectedAgent.displayName)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
 
-            Text("Map menu bar lights back to their projects, and remove idle or stale slots when you are done with them.")
+            Text("Review this agent's live sessions and integration status.")
                 .font(.system(size: 12))
                 .foregroundColor(.appSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
+    static func visibleGroups(
+        _ groups: [AgentStatusGroup],
+        selectedAgent: AgentStatusAgent
+    ) -> [AgentStatusGroup] {
+        groups.filter { $0.agent == selectedAgent }
+    }
+
+    static func visibleGroups(
+        _ groups: [AgentStatusGroup],
+        selection: AgentStatusPanelSelection
+    ) -> [AgentStatusGroup] {
+        visibleGroups(groups, selectedAgent: selection.selectedAgent)
+    }
+
     private func groupSection(_ group: AgentStatusGroup) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            integrationCard(for: agentIntegrationManager.status(for: group.agent))
+            sessionsSection(group)
+        }
+        .padding(12)
+        .background(Color.appFieldBackground.opacity(0.7))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func integrationCard(for status: AgentIntegrationStatus) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(status.agent.displayName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.appPrimaryText)
+
+                    Text("Integration")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.appSecondaryText)
+                }
+
+                Spacer()
+
+                Text(status.displayStateTitle)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.appPrimaryText)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.appSidebarBackground.opacity(0.8))
+                    .clipShape(Capsule())
+            }
+
+            if status.guidance.isEmpty == false {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(status.guidance, id: \.self) { step in
+                        Text(step)
+                            .font(.system(size: 12))
+                            .foregroundColor(.appSecondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(status.primaryActionTitle) {
+                    try? agentIntegrationManager.performPrimaryAction(for: status.agent)
+                }
+                .buttonStyle(.borderedProminent)
+
+                ForEach(status.secondaryActions, id: \.self) { title in
+                    Button(title) {
+                        try? agentIntegrationManager.performSecondaryAction(title, for: status.agent)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.appSidebarBackground.opacity(0.45))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func sessionsSection(_ group: AgentStatusGroup) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(group.agent.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                Text("Sessions")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.appPrimaryText)
 
                 Spacer()
@@ -56,9 +140,6 @@ struct AgentStatusManagementView: View {
                 }
             }
         }
-        .padding(12)
-        .background(Color.appFieldBackground.opacity(0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func slotRow(_ slot: AgentSessionSlot) -> some View {
@@ -72,11 +153,15 @@ struct AgentStatusManagementView: View {
                     .foregroundColor(.appPrimaryText)
                     .lineLimit(1)
 
-                ForEach(detailLines(for: slot), id: \.self) { detail in
-                    Text(detail)
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                        .lineLimit(1)
+                ForEach(detailLines(for: slot)) { detail in
+                    if let tooltip = detail.tooltip {
+                        TooltipTextLine(text: detail.text, tooltip: tooltip)
+                    } else {
+                        Text(detail.text)
+                            .font(.system(size: 12))
+                            .foregroundColor(.appSecondaryText)
+                            .lineLimit(1)
+                    }
                 }
             }
 
@@ -97,18 +182,18 @@ struct AgentStatusManagementView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func detailLines(for slot: AgentSessionSlot) -> [String] {
-        var details: [String] = []
+    private func detailLines(for slot: AgentSessionSlot) -> [SlotDetailLine] {
+        var details: [SlotDetailLine] = []
 
         if let sessionTitle = slot.sessionTitle, sessionTitle.isEmpty == false {
-            details.append(sessionTitle)
+            details.append(SlotDetailLine(text: sessionTitle, tooltip: nil))
         }
 
         if let projectPath = slot.projectPath, projectPath.isEmpty == false {
-            details.append(projectPath)
+            details.append(SlotDetailLine(text: projectPath, tooltip: projectPath))
         }
 
-        return details.isEmpty ? ["Waiting for a session"] : details
+        return details.isEmpty ? [SlotDetailLine(text: "Waiting for a session", tooltip: nil)] : details
     }
 
     private func light(for state: AgentSessionLightState) -> some View {
@@ -131,5 +216,54 @@ struct AgentStatusManagementView: View {
         case .error:
             return .red
         }
+    }
+}
+
+private struct SlotDetailLine: Identifiable {
+    let id = UUID()
+    let text: String
+    let tooltip: String?
+}
+
+enum TooltipPresentation {
+    static func shouldShowTooltip(isHovering: Bool, tooltip: String) -> Bool {
+        isHovering && tooltip.isEmpty == false
+    }
+}
+
+struct TooltipTextLine: View {
+    let text: String
+    let tooltip: String
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundColor(.appSecondaryText)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .overlay(alignment: .topLeading) {
+                if TooltipPresentation.shouldShowTooltip(isHovering: isHovering, tooltip: tooltip) {
+                    Text(tooltip)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.black.opacity(0.9))
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .offset(y: -30)
+                        .zIndex(1)
+                }
+            }
+            .zIndex(isHovering ? 1 : 0)
     }
 }

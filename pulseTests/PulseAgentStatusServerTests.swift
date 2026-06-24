@@ -18,6 +18,7 @@ final class PulseAgentStatusServerTests: XCTestCase {
         XCTAssertEqual(store.groups[0].slots.first?.sessionID, "s1")
         XCTAssertEqual(store.groups[0].slots.first?.sessionTitle, "Task")
         XCTAssertEqual(store.groups[0].slots.first?.state, .working)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .working)
     }
 
     @MainActor
@@ -101,5 +102,28 @@ final class PulseAgentStatusServerTests: XCTestCase {
         XCTAssertEqual(store.groups[0].slots.map(\.sessionID), ["one", "two"])
         XCTAssertEqual(store.groups[0].slots.map(\.state), [.working, .idle])
         XCTAssertTrue(buffer.isEmpty)
+    }
+
+    @MainActor
+    func testHandlePayloadAggregatesSubagentIntoParentSession() throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.openCode]
+        )
+        let server = PulseAgentStatusServer(store: store)
+        let parentPayload = """
+        {"agent":"opencode","sessionID":"parent","projectPath":"/tmp/pulse","title":"Task","timestamp":"1970-01-01T00:01:40Z","kind":"session.idle"}
+        """.data(using: .utf8)!
+        let childPayload = """
+        {"agent":"opencode","sessionID":"child","projectPath":"/tmp/pulse","title":"Child","timestamp":"1970-01-01T00:01:41Z","kind":"session.working","parentSessionID":"parent","isSubagent":true}
+        """.data(using: .utf8)!
+
+        try server.handlePayload(parentPayload)
+        try server.handlePayload(childPayload)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots.first?.state, .working)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
     }
 }

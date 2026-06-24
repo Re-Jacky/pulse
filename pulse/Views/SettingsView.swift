@@ -178,6 +178,11 @@ struct SettingsView: View {
                     .font(.system(size: 12))
                     .foregroundColor(.appSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Text("Use the Agent Lights menu bar panel to install or remove the OpenCode plugin and Codex hook.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 10) {
