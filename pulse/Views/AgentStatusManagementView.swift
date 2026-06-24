@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct AgentStatusManagementView: View {
@@ -207,14 +206,14 @@ struct AgentStatusManagementView: View {
     }
 
     private func color(for state: AgentSessionLightState) -> Color {
-        AgentSessionLightColor.swiftUIColor(for: state)
+        Self.color(for: state)
     }
 }
 
 #if DEBUG
 extension AgentStatusManagementView {
-    static func color(for state: AgentSessionLightState) -> NSColor {
-        AgentSessionLightColor.nsColor(for: state)
+    static func color(for state: AgentSessionLightState) -> Color {
+        AgentSessionLightColor.swiftUIColor(for: state)
     }
 }
 #endif

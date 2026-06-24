@@ -1,15 +1,16 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import Pulse
 
 final class AgentStatusManagementViewTests: XCTestCase {
     func testLightColorMapsWorkingToGreenAndIdleToYellow() {
         XCTAssertEqual(
-            AgentStatusManagementView.color(for: .working),
+            NSColor(AgentStatusManagementView.color(for: .working)),
             NSColor.systemGreen
         )
         XCTAssertEqual(
-            AgentStatusManagementView.color(for: .idle),
+            NSColor(AgentStatusManagementView.color(for: .idle)),
             NSColor.systemYellow
         )
     }
