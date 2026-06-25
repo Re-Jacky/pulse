@@ -3,6 +3,9 @@ import Foundation
 struct OpenCodeDailyBucket: Equatable {
     let sessionID: String
     let day: Int
+    let modelProviderID: String
+    let modelID: String
+    let modelVariant: String?
     let inputTokens: Int
     let outputTokens: Int
     let reasoningTokens: Int
@@ -14,6 +17,9 @@ struct OpenCodeDailyBucket: Equatable {
     init(
         sessionID: String,
         day: Int,
+        modelProviderID: String = "",
+        modelID: String = "",
+        modelVariant: String? = nil,
         inputTokens: Int,
         outputTokens: Int,
         reasoningTokens: Int,
@@ -24,6 +30,9 @@ struct OpenCodeDailyBucket: Equatable {
     ) {
         self.sessionID = sessionID
         self.day = day
+        self.modelProviderID = modelProviderID
+        self.modelID = modelID
+        self.modelVariant = modelVariant
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.reasoningTokens = reasoningTokens

@@ -912,7 +912,11 @@ final class AgentUsageStore: ObservableObject {
         guard selection.source != .all else { return [] }
         switch selection.source {
         case .all: return []
-        case .openCode: return openCodeSnapshot.providerBreakdown(for: scope)
+        case .openCode:
+            if selection.timeRange == .allTime {
+                return openCodeSnapshot.providerBreakdown(for: scope)
+            }
+            return openCodeProviderBreakdown(for: scope, range: selection.timeRange)
         case .codex: return codexSnapshot.providerBreakdown(for: scope)
         }
     }
@@ -922,7 +926,13 @@ final class AgentUsageStore: ObservableObject {
         switch selection.source {
         case .all: return []
         case .openCode:
-            return openCodeSnapshot.modelBreakdown(for: scope).map {
+            let rows: [OpenCodeModelBreakdown]
+            if selection.timeRange == .allTime {
+                rows = openCodeSnapshot.modelBreakdown(for: scope)
+            } else {
+                rows = openCodeModelBreakdown(for: scope, range: selection.timeRange)
+            }
+            return rows.map {
                 AgentUsageDetailRow(
                     id: "\($0.providerID)/\($0.modelID)",
                     title: OpenCodeUsageSnapshot.modelDisplayName(providerID: $0.providerID, modelID: $0.modelID, variant: $0.variant),
@@ -953,6 +963,82 @@ final class AgentUsageStore: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter.string(from: date)
+    }
+
+    private func openCodeBuckets(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeDailyBucket] {
+        let dayRange = agentUsageDayRange(for: range)
+        let sessionsByID = Dictionary(uniqueKeysWithValues: state.openCodeCumulativeSnapshot.sessions.map { ($0.id, $0) })
+
+        return state.openCodeDailyBuckets.filter { bucket in
+            guard dayRange.contains(bucket.day) else { return false }
+
+            switch scope {
+            case .allProjects:
+                return true
+            case .project(let directory):
+                return sessionsByID[bucket.sessionID]?.directory == directory
+            case .session(_, let sessionID):
+                return bucket.sessionID == sessionID
+            }
+        }
+    }
+
+    private func openCodeProviderBreakdown(for scope: AgentScope, range: AgentTimeRange) -> [ProviderBreakdown] {
+        Dictionary(grouping: openCodeBuckets(for: scope, range: range)) { $0.modelProviderID }
+            .map { provider, buckets in
+                ProviderBreakdown(
+                    provider: provider,
+                    summary: openCodeBucketSummary(from: buckets)
+                )
+            }
+            .sorted { $0.summary.totalTokens > $1.summary.totalTokens }
+    }
+
+    private func openCodeModelBreakdown(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeModelBreakdown] {
+        Dictionary(grouping: openCodeBuckets(for: scope, range: range)) {
+            [$0.modelProviderID, $0.modelID, $0.modelVariant ?? ""].joined(separator: "::")
+        }
+        .compactMap { _, buckets in
+            guard let first = buckets.first else { return nil }
+            return OpenCodeModelBreakdown(
+                providerID: first.modelProviderID,
+                modelID: first.modelID,
+                variant: first.modelVariant,
+                summary: openCodeBucketSummary(from: buckets)
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.summary.totalTokens == rhs.summary.totalTokens {
+                return lhs.modelID.localizedCaseInsensitiveCompare(rhs.modelID) == .orderedAscending
+            }
+            return lhs.summary.totalTokens > rhs.summary.totalTokens
+        }
+    }
+
+    private func openCodeBucketSummary(from buckets: [OpenCodeDailyBucket]) -> AgentUsageSummary {
+        let totalTokens = buckets.reduce(0) { partial, bucket in
+            partial + bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
+        }
+        let inputTokens = buckets.reduce(0) { $0 + $1.inputTokens }
+        let outputTokens = buckets.reduce(0) { $0 + $1.outputTokens }
+        let reasoningTokens = buckets.reduce(0) { $0 + $1.reasoningTokens }
+        let cacheReadTokens = buckets.reduce(0) { $0 + $1.cacheReadTokens }
+        let cacheWriteTokens = buckets.reduce(0) { $0 + $1.cacheWriteTokens }
+        let sessionsCount = Set(buckets.map(\.sessionID)).count
+        let cost = buckets.reduce(0.0) { $0 + $1.cost }
+        let lastUpdated = buckets.compactMap(\.latestActivityAt).max()
+
+        return AgentUsageSummary(
+            totalTokens: totalTokens,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            reasoningTokens: reasoningTokens,
+            cacheReadTokens: cacheReadTokens,
+            cacheWriteTokens: cacheWriteTokens,
+            sessionsCount: sessionsCount,
+            cost: cost,
+            lastUpdated: lastUpdated
+        )
     }
 }
 

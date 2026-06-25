@@ -796,6 +796,60 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(data.summary.cacheReadTokens, 11)
     }
 
+    func testOpenCodeRangedModelBreakdownUsesBucketModelMetadata() {
+        let todayDay = agentUsageDayIdentifier(for: Date())
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            OpenCodeSessionRecord(
+                id: "ses_1",
+                title: "Session ses_1",
+                directory: "/Users/zyao/Desktop/pulse",
+                agent: "build",
+                modelProviderID: "stepfun",
+                modelID: "step-3.7-flash",
+                modelVariant: nil,
+                inputTokens: 500,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                cost: 0,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        ])
+        repository.openCodeDailyBuckets = [
+            OpenCodeDailyBucket(
+                sessionID: "ses_1",
+                day: todayDay,
+                modelProviderID: "codex-gpt",
+                modelID: "gpt-5.4",
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                cacheWriteTokens: 0,
+                cost: 0
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.modelBreakdownRows.count, 1)
+        XCTAssertEqual(data.modelBreakdownRows[0].title, "codex-gpt / gpt-5.4")
+        XCTAssertEqual(data.modelBreakdownRows[0].valueText, "165")
+    }
+
     func testCodexLoadDailyBucketsSplitsCrossDaySessionFromTranscript() throws {
         try withTimeZone("UTC") {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

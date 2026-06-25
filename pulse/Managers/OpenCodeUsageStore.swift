@@ -291,6 +291,9 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
     let sql = """
     SELECT m.session_id,
            m.time_created,
+           coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
+           coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
+           nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
            coalesce(json_extract(m.data, '$.tokens.input'), 0),
            coalesce(json_extract(m.data, '$.tokens.output'), 0),
            coalesce(json_extract(m.data, '$.tokens.reasoning'), 0),
@@ -298,6 +301,7 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
            coalesce(json_extract(m.data, '$.tokens.cache.write'), 0),
            coalesce(json_extract(m.data, '$.cost'), 0)
     FROM message m
+    JOIN session s ON s.id = m.session_id
     WHERE json_extract(m.data, '$.role') = 'assistant'
     ORDER BY m.session_id, m.time_created
     """
@@ -325,12 +329,15 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         let bucket = OpenCodeDailyBucket(
             sessionID: sessionID,
             day: day,
-            inputTokens: Int(sqlite3_column_int64(statement, 2)),
-            outputTokens: Int(sqlite3_column_int64(statement, 3)),
-            reasoningTokens: Int(sqlite3_column_int64(statement, 4)),
-            cacheReadTokens: Int(sqlite3_column_int64(statement, 5)),
-            cacheWriteTokens: Int(sqlite3_column_int64(statement, 6)),
-            cost: sqlite3_column_double(statement, 7),
+            modelProviderID: stringColumn(statement, index: 2),
+            modelID: stringColumn(statement, index: 3),
+            modelVariant: optionalStringColumn(statement, index: 4),
+            inputTokens: Int(sqlite3_column_int64(statement, 5)),
+            outputTokens: Int(sqlite3_column_int64(statement, 6)),
+            reasoningTokens: Int(sqlite3_column_int64(statement, 7)),
+            cacheReadTokens: Int(sqlite3_column_int64(statement, 8)),
+            cacheWriteTokens: Int(sqlite3_column_int64(statement, 9)),
+            cost: sqlite3_column_double(statement, 10),
             latestActivityAt: createdAt
         )
 
@@ -350,6 +357,9 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
             sessionID: sessionID,
             day: day,
+            modelProviderID: bucket.modelProviderID,
+            modelID: bucket.modelID,
+            modelVariant: bucket.modelVariant,
             inputTokens: (existing?.inputTokens ?? 0) + bucket.inputTokens,
             outputTokens: (existing?.outputTokens ?? 0) + bucket.outputTokens,
             reasoningTokens: (existing?.reasoningTokens ?? 0) + bucket.reasoningTokens,

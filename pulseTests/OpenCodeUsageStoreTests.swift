@@ -159,6 +159,8 @@ final class OpenCodeUsageQueryTests: XCTestCase {
 
         XCTAssertNotNil(day1)
         XCTAssertEqual(day1?.sessionID, "ses_1")
+        XCTAssertEqual(day1?.modelProviderID, "")
+        XCTAssertEqual(day1?.modelID, "")
         XCTAssertEqual(day1?.inputTokens, 300)
         XCTAssertEqual(day1?.outputTokens, 80)
         XCTAssertEqual(day1?.reasoningTokens, 15)
@@ -225,12 +227,62 @@ final class OpenCodeUsageQueryTests: XCTestCase {
             XCTAssertEqual(buckets.count, 1)
             XCTAssertEqual(buckets[0].sessionID, "ses_1")
             XCTAssertEqual(buckets[0].inputTokens, 300)
-            XCTAssertEqual(buckets[0].outputTokens, 80)
-            XCTAssertEqual(buckets[0].reasoningTokens, 15)
-            XCTAssertEqual(buckets[0].cacheReadTokens, 1500)
-            XCTAssertEqual(buckets[0].cacheWriteTokens, 6)
-            XCTAssertEqual(buckets[0].cost, 0.03, accuracy: 0.001)
-        }
+        XCTAssertEqual(buckets[0].outputTokens, 80)
+        XCTAssertEqual(buckets[0].reasoningTokens, 15)
+        XCTAssertEqual(buckets[0].cacheReadTokens, 1500)
+        XCTAssertEqual(buckets[0].cacheWriteTokens, 6)
+        XCTAssertEqual(buckets[0].cost, 0.03, accuracy: 0.001)
+    }
+
+    func testLoadDailyBucketsUsesPerMessageModelMetadata() throws {
+        let databaseURL = try makeDatabase(named: "DailyBucketModelTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try execute(db, sql: """
+        create table session (
+            id text primary key, project_id text not null, title text not null,
+            directory text not null, agent text, model text,
+            cost real default 0 not null,
+            tokens_input integer default 0 not null,
+            tokens_output integer default 0 not null,
+            tokens_reasoning integer default 0 not null,
+            tokens_cache_read integer default 0 not null,
+            tokens_cache_write integer default 0 not null,
+            time_created integer not null, time_updated integer not null
+        );
+        """)
+
+        try execute(db, sql: """
+        create table message (
+            id text primary key, session_id text not null,
+            time_created integer not null, time_updated integer not null, data text not null
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session (id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated)
+        values ('ses_1', 'p1', 'Test', '/tmp/test', 'build',
+            '{"id":"step-3.7-flash","providerID":"stepfun"}',
+            0, 0, 0, 0, 0, 0, 1000, 2000);
+        """)
+
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 172800000, 172800000,
+         '{"role":"assistant","providerID":"codex-gpt","modelID":"gpt-5.4","tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":0.02,"time":{"created":172800000}}');
+        """)
+
+        let buckets = try OpenCodeUsageQuery.loadDailyBuckets(databaseURL: databaseURL)
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets[0].modelProviderID, "codex-gpt")
+        XCTAssertEqual(buckets[0].modelID, "gpt-5.4")
+    }
     }
 
     private func makeDatabase(named name: String) throws -> URL {
