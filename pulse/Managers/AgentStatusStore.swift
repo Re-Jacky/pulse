@@ -158,6 +158,7 @@ final class AgentStatusStore: ObservableObject {
     }
 
     private func applySubagentEvent(_ event: PulseAgentStatusEvent, parentSessionID: String, in groupIndex: Int) {
+        removeStandaloneSubagentSlotIfNeeded(sessionID: event.sessionID, parentSessionID: parentSessionID, in: groupIndex)
         updateWorkingSubagentState(for: event, parentSessionID: parentSessionID)
 
         guard let slotIndex = groups[groupIndex].slots.firstIndex(where: { $0.sessionID == parentSessionID }) else {
@@ -174,6 +175,23 @@ final class AgentStatusStore: ObservableObject {
         groups[groupIndex].slots[slotIndex].lastSeenAt = event.timestamp
         if groups[groupIndex].slots[slotIndex].state != previousState {
             groups[groupIndex].slots[slotIndex].lastTransitionAt = event.timestamp
+        }
+    }
+
+    private func removeStandaloneSubagentSlotIfNeeded(
+        sessionID: String,
+        parentSessionID: String,
+        in groupIndex: Int
+    ) {
+        guard sessionID != parentSessionID,
+              let slotIndex = groups[groupIndex].slots.firstIndex(where: { $0.sessionID == sessionID }) else {
+            return
+        }
+
+        groups[groupIndex].slots.remove(at: slotIndex)
+
+        if groups[groupIndex].slots.isEmpty {
+            groups[groupIndex].slots = [Self.placeholder(for: groups[groupIndex].agent)]
         }
     }
 

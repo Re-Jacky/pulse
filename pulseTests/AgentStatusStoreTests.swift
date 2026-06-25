@@ -368,6 +368,55 @@ final class AgentStatusStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testReclassifiedSubagentRemovesExistingStandaloneChildSlot() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 425),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "child",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 426),
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "child",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 427),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
     func testMessageParentIDsDoNotCreateSubagentAggregation() {
         let store = AgentStatusStore(
             persistence: InMemoryAgentStatusPersistence(),
