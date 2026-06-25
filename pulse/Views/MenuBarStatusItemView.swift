@@ -167,7 +167,7 @@ final class MenuBarStatusItemView: NSControl {
             return
         }
 
-        let resolvedAgent = agent(at: point)
+        let resolvedAgent = resolvedAgent(at: point)
 
         switch pendingMouseActivation {
         case .primary:
@@ -317,6 +317,10 @@ final class MenuBarStatusItemView: NSControl {
         return max(AgentStatusMenuBarMetrics.overflowMinimumAdvance, size.width + 2)
     }
 
+    private func resolvedAgent(at point: NSPoint) -> AgentStatusAgent? {
+        groupRegions.first(where: { $0.frame.contains(point) })?.agent
+    }
+
 }
 
 #if DEBUG
@@ -330,7 +334,7 @@ extension MenuBarStatusItemView {
     }
 
     func agent(at point: NSPoint) -> AgentStatusAgent? {
-        groupRegions.first(where: { $0.frame.contains(point) })?.agent
+        resolvedAgent(at: point)
     }
 
     func groupFrame(for agent: AgentStatusAgent) -> NSRect? {

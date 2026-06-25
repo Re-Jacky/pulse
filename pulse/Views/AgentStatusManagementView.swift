@@ -206,7 +206,7 @@ struct AgentStatusManagementView: View {
     }
 
     private func color(for state: AgentSessionLightState) -> Color {
-        Self.color(for: state)
+        AgentSessionLightColor.swiftUIColor(for: state)
     }
 }
 
