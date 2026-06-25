@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var agentUsageSettings: AgentUsageSettings
+    @EnvironmentObject var agentLightsSettings: AgentLightsSettings
+    @EnvironmentObject var agentStatusStore: AgentStatusStore
     @EnvironmentObject var updateManager: UpdateManager
     @State private var selectedSection: Section = .theme
     private let versionInfo = AppVersionInfo()
@@ -10,6 +12,7 @@ struct SettingsView: View {
     private enum Section: Hashable {
         case theme
         case agentUsage
+        case agentLights
         case updates
     }
 
@@ -22,6 +25,7 @@ struct SettingsView: View {
 
                 sidebarButton(title: "Theme", systemImage: "circle.lefthalf.filled", section: .theme)
                 sidebarButton(title: "Agent Usage", systemImage: "person.2.wave.2", section: .agentUsage)
+                sidebarButton(title: "Agent Lights", systemImage: "dot.radiowaves.left.and.right", section: .agentLights)
                 sidebarButton(title: "Updates", systemImage: "arrow.triangle.2.circlepath", section: .updates)
 
                 Spacer()
@@ -41,6 +45,8 @@ struct SettingsView: View {
                                 themeContent
                             case .agentUsage:
                                 agentUsageContent
+                            case .agentLights:
+                                agentLightsContent
                             case .updates:
                                 updateContent
                             }
@@ -129,6 +135,71 @@ struct SettingsView: View {
                 }
             }
             .disabled(agentUsageSettings.isEnabled == false)
+        }
+    }
+
+    private var agentLightsContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Agent Lights")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
+
+            Text("Show live agent session lights directly in the menu bar when Pulse-compatible plugin or hook integrations are installed.")
+                .font(.system(size: 13))
+                .foregroundColor(.appSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Toggle("Enable Agent Lights", isOn: $agentLightsSettings.isEnabled)
+                .toggleStyle(.switch)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Agents")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Only selected agents show extra menu bar icon groups. Pulse keeps listening for live events, but hidden agents stay out of the menu bar.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(AgentStatusAgent.allCases) { agent in
+                    Toggle(agent.displayName, isOn: agentLightBinding(for: agent))
+                        .toggleStyle(.checkbox)
+                }
+            }
+            .disabled(agentLightsSettings.isEnabled == false)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Setup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Install the Pulse-compatible OpenCode plugin or Codex hook to send live events to Pulse. Agent Lights does not fall back to database, transcript, or log polling.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Use the Agent Lights menu bar panel to install or remove the OpenCode plugin and Codex hook.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Cleanup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                HStack {
+                    Button("Clear All OpenCode Slots") {
+                        agentStatusStore.clearAllSlots(for: .openCode)
+                    }
+
+                    Button("Clear All Codex Slots") {
+                        agentStatusStore.clearAllSlots(for: .codex)
+                    }
+                }
+            }
         }
     }
 
@@ -222,6 +293,23 @@ struct SettingsView: View {
                     next.remove(source)
                 }
                 agentUsageSettings.selectedSources = next
+            }
+        )
+    }
+
+    private func agentLightBinding(for agent: AgentStatusAgent) -> Binding<Bool> {
+        Binding(
+            get: {
+                agentLightsSettings.selectedAgents.contains(agent)
+            },
+            set: { isSelected in
+                var next = agentLightsSettings.selectedAgents
+                if isSelected {
+                    next.insert(agent)
+                } else {
+                    next.remove(agent)
+                }
+                agentLightsSettings.selectedAgents = next
             }
         )
     }
