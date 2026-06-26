@@ -36,6 +36,7 @@ struct CodexDailyBucket: Equatable {
     let reasoningTokens: Int
     let cacheReadTokens: Int
     let totalTokens: Int
+    let requestCount: Int
     let latestActivityAt: Date?
 
     init(
@@ -46,6 +47,7 @@ struct CodexDailyBucket: Equatable {
         reasoningTokens: Int,
         cacheReadTokens: Int,
         totalTokens: Int,
+        requestCount: Int = 0,
         latestActivityAt: Date? = nil
     ) {
         self.sessionID = sessionID
@@ -55,6 +57,7 @@ struct CodexDailyBucket: Equatable {
         self.reasoningTokens = reasoningTokens
         self.cacheReadTokens = cacheReadTokens
         self.totalTokens = totalTokens
+        self.requestCount = requestCount
         self.latestActivityAt = latestActivityAt
     }
 
@@ -67,6 +70,7 @@ struct CodexDailyBucket: Equatable {
             reasoningTokens: 0,
             cacheReadTokens: 0,
             totalTokens: 0,
+            requestCount: 0,
             latestActivityAt: nil
         )
     }
@@ -92,6 +96,7 @@ struct CodexDailyBucket: Equatable {
             reasoningTokens: reasoningTokens + other.reasoningTokens,
             cacheReadTokens: cacheReadTokens + other.cacheReadTokens,
             totalTokens: totalTokens + other.totalTokens,
+            requestCount: requestCount + other.requestCount,
             latestActivityAt: mergedLatestActivityAt
         )
     }
@@ -275,6 +280,7 @@ struct CodexUsageSnapshot: Equatable {
             reasoningTokens: reduceOptional(\.reasoningTokens, sessions: sessions),
             cacheReadTokens: reduceOptional(\.cacheReadTokens, sessions: sessions),
             cacheWriteTokens: nil,
+            requestCount: 0,
             sessionsCount: sessions.count,
             cost: nil,
             lastUpdated: sessions.map(\.updatedAt).max()

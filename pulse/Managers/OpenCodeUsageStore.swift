@@ -183,8 +183,9 @@ inputTokens: Int(sqlite3_column_int64(statement, 7)),
 outputTokens: Int(sqlite3_column_int64(statement, 8)),
 reasoningTokens: Int(sqlite3_column_int64(statement, 9)),
 cacheReadTokens: Int(sqlite3_column_int64(statement, 10)),
-cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
-cost: sqlite3_column_double(statement, 12),
+            cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
+            requestCount: 0,
+            cost: sqlite3_column_double(statement, 12),
 createdAt: createdAt,
 updatedAt: updatedAt
 )
@@ -263,8 +264,9 @@ inputTokens: Int(sqlite3_column_int64(statement, 7)),
 outputTokens: Int(sqlite3_column_int64(statement, 8)),
 reasoningTokens: Int(sqlite3_column_int64(statement, 9)),
 cacheReadTokens: Int(sqlite3_column_int64(statement, 10)),
-cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
-cost: sqlite3_column_double(statement, 12),
+            cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
+            requestCount: 0,
+            cost: sqlite3_column_double(statement, 12),
 createdAt: createdAt,
 updatedAt: updatedAt
 )

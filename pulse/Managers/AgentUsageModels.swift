@@ -82,6 +82,7 @@ struct AgentUsageSummary: Equatable {
     let reasoningTokens: Int?
     let cacheReadTokens: Int?
     let cacheWriteTokens: Int?
+    let requestCount: Int
     let sessionsCount: Int
     let cost: Double?
     let lastUpdated: Date?
@@ -96,6 +97,7 @@ extension AgentUsageSummary {
             reasoningTokens: mergeOptional(a.reasoningTokens, b.reasoningTokens, +),
             cacheReadTokens: mergeOptional(a.cacheReadTokens, b.cacheReadTokens, +),
             cacheWriteTokens: mergeOptional(a.cacheWriteTokens, b.cacheWriteTokens, +),
+            requestCount: a.requestCount + b.requestCount,
             sessionsCount: a.sessionsCount + b.sessionsCount,
             cost: mergeOptional(a.cost, b.cost, +),
             lastUpdated: {

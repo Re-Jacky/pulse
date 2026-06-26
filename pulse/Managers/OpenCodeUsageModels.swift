@@ -13,6 +13,7 @@ struct OpenCodeSessionRecord: Identifiable, Equatable {
     let reasoningTokens: Int
     let cacheReadTokens: Int
     let cacheWriteTokens: Int
+    let requestCount: Int
     let cost: Double
     let createdAt: Date
     let updatedAt: Date
@@ -183,6 +184,7 @@ outputTokens: sessions.reduce(0) { $0 + $1.outputTokens },
 reasoningTokens: sessions.reduce(0) { $0 + $1.reasoningTokens },
 cacheReadTokens: sessions.reduce(0) { $0 + $1.cacheReadTokens },
 cacheWriteTokens: sessions.reduce(0) { $0 + $1.cacheWriteTokens },
+requestCount: sessions.reduce(0) { $0 + $1.requestCount },
 sessionsCount: sessions.count,
 cost: sessions.reduce(0) { $0 + $1.cost },
 lastUpdated: sessions.map(\.updatedAt).max()

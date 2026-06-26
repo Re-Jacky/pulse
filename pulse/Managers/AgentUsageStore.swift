@@ -379,6 +379,7 @@ final class AgentUsageStore: ObservableObject {
                 reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
                 cacheReadTokens: inRange.reduce(0) { $0 + $1.cacheReadTokens },
                 cacheWriteTokens: inRange.reduce(0) { $0 + $1.cacheWriteTokens },
+                requestCount: inRange.reduce(0) { $0 + $1.requestCount },
                 cost: inRange.reduce(0.0) { $0 + $1.cost },
                 createdAt: m.createdAt,
                 updatedAt: updatedAt
@@ -769,6 +770,7 @@ final class AgentUsageStore: ObservableObject {
             reasoningTokens: summary.reasoningTokens,
             cacheReadTokens: summary.cacheReadTokens,
             cacheWriteTokens: summary.cacheWriteTokens,
+            requestCount: summary.requestCount,
             sessionsCount: summary.sessionsCount,
             cost: summary.cost,
             lastUpdated: lastUpdated ?? summary.lastUpdated
@@ -873,6 +875,7 @@ final class AgentUsageStore: ObservableObject {
             reasoningTokens: session.reasoningTokens,
             cacheReadTokens: session.cacheReadTokens,
             cacheWriteTokens: session.cacheWriteTokens,
+            requestCount: session.requestCount,
             cost: session.cost,
             createdAt: session.createdAt,
             updatedAt: updatedAt
@@ -1035,6 +1038,7 @@ final class AgentUsageStore: ObservableObject {
             reasoningTokens: reasoningTokens,
             cacheReadTokens: cacheReadTokens,
             cacheWriteTokens: cacheWriteTokens,
+            requestCount: buckets.reduce(0) { $0 + $1.requestCount },
             sessionsCount: sessionsCount,
             cost: cost,
             lastUpdated: lastUpdated

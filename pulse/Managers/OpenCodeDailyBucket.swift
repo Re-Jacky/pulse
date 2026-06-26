@@ -11,6 +11,7 @@ struct OpenCodeDailyBucket: Equatable {
     let reasoningTokens: Int
     let cacheReadTokens: Int
     let cacheWriteTokens: Int
+    let requestCount: Int
     let cost: Double
     let latestActivityAt: Date?
 
@@ -25,6 +26,7 @@ struct OpenCodeDailyBucket: Equatable {
         reasoningTokens: Int,
         cacheReadTokens: Int,
         cacheWriteTokens: Int,
+        requestCount: Int = 0,
         cost: Double,
         latestActivityAt: Date? = nil
     ) {
@@ -38,6 +40,7 @@ struct OpenCodeDailyBucket: Equatable {
         self.reasoningTokens = reasoningTokens
         self.cacheReadTokens = cacheReadTokens
         self.cacheWriteTokens = cacheWriteTokens
+        self.requestCount = requestCount
         self.cost = cost
         self.latestActivityAt = latestActivityAt
     }
