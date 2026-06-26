@@ -212,6 +212,8 @@ final class AgentUsageStore: ObservableObject {
             codexSnapshot = aggregatedCodexSnapshot(for: selection.timeRange)
         }
         let scope = selection.scope
+        let openCodeSessionsByID = Dictionary(uniqueKeysWithValues: openCodeSnapshot.sessions.map { ($0.id, $0) })
+        let codexSessionsByID = Dictionary(uniqueKeysWithValues: codexSnapshot.sessions.map { ($0.id, $0) })
 
         let ocLatestBySession = openCodeLatestActivityBySession(range: selection.timeRange, snapshot: openCodeSnapshot)
         let cxLatestBySession = codexLatestActivityBySession(range: selection.timeRange, snapshot: codexSnapshot)
@@ -265,11 +267,11 @@ final class AgentUsageStore: ObservableObject {
             tokenFlowData: buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
             usageMetrics: buildUsageMetrics(summary: summary),
             summaryPills: buildSummaryPills(summary: summary),
-            contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
+            contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, openCodeSessionsByID: openCodeSessionsByID, codexSessionsByID: codexSessionsByID, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
             providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
             modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
-            selectedOpenCodeSession: selection.source == .openCode ? normalizedOpenCodeSession(id: selection.sessionID, snapshot: openCodeSnapshot, ocLatestBySession: ocLatestBySession) : nil,
-            selectedCodexSession: selection.source == .codex ? normalizedCodexSession(id: selection.sessionID, snapshot: codexSnapshot, cxLatestBySession: cxLatestBySession) : nil,
+            selectedOpenCodeSession: selection.source == .openCode ? normalizedOpenCodeSession(id: selection.sessionID, sessionsByID: openCodeSessionsByID, ocLatestBySession: ocLatestBySession) : nil,
+            selectedCodexSession: selection.source == .codex ? normalizedCodexSession(id: selection.sessionID, sessionsByID: codexSessionsByID, cxLatestBySession: cxLatestBySession) : nil,
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.source != .all && selection.isSessionScope == false,
@@ -744,7 +746,7 @@ final class AgentUsageStore: ObservableObject {
         return pills
     }
 
-    private func buildContextRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, ocLatestBySession: [String: Date], cxLatestBySession: [String: Date]) -> [AgentUsageDetailRow] {
+    private func buildContextRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, openCodeSessionsByID: [String: OpenCodeSessionRecord], codexSessionsByID: [String: CodexSessionRecord], ocLatestBySession: [String: Date], cxLatestBySession: [String: Date]) -> [AgentUsageDetailRow] {
         guard selection.source != .all else { return [] }
 
         var rows: [AgentUsageDetailRow] = []
@@ -776,7 +778,7 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
             case .session:
-                let session = openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                let session = selection.sessionID.flatMap { openCodeSessionsByID[$0] }
                 let rawID = selection.sessionID.map { rawSessionID(from: $0) }
                 let updatedAt = rawID.flatMap { ocLatestBySession[$0] } ?? session?.updatedAt
                 rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
@@ -810,7 +812,7 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
             case .session:
-                let session = codexSnapshot.sessions.first(where: { $0.id == selection.sessionID })
+                let session = selection.sessionID.flatMap { codexSessionsByID[$0] }
                 let updatedAt = selection.sessionID.flatMap { cxLatestBySession[$0] } ?? session?.updatedAt
                 rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.cwd ?? "-", secondaryText: nil))
@@ -849,18 +851,31 @@ final class AgentUsageStore: ObservableObject {
 
         switch scope {
         case .allProjects:
-            return codexBucketsBySession.values.reduce(0) { total, buckets in
-                total + buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
+            return codexBucketsBySession.reduce(0) { total, entry in
+                guard cxMetadataBySession[entry.key]?.isSubagent == false else { return total }
+                var requestCount = 0
+                for bucket in entry.value where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+                    requestCount += bucket.requestCount
+                }
+                return total + requestCount
             }
         case .project(let directory):
-            let sessionIDs = Set(state.codexSnapshot.sessions.filter { $0.cwd == directory }.map(\.id))
+            let sessionIDs = Set(state.codexSnapshot.sessions.filter { $0.cwd == directory && $0.isSubagent == false }.map(\.id))
             return codexBucketsBySession.reduce(0) { total, entry in
                 guard sessionIDs.contains(entry.key) else { return total }
-                return total + entry.value.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
+                var requestCount = 0
+                for bucket in entry.value where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+                    requestCount += bucket.requestCount
+                }
+                return total + requestCount
             }
         case .session(_, let sessionID):
             guard let buckets = codexBucketsBySession[sessionID] else { return 0 }
-            return buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
+            var requestCount = 0
+            for bucket in buckets where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+                requestCount += bucket.requestCount
+            }
+            return requestCount
         }
     }
 
@@ -968,10 +983,10 @@ final class AgentUsageStore: ObservableObject {
 
     private func normalizedOpenCodeSession(
         id: String?,
-        snapshot: OpenCodeUsageSnapshot,
+        sessionsByID: [String: OpenCodeSessionRecord],
         ocLatestBySession: [String: Date]
     ) -> OpenCodeSessionRecord? {
-        guard let id, let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
+        guard let id, let session = sessionsByID[id] else { return nil }
         guard let updatedAt = ocLatestBySession[rawSessionID(from: id)] else { return session }
 
         return OpenCodeSessionRecord(
@@ -996,10 +1011,10 @@ final class AgentUsageStore: ObservableObject {
 
     private func normalizedCodexSession(
         id: String?,
-        snapshot: CodexUsageSnapshot,
+        sessionsByID: [String: CodexSessionRecord],
         cxLatestBySession: [String: Date]
     ) -> CodexSessionRecord? {
-        guard let id, let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
+        guard let id, let session = sessionsByID[id] else { return nil }
         guard let updatedAt = cxLatestBySession[id] else { return session }
 
         return CodexSessionRecord(

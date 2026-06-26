@@ -279,6 +279,73 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.summary.requestCount, 5)
     }
 
+    func testDerivedDataForCodexProjectRequestCountExcludesSubagentBuckets() {
+        let store = AgentUsageStore(repository: StubRepository())
+        let now = Date()
+        let todayDay = agentUsageDayIdentifier(for: now)
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: [
+                    makeCodexSession(id: "primary", tokens: 100),
+                    CodexSessionRecord(
+                        id: "subagent",
+                        title: "Subagent",
+                        cwd: "/Users/zyao/Desktop/pulse",
+                        model: "gpt-5",
+                        modelProvider: "openai",
+                        tokensUsed: 50,
+                        inputTokens: 40,
+                        outputTokens: 10,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        reasoningEffort: "",
+                        threadSource: "subagent",
+                        agentNickname: nil,
+                        agentRole: nil,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 2000)
+                    )
+                ]),
+                codexDailyBuckets: [
+                    CodexDailyBucket(
+                        sessionID: "primary",
+                        day: todayDay,
+                        inputTokens: 80,
+                        outputTokens: 20,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 40,
+                        totalTokens: 100,
+                        requestCount: 5,
+                        latestActivityAt: now
+                    ),
+                    CodexDailyBucket(
+                        sessionID: "subagent",
+                        day: todayDay,
+                        inputTokens: 40,
+                        outputTokens: 10,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        totalTokens: 50,
+                        requestCount: 7,
+                        latestActivityAt: now
+                    )
+                ],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .today,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        XCTAssertEqual(data.summary.requestCount, 5)
+    }
+
     func testBuildSummaryPillsIncludesHitRateWhenCacheReadAndInputAvailable() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
