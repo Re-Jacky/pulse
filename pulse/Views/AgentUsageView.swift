@@ -209,7 +209,7 @@ struct AgentUsageView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(data.usageMetrics) { metric in
                     metricCard(title: metric.title, value: metric.valueText)
                 }
@@ -274,19 +274,19 @@ struct AgentUsageView: View {
     }
 
     private func metricCard(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.appSecondaryText)
 
             Text(value)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
+        .padding(8)
         .background(Color.appFieldBackground.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func summaryPill(title: String, value: String) -> some View {
