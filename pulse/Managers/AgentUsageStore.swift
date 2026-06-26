@@ -215,8 +215,20 @@ final class AgentUsageStore: ObservableObject {
                 codexSnapshot.summary(for: scope)
             }
 
+            let enrichedRequestCount: Int = {
+                switch selection.source {
+                case .openCode:
+                    return baseSummary.requestCount
+                case .codex:
+                    return codexRequestCountFromBuckets(for: selection, scope: scope)
+                case .all:
+                    return baseSummary.requestCount + codexRequestCountFromBuckets(for: selection, scope: scope)
+                }
+            }()
+
+            let enriched = replacingRequestCount(in: baseSummary, with: enrichedRequestCount)
             return replacingLastUpdated(
-                in: baseSummary,
+                in: enriched,
                 with: latestActivityDate(
                     for: selection.source,
                     scope: scope,
@@ -760,6 +772,42 @@ final class AgentUsageStore: ObservableObject {
             }
         }
         return rows
+    }
+
+    private func replacingRequestCount(in summary: AgentUsageSummary, with requestCount: Int) -> AgentUsageSummary {
+        AgentUsageSummary(
+            totalTokens: summary.totalTokens,
+            inputTokens: summary.inputTokens,
+            outputTokens: summary.outputTokens,
+            reasoningTokens: summary.reasoningTokens,
+            cacheReadTokens: summary.cacheReadTokens,
+            cacheWriteTokens: summary.cacheWriteTokens,
+            requestCount: requestCount,
+            sessionsCount: summary.sessionsCount,
+            cost: summary.cost,
+            lastUpdated: summary.lastUpdated
+        )
+    }
+
+    private func codexRequestCountFromBuckets(
+        for selection: AgentUsageSelection,
+        scope: AgentScope
+    ) -> Int {
+        guard selection.source == .codex || selection.source == .all else { return 0 }
+        let dayRange = agentUsageDayRange(for: selection.timeRange)
+        var buckets = state.codexDailyBuckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
+
+        switch scope {
+        case .allProjects:
+            break
+        case .project(let directory):
+            let sessionIDs = Set(state.codexSnapshot.sessions.filter { $0.cwd == directory }.map(\.id))
+            buckets = buckets.filter { sessionIDs.contains($0.sessionID) }
+        case .session(_, let sessionID):
+            buckets = buckets.filter { $0.sessionID == sessionID }
+        }
+
+        return buckets.reduce(0) { $0 + $1.requestCount }
     }
 
     private func replacingLastUpdated(in summary: AgentUsageSummary, with lastUpdated: Date?) -> AgentUsageSummary {
