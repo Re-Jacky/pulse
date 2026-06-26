@@ -394,24 +394,25 @@ final class AgentUsageStore: ObservableObject {
         let dayRange = agentUsageDayRange(for: range)
 
         let records: [OpenCodeSessionRecord] = openCodeBucketsByModelKey.compactMap { key, buckets in
-            let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
-            guard inRange.isEmpty == false,
-                  let m = ocMetadataByRawID[key.sessionID]
-            else { return nil }
-
-            let updatedAt = inRange.compactMap {
-                $0.latestActivityAt ?? approximateOpenCodeActivityDate(for: $0.day, relativeTo: m.updatedAt)
-            }.max() ?? m.updatedAt
-
-            let compoundID = [key.sessionID, key.providerID, key.modelID, key.variant ?? ""].joined(separator: "::")
+            guard let m = ocMetadataByRawID[key.sessionID] else { return nil }
 
             var input = 0, output = 0, reasoning = 0, cacheRead = 0, cacheWrite = 0, requests = 0
             var cost = 0.0
-            for b in inRange {
+            var updatedAt: Date?
+            var hasInRangeBuckets = false
+            for b in buckets {
+                guard b.day >= dayRange.lowerBound && b.day < dayRange.upperBound else { continue }
+                hasInRangeBuckets = true
                 input += b.inputTokens; output += b.outputTokens; reasoning += b.reasoningTokens
                 cacheRead += b.cacheReadTokens; cacheWrite += b.cacheWriteTokens; requests += b.requestCount
                 cost += b.cost
+                let activityAt = b.latestActivityAt ?? approximateOpenCodeActivityDate(for: b.day, relativeTo: m.updatedAt)
+                if updatedAt == nil || activityAt > updatedAt! { updatedAt = activityAt }
             }
+
+            guard hasInRangeBuckets else { return nil }
+
+            let compoundID = [key.sessionID, key.providerID, key.modelID, key.variant ?? ""].joined(separator: "::")
 
             return OpenCodeSessionRecord(
                 id: compoundID,
@@ -429,7 +430,7 @@ final class AgentUsageStore: ObservableObject {
                 requestCount: requests,
                 cost: cost,
                 createdAt: m.createdAt,
-                updatedAt: updatedAt
+                updatedAt: updatedAt ?? m.updatedAt
             )
         }
 
@@ -440,23 +441,23 @@ final class AgentUsageStore: ObservableObject {
         let dayRange = agentUsageDayRange(for: range)
 
         let records: [CodexSessionRecord] = codexBucketsBySession.compactMap { sessionID, buckets in
-            let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
-            guard inRange.isEmpty == false,
-                  let session = cxMetadataBySession[sessionID]
-            else { return nil }
+            guard let session = cxMetadataBySession[sessionID] else { return nil }
 
             var maxActivity: Date?
-            for b in inRange {
+            var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0
+            var hasInRangeBuckets = false
+            for b in buckets {
+                guard b.day >= dayRange.lowerBound && b.day < dayRange.upperBound else { continue }
+                hasInRangeBuckets = true
+                totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
+                reasoning += b.reasoningTokens; cacheRead += b.cacheReadTokens
                 let d = b.latestActivityAt ?? approximateCodexActivityDate(for: b.day, relativeTo: session.updatedAt)
                 if maxActivity == nil || d > maxActivity! { maxActivity = d }
             }
-            let updatedAt = maxActivity ?? session.updatedAt
 
-            var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0
-            for b in inRange {
-                totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
-                reasoning += b.reasoningTokens; cacheRead += b.cacheReadTokens
-            }
+            guard hasInRangeBuckets else { return nil }
+
+            let updatedAt = maxActivity ?? session.updatedAt
 
             return CodexSessionRecord(
                 id: session.id,
@@ -914,12 +915,38 @@ final class AgentUsageStore: ObservableObject {
                 latestActivityDate(for: .codex, scope: scope, range: range, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession)
             ].compactMap { $0 }.max()
         case .openCode:
-            let rawIDs = openCodeSessionIDs(in: scope, snapshot: openCodeSnapshot).map { rawSessionID(from: $0) }
-            let filtered = ocLatestBySession.filter { rawIDs.contains($0.key) }
-            return filtered.values.max() ?? openCodeSnapshot.summary(for: scope).lastUpdated
+            switch scope {
+            case .allProjects:
+                return ocLatestBySession.values.max() ?? openCodeSnapshot.summary(for: scope).lastUpdated
+            case .project(let directory):
+                var maxDate: Date?
+                for session in openCodeSnapshot.sessions where session.directory == directory {
+                    let activityAt = ocLatestBySession[rawSessionID(from: session.id)] ?? session.updatedAt
+                    if maxDate == nil || activityAt > maxDate! { maxDate = activityAt }
+                }
+                return maxDate ?? openCodeSnapshot.summary(for: scope).lastUpdated
+            case .session(_, let sessionID):
+                return ocLatestBySession[rawSessionID(from: sessionID)] ?? openCodeSnapshot.summary(for: scope).lastUpdated
+            }
         case .codex:
-            let filtered = cxLatestBySession.filter { codexSessionIDs(in: scope, snapshot: codexSnapshot).contains($0.key) }
-            return filtered.values.max() ?? codexSnapshot.summary(for: scope).lastUpdated
+            switch scope {
+            case .allProjects:
+                var maxDate: Date?
+                for session in codexSnapshot.sessions where session.isSubagent == false {
+                    let activityAt = cxLatestBySession[session.id] ?? session.updatedAt
+                    if maxDate == nil || activityAt > maxDate! { maxDate = activityAt }
+                }
+                return maxDate ?? codexSnapshot.summary(for: scope).lastUpdated
+            case .project(let directory):
+                var maxDate: Date?
+                for session in codexSnapshot.sessions where session.cwd == directory && session.isSubagent == false {
+                    let activityAt = cxLatestBySession[session.id] ?? session.updatedAt
+                    if maxDate == nil || activityAt > maxDate! { maxDate = activityAt }
+                }
+                return maxDate ?? codexSnapshot.summary(for: scope).lastUpdated
+            case .session(_, let sessionID):
+                return cxLatestBySession[sessionID] ?? codexSnapshot.summary(for: scope).lastUpdated
+            }
         }
     }
 
@@ -957,28 +984,6 @@ final class AgentUsageStore: ObservableObject {
             }
         }
         return result
-    }
-
-    private func openCodeSessionIDs(in scope: AgentScope, snapshot: OpenCodeUsageSnapshot) -> Set<String> {
-        switch scope {
-        case .allProjects:
-            return Set(snapshot.sessions.map(\.id))
-        case .project(let directory):
-            return Set(snapshot.sessions.filter { $0.directory == directory }.map(\.id))
-        case .session(_, let sessionID):
-            return [sessionID]
-        }
-    }
-
-    private func codexSessionIDs(in scope: AgentScope, snapshot: CodexUsageSnapshot) -> Set<String> {
-        switch scope {
-        case .allProjects:
-            return Set(snapshot.sessions.filter { $0.isSubagent == false }.map(\.id))
-        case .project(let directory):
-            return Set(snapshot.sessions.filter { $0.cwd == directory && $0.isSubagent == false }.map(\.id))
-        case .session(_, let sessionID):
-            return [sessionID]
-        }
     }
 
     private func normalizedOpenCodeSession(

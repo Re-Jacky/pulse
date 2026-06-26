@@ -346,6 +346,54 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.summary.requestCount, 5)
     }
 
+    func testDerivedDataForOpenCodeRangedSessionUsesBucketActivityForSelectedCompoundSession() {
+        let now = Date()
+        let activityAt = now.addingTimeInterval(-60)
+        let day = agentUsageDayIdentifier(for: now)
+        let compoundID = "oc_1::opencode::model-a::"
+
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    makeOpenCodeSession(id: "oc_1", tokens: 999, updatedAt: now.addingTimeInterval(-3600))
+                ]),
+                openCodeDailyBuckets: [
+                    OpenCodeDailyBucket(
+                        sessionID: "oc_1",
+                        day: day,
+                        modelProviderID: "opencode",
+                        modelID: "model-a",
+                        modelVariant: nil,
+                        inputTokens: 80,
+                        outputTokens: 20,
+                        reasoningTokens: 5,
+                        cacheReadTokens: 40,
+                        cacheWriteTokens: 3,
+                        requestCount: 2,
+                        cost: 0.01,
+                        latestActivityAt: activityAt
+                    )
+                ],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .today,
+            projectDirectory: "/Users/zyao/Desktop/pulse",
+            sessionID: compoundID,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.selectedOpenCodeSession?.id, compoundID)
+        XCTAssertEqual(data.selectedOpenCodeSession?.updatedAt, activityAt)
+    }
+
     func testBuildSummaryPillsIncludesHitRateWhenCacheReadAndInputAvailable() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
