@@ -136,6 +136,7 @@ SUM(coalesce(json_extract(m.data, '$.tokens.output'), 0)),
 SUM(coalesce(json_extract(m.data, '$.tokens.reasoning'), 0)),
 SUM(coalesce(json_extract(m.data, '$.tokens.cache.read'), 0)),
 SUM(coalesce(json_extract(m.data, '$.tokens.cache.write'), 0)),
+COUNT(m.id) as request_count,
 SUM(coalesce(json_extract(m.data, '$.cost'), 0)),
 MIN(s.time_created),
 MAX(s.time_updated)
@@ -167,8 +168,8 @@ guard stepResult == SQLITE_ROW else {
 throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
 }
 
-let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 13)) / 1000)
-let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
+let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
+let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 15)) / 1000)
 
 sessions.append(
 OpenCodeSessionRecord(
@@ -184,8 +185,8 @@ outputTokens: Int(sqlite3_column_int64(statement, 8)),
 reasoningTokens: Int(sqlite3_column_int64(statement, 9)),
 cacheReadTokens: Int(sqlite3_column_int64(statement, 10)),
             cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
-            requestCount: 0,
-            cost: sqlite3_column_double(statement, 12),
+            requestCount: Int(sqlite3_column_int64(statement, 12)),
+            cost: sqlite3_column_double(statement, 13),
 createdAt: createdAt,
 updatedAt: updatedAt
 )
@@ -223,6 +224,8 @@ coalesce(tokens_output, 0),
 coalesce(tokens_reasoning, 0),
 coalesce(tokens_cache_read, 0),
 coalesce(tokens_cache_write, 0),
+(select count(*) from message where message.session_id = session.id
+ and json_extract(message.data, '$.role') = 'assistant') as request_count,
 coalesce(cost, 0),
 time_created,
 time_updated
@@ -248,8 +251,8 @@ guard stepResult == SQLITE_ROW else {
 throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
 }
 
-let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 13)) / 1000)
-let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
+let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
+let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 15)) / 1000)
 
 sessions.append(
 OpenCodeSessionRecord(
@@ -265,8 +268,8 @@ outputTokens: Int(sqlite3_column_int64(statement, 8)),
 reasoningTokens: Int(sqlite3_column_int64(statement, 9)),
 cacheReadTokens: Int(sqlite3_column_int64(statement, 10)),
             cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
-            requestCount: 0,
-            cost: sqlite3_column_double(statement, 12),
+            requestCount: Int(sqlite3_column_int64(statement, 12)),
+            cost: sqlite3_column_double(statement, 13),
 createdAt: createdAt,
 updatedAt: updatedAt
 )
@@ -339,6 +342,7 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
             reasoningTokens: Int(sqlite3_column_int64(statement, 7)),
             cacheReadTokens: Int(sqlite3_column_int64(statement, 8)),
             cacheWriteTokens: Int(sqlite3_column_int64(statement, 9)),
+            requestCount: 1,
             cost: sqlite3_column_double(statement, 10),
             latestActivityAt: createdAt
         )
@@ -367,6 +371,7 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
             reasoningTokens: (existing?.reasoningTokens ?? 0) + bucket.reasoningTokens,
             cacheReadTokens: (existing?.cacheReadTokens ?? 0) + bucket.cacheReadTokens,
             cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + bucket.cacheWriteTokens,
+            requestCount: (existing?.requestCount ?? 0) + 1,
             cost: (existing?.cost ?? 0) + bucket.cost,
             latestActivityAt: latestActivityAt
         )
