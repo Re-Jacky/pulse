@@ -223,6 +223,7 @@ final class AgentUsageStore: ObservableObject {
                     return codexRequestCountFromBuckets(for: selection, scope: scope)
                 case .all:
                     return baseSummary.requestCount + codexRequestCountFromBuckets(for: selection, scope: scope)
+
                 }
             }()
 
@@ -677,6 +678,9 @@ final class AgentUsageStore: ObservableObject {
         if let cacheRead = summary.cacheReadTokens {
             metrics.append(AgentUsageMetricCard(id: "cacheRead", title: "Cache Read", valueText: compact(cacheRead), detailText: nil))
         }
+        if summary.requestCount > 0 {
+            metrics.append(AgentUsageMetricCard(id: "requests", title: "Requests", valueText: compact(summary.requestCount), detailText: nil))
+        }
         return metrics
     }
 
@@ -687,6 +691,10 @@ final class AgentUsageStore: ObservableObject {
         }
         if let cacheWrite = summary.cacheWriteTokens {
             pills.append(AgentUsageSummaryPill(id: "cacheWrite", title: "Cache Write", valueText: compact(cacheWrite)))
+        }
+        if let cacheRead = summary.cacheReadTokens, let input = summary.inputTokens, input > 0 {
+            let rate = Double(cacheRead) / Double(input)
+            pills.append(AgentUsageSummaryPill(id: "hitRate", title: "Hit Rate", valueText: String(format: "%.0f%%", rate * 100)))
         }
         pills.append(AgentUsageSummaryPill(id: "sessions", title: "Sessions", valueText: "\(summary.sessionsCount)"))
         pills.append(AgentUsageSummaryPill(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-"))
