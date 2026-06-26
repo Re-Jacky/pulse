@@ -52,6 +52,12 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         );
         """)
 
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 2000,
+         '{"role":"assistant","providerID":"codex-gpt","modelID":"gpt-5.4","variant":"default","tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":1.25,"time":{"created":1000}}');
+        """)
+
         let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
 
         XCTAssertEqual(snapshot.sessions.count, 1)

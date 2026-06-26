@@ -45,3 +45,10 @@ struct OpenCodeDailyBucket: Equatable {
         self.latestActivityAt = latestActivityAt
     }
 }
+
+struct OpenCodeModelKey: Hashable, Equatable {
+    let sessionID: String
+    let providerID: String
+    let modelID: String
+    let variant: String?
+}

@@ -365,26 +365,30 @@ final class AgentUsageStore: ObservableObject {
         let dayRange = agentUsageDayRange(for: range)
         let meta = state.openCodeCumulativeSnapshot
 
-        let grouped = Dictionary(grouping: state.openCodeDailyBuckets) { $0.sessionID }
+        let grouped = Dictionary(grouping: state.openCodeDailyBuckets) {
+            OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
+        }
 
-        let records: [OpenCodeSessionRecord] = grouped.compactMap { sessionID, buckets in
+        let records: [OpenCodeSessionRecord] = grouped.compactMap { key, buckets in
             let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
             guard inRange.isEmpty == false,
-                  let m = meta.sessions.first(where: { $0.id == sessionID })
+                  let m = meta.sessions.first(where: { rawSessionID(from: $0.id) == key.sessionID })
             else { return nil }
 
             let updatedAt = inRange.compactMap {
                 $0.latestActivityAt ?? approximateOpenCodeActivityDate(for: $0.day, relativeTo: m.updatedAt)
             }.max() ?? m.updatedAt
 
+            let compoundID = [key.sessionID, key.providerID, key.modelID, key.variant ?? ""].joined(separator: "::")
+
             return OpenCodeSessionRecord(
-                id: m.id,
+                id: compoundID,
                 title: m.title,
                 directory: m.directory,
                 agent: m.agent,
-                modelProviderID: m.modelProviderID,
-                modelID: m.modelID,
-                modelVariant: m.modelVariant,
+                modelProviderID: key.providerID,
+                modelID: key.modelID,
+                modelVariant: key.variant,
                 inputTokens: inRange.reduce(0) { $0 + $1.inputTokens },
                 outputTokens: inRange.reduce(0) { $0 + $1.outputTokens },
                 reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
@@ -519,7 +523,7 @@ final class AgentUsageStore: ObservableObject {
                 snapshot: openCodeSnapshot
             )
             return openCodeSnapshot.sessionOptions(for: projectDirectory).map {
-                let updatedAt = latestBySession[$0.id] ?? $0.updatedAt
+                let updatedAt = latestBySession[rawSessionID(from: $0.id)] ?? $0.updatedAt
                 return SearchableSelectorOption(
                     id: $0.id,
                     title: $0.title,
@@ -737,7 +741,8 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
             case .session:
                 let session = openCodeSnapshot.sessions.first(where: { $0.id == selection.sessionID })
-                let updatedAt = selection.sessionID.flatMap { latestBySession[$0] } ?? session?.updatedAt
+                let rawID = selection.sessionID.map { rawSessionID(from: $0) }
+                let updatedAt = rawID.flatMap { latestBySession[$0] } ?? session?.updatedAt
                 rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.directory ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "agent", title: "Agent", valueText: session?.agent ?? "-", secondaryText: nil))
@@ -834,6 +839,10 @@ final class AgentUsageStore: ObservableObject {
         )
     }
 
+    private func rawSessionID(from compoundID: String) -> String {
+        compoundID.components(separatedBy: "::").first ?? compoundID
+    }
+
     private func latestActivityDate(
         for source: AgentSource,
         scope: AgentScope,
@@ -849,7 +858,8 @@ final class AgentUsageStore: ObservableObject {
             ].compactMap { $0 }.max()
         case .openCode:
             let latestBySession = openCodeLatestActivityBySession(range: range, snapshot: openCodeSnapshot)
-            let filtered = latestBySession.filter { openCodeSessionIDs(in: scope, snapshot: openCodeSnapshot).contains($0.key) }
+            let rawIDs = openCodeSessionIDs(in: scope, snapshot: openCodeSnapshot).map { rawSessionID(from: $0) }
+            let filtered = latestBySession.filter { rawIDs.contains($0.key) }
             return filtered.values.max() ?? openCodeSnapshot.summary(for: scope).lastUpdated
         case .codex:
             let latestBySession = codexLatestActivityBySession(range: range, snapshot: codexSnapshot)
@@ -863,11 +873,14 @@ final class AgentUsageStore: ObservableObject {
         snapshot: OpenCodeUsageSnapshot
     ) -> [String: Date] {
         let dayRange = dayRange(for: range)
-        let metadataBySession = Dictionary(uniqueKeysWithValues: state.openCodeCumulativeSnapshot.sessions.map { ($0.id, $0) })
+        let metadataByRawSessionID = Dictionary(
+            state.openCodeCumulativeSnapshot.sessions.map { (rawSessionID(from: $0.id), $0) },
+            uniquingKeysWith: { _, last in last }
+        )
 
         return state.openCodeDailyBuckets.reduce(into: [:]) { latestBySession, bucket in
             guard dayRange.contains(bucket.day) else { return }
-            guard let metadata = metadataBySession[bucket.sessionID] else { return }
+            guard let metadata = metadataByRawSessionID[bucket.sessionID] else { return }
             let activityAt = bucket.latestActivityAt ?? approximateOpenCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
             latestBySession[bucket.sessionID] = max(latestBySession[bucket.sessionID] ?? .distantPast, activityAt)
         }
@@ -917,7 +930,7 @@ final class AgentUsageStore: ObservableObject {
     ) -> OpenCodeSessionRecord? {
         guard let id, let session = snapshot.sessions.first(where: { $0.id == id }) else { return nil }
         let latestBySession = openCodeLatestActivityBySession(range: range, snapshot: snapshot)
-        guard let updatedAt = latestBySession[id] else { return session }
+        guard let updatedAt = latestBySession[rawSessionID(from: id)] else { return session }
 
         return OpenCodeSessionRecord(
             id: session.id,
@@ -1027,7 +1040,10 @@ final class AgentUsageStore: ObservableObject {
 
     private func openCodeBuckets(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeDailyBucket] {
         let dayRange = agentUsageDayRange(for: range)
-        let sessionsByID = Dictionary(uniqueKeysWithValues: state.openCodeCumulativeSnapshot.sessions.map { ($0.id, $0) })
+        let sessionsByRawID = Dictionary(
+            state.openCodeCumulativeSnapshot.sessions.map { (rawSessionID(from: $0.id), $0) },
+            uniquingKeysWith: { _, last in last }
+        )
 
         return state.openCodeDailyBuckets.filter { bucket in
             guard dayRange.contains(bucket.day) else { return false }
@@ -1036,9 +1052,9 @@ final class AgentUsageStore: ObservableObject {
             case .allProjects:
                 return true
             case .project(let directory):
-                return sessionsByID[bucket.sessionID]?.directory == directory
+                return sessionsByRawID[bucket.sessionID]?.directory == directory
             case .session(_, let sessionID):
-                return bucket.sessionID == sessionID
+                return bucket.sessionID == rawSessionID(from: sessionID)
             }
         }
     }

@@ -128,9 +128,9 @@ s.id,
 s.title,
 s.directory,
 coalesce(s.agent, ''),
-coalesce(json_extract(s.model, '$.providerID'), ''),
-coalesce(json_extract(s.model, '$.id'), ''),
-nullif(json_extract(s.model, '$.variant'), ''),
+coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
+coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
+nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
 SUM(coalesce(json_extract(m.data, '$.tokens.input'), 0)),
 SUM(coalesce(json_extract(m.data, '$.tokens.output'), 0)),
 SUM(coalesce(json_extract(m.data, '$.tokens.reasoning'), 0)),
@@ -144,7 +144,7 @@ FROM session s
 JOIN message m ON m.session_id = s.id
 WHERE json_extract(m.data, '$.role') = 'assistant'
 AND json_extract(m.data, '$.time.created') >= ?
-GROUP BY s.id
+GROUP BY s.id, coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')), coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')), nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')
 ORDER BY MAX(s.time_updated) DESC
 """
 
@@ -171,14 +171,20 @@ throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
 let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
 let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 15)) / 1000)
 
+let sessionID = stringColumn(statement, index: 0)
+let providerID = stringColumn(statement, index: 4)
+let modelIDStr = stringColumn(statement, index: 5)
+let variantStr = optionalStringColumn(statement, index: 6) ?? ""
+let compoundID = [sessionID, providerID, modelIDStr, variantStr].joined(separator: "::")
+
 sessions.append(
 OpenCodeSessionRecord(
-id: stringColumn(statement, index: 0),
+id: compoundID,
 title: stringColumn(statement, index: 1),
 directory: stringColumn(statement, index: 2),
 agent: stringColumn(statement, index: 3),
-modelProviderID: stringColumn(statement, index: 4),
-modelID: stringColumn(statement, index: 5),
+modelProviderID: providerID,
+modelID: modelIDStr,
 modelVariant: optionalStringColumn(statement, index: 6),
 inputTokens: Int(sqlite3_column_int64(statement, 7)),
 outputTokens: Int(sqlite3_column_int64(statement, 8)),
@@ -212,25 +218,26 @@ defer { sqlite3_close(db) }
 
 let sql = """
 select
-id,
-title,
-directory,
-coalesce(agent, ''),
-coalesce(json_extract(model, '$.providerID'), ''),
-coalesce(json_extract(model, '$.id'), ''),
-nullif(json_extract(model, '$.variant'), ''),
-coalesce(tokens_input, 0),
-coalesce(tokens_output, 0),
-coalesce(tokens_reasoning, 0),
-coalesce(tokens_cache_read, 0),
-coalesce(tokens_cache_write, 0),
-(select count(*) from message where message.session_id = session.id
- and json_extract(message.data, '$.role') = 'assistant') as request_count,
-coalesce(cost, 0),
-time_created,
-time_updated
-from session
-order by time_updated desc
+s.id,
+s.title,
+s.directory,
+coalesce(s.agent, ''),
+coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
+coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
+nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
+SUM(coalesce(json_extract(m.data, '$.tokens.input'), 0)),
+SUM(coalesce(json_extract(m.data, '$.tokens.output'), 0)),
+SUM(coalesce(json_extract(m.data, '$.tokens.reasoning'), 0)),
+SUM(coalesce(json_extract(m.data, '$.tokens.cache.read'), 0)),
+SUM(coalesce(json_extract(m.data, '$.tokens.cache.write'), 0)),
+SUM(CASE WHEN m.id IS NOT NULL AND json_extract(m.data, '$.role') = 'assistant' THEN 1 ELSE 0 END),
+SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') END, 0)),
+MIN(s.time_created),
+MAX(s.time_updated)
+FROM session s
+LEFT JOIN message m ON m.session_id = s.id
+GROUP BY s.id, coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')), coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')), nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')
+ORDER BY MAX(s.time_updated) DESC
 """
 
 var statement: OpaquePointer?
@@ -254,14 +261,20 @@ throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
 let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
 let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 15)) / 1000)
 
+let sessionID = stringColumn(statement, index: 0)
+let providerID = stringColumn(statement, index: 4)
+let modelIDStr = stringColumn(statement, index: 5)
+let variantStr = optionalStringColumn(statement, index: 6) ?? ""
+let compoundID = [sessionID, providerID, modelIDStr, variantStr].joined(separator: "::")
+
 sessions.append(
 OpenCodeSessionRecord(
-id: stringColumn(statement, index: 0),
+id: compoundID,
 title: stringColumn(statement, index: 1),
 directory: stringColumn(statement, index: 2),
 agent: stringColumn(statement, index: 3),
-modelProviderID: stringColumn(statement, index: 4),
-modelID: stringColumn(statement, index: 5),
+modelProviderID: providerID,
+modelID: modelIDStr,
 modelVariant: optionalStringColumn(statement, index: 6),
 inputTokens: Int(sqlite3_column_int64(statement, 7)),
 outputTokens: Int(sqlite3_column_int64(statement, 8)),
@@ -329,7 +342,11 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         let sessionID = stringColumn(statement, index: 0)
         let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 1)) / 1000)
         let day = agentUsageDayIdentifier(for: createdAt)
-        let key = "\(sessionID)::\(day)"
+        let modelProviderID = stringColumn(statement, index: 2)
+        let modelID = stringColumn(statement, index: 3)
+        let modelVariant = optionalStringColumn(statement, index: 4) ?? ""
+        let modelKey = [modelProviderID, modelID, modelVariant].joined(separator: "::")
+        let key = "\(sessionID)::\(modelKey)::\(day)"
 
         let bucket = OpenCodeDailyBucket(
             sessionID: sessionID,
