@@ -193,9 +193,7 @@ final class AgentUsageStore: ObservableObject {
             openCodeSnapshot = aggregatedSnapshot(for: selection.timeRange)
         }
         let codexSnapshot: CodexUsageSnapshot
-        if selection.timeRange == .allTime {
-            codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
-        } else if state.codexDailyBuckets.isEmpty {
+        if state.codexDailyBuckets.isEmpty {
             codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
         } else {
             codexSnapshot = aggregatedCodexSnapshot(for: selection.timeRange)
@@ -692,9 +690,12 @@ final class AgentUsageStore: ObservableObject {
         if let cacheWrite = summary.cacheWriteTokens {
             pills.append(AgentUsageSummaryPill(id: "cacheWrite", title: "Cache Write", valueText: compact(cacheWrite)))
         }
-        if let cacheRead = summary.cacheReadTokens, let input = summary.inputTokens, input > 0 {
-            let rate = Double(cacheRead) / Double(input)
-            pills.append(AgentUsageSummaryPill(id: "hitRate", title: "Hit Rate", valueText: String(format: "%.0f%%", rate * 100)))
+        if let cacheRead = summary.cacheReadTokens, let input = summary.inputTokens {
+            let totalInput = input + cacheRead
+            if totalInput > 0 {
+                let rate = Double(cacheRead) / Double(totalInput)
+                pills.append(AgentUsageSummaryPill(id: "hitRate", title: "Hit Rate", valueText: String(format: "%.0f%%", rate * 100)))
+            }
         }
         pills.append(AgentUsageSummaryPill(id: "sessions", title: "Sessions", valueText: "\(summary.sessionsCount)"))
         pills.append(AgentUsageSummaryPill(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-"))

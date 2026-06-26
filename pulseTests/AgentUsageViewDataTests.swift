@@ -319,7 +319,7 @@ final class AgentUsageViewDataTests: XCTestCase {
         ))
         let hitRatePill = data.summaryPills.first { $0.id == "hitRate" }
         XCTAssertNotNil(hitRatePill)
-        XCTAssertEqual(hitRatePill?.valueText, "60%")
+        XCTAssertEqual(hitRatePill?.valueText, "38%")
     }
 
     func testBuildSummaryPillsOmitsHitRateWhenNoCacheReadTokens() {
