@@ -197,6 +197,7 @@ enum CodexUsageQuery {
                     reasoningTokens: bucket.reasoningTokens,
                     cacheReadTokens: bucket.cacheReadTokens,
                     totalTokens: bucket.totalTokens,
+                    requestCount: bucket.requestCount,
                     latestActivityAt: bucket.latestActivityAt
                 )
             }
@@ -402,6 +403,7 @@ private func accumulateDailyBuckets(
             reasoningTokens: deltaUsage.reasoningTokens,
             cacheReadTokens: deltaUsage.cacheReadTokens,
             totalTokens: deltaUsage.totalTokens,
+            requestCount: 1,
             latestActivityAt: timestamp
         )
         let existing = totalsBySessionAndDay[key, default: .zero(sessionID: currentSessionID, day: day)]
