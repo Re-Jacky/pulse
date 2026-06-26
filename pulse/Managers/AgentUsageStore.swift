@@ -46,6 +46,8 @@ final class AgentUsageStore: ObservableObject {
 
     private var hasLoadedGeneralData = false
     private var derivedDataCache: (key: DerivedDataCacheKey, value: AgentUsageDerivedViewData)?
+    private var openCodeBucketsByModelKey: [OpenCodeModelKey: [OpenCodeDailyBucket]] = [:]
+    private var codexBucketsBySession: [String: [CodexDailyBucket]] = [:]
     private let supportedSources: [AgentSource]
     private var enabledSources: Set<AgentSource>
 
@@ -174,6 +176,10 @@ final class AgentUsageStore: ObservableObject {
     func replaceStateForTesting(_ state: AgentUsageLoadedState) {
         self.state = state
         derivedDataCache = nil
+        openCodeBucketsByModelKey = Dictionary(grouping: state.openCodeDailyBuckets) {
+            OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
+        }
+        codexBucketsBySession = Dictionary(grouping: state.codexDailyBuckets) { $0.sessionID }
     }
     #endif
 
@@ -351,6 +357,10 @@ final class AgentUsageStore: ObservableObject {
             codexDetailCache: [:]
         )
         derivedDataCache = nil
+        openCodeBucketsByModelKey = Dictionary(grouping: result.dailyBuckets) {
+            OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
+        }
+        codexBucketsBySession = Dictionary(grouping: result.codexDailyBuckets) { $0.sessionID }
 
         lastError = result.lastError
         if result.loadedAnySource {
@@ -365,11 +375,7 @@ final class AgentUsageStore: ObservableObject {
         let dayRange = agentUsageDayRange(for: range)
         let meta = state.openCodeCumulativeSnapshot
 
-        let grouped = Dictionary(grouping: state.openCodeDailyBuckets) {
-            OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
-        }
-
-        let records: [OpenCodeSessionRecord] = grouped.compactMap { key, buckets in
+        let records: [OpenCodeSessionRecord] = openCodeBucketsByModelKey.compactMap { key, buckets in
             let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
             guard inRange.isEmpty == false,
                   let m = meta.sessions.first(where: { rawSessionID(from: $0.id) == key.sessionID })
@@ -407,9 +413,8 @@ final class AgentUsageStore: ObservableObject {
     private func aggregatedCodexSnapshot(for range: AgentTimeRange) -> CodexUsageSnapshot {
         let dayRange = agentUsageDayRange(for: range)
         let meta = state.codexSnapshot
-        let grouped = Dictionary(grouping: state.codexDailyBuckets) { $0.sessionID }
 
-        let records: [CodexSessionRecord] = grouped.compactMap { sessionID, buckets in
+        let records: [CodexSessionRecord] = codexBucketsBySession.compactMap { sessionID, buckets in
             let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
             guard inRange.isEmpty == false,
                   let session = meta.sessions.first(where: { $0.id == sessionID })
