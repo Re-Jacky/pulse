@@ -176,20 +176,29 @@ struct OpenCodeUsageSnapshot: Equatable {
             .sorted { $0.summary.totalTokens > $1.summary.totalTokens }
     }
 
-static func makeSummary(from sessions: [OpenCodeSessionRecord]) -> AgentUsageSummary {
-AgentUsageSummary(
-totalTokens: sessions.reduce(0) { $0 + $1.totalTokens },
-inputTokens: sessions.reduce(0) { $0 + $1.inputTokens },
-outputTokens: sessions.reduce(0) { $0 + $1.outputTokens },
-reasoningTokens: sessions.reduce(0) { $0 + $1.reasoningTokens },
-cacheReadTokens: sessions.reduce(0) { $0 + $1.cacheReadTokens },
-cacheWriteTokens: sessions.reduce(0) { $0 + $1.cacheWriteTokens },
-requestCount: sessions.reduce(0) { $0 + $1.requestCount },
-sessionsCount: sessions.count,
-cost: sessions.reduce(0) { $0 + $1.cost },
-lastUpdated: sessions.map(\.updatedAt).max()
-)
-}
+    static func makeSummary(from sessions: [OpenCodeSessionRecord]) -> AgentUsageSummary {
+        var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0, cacheWrite = 0, requests = 0
+        var cost = 0.0
+        var lastUpdated: Date?
+        for s in sessions {
+            totalTokens += s.totalTokens; input += s.inputTokens; output += s.outputTokens
+            reasoning += s.reasoningTokens; cacheRead += s.cacheReadTokens; cacheWrite += s.cacheWriteTokens
+            requests += s.requestCount; cost += s.cost
+            if lastUpdated == nil || s.updatedAt > lastUpdated! { lastUpdated = s.updatedAt }
+        }
+        return AgentUsageSummary(
+            totalTokens: totalTokens,
+            inputTokens: input,
+            outputTokens: output,
+            reasoningTokens: reasoning,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            requestCount: requests,
+            sessionsCount: sessions.count,
+            cost: cost,
+            lastUpdated: lastUpdated
+        )
+    }
 
     static func modelDisplayName(providerID: String, modelID: String, variant: String?) -> String {
         guard let variant, variant.isEmpty == false else {

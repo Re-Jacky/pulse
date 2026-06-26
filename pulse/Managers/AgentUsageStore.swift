@@ -390,12 +390,11 @@ final class AgentUsageStore: ObservableObject {
 
     private func aggregatedSnapshot(for range: AgentTimeRange) -> OpenCodeUsageSnapshot {
         let dayRange = agentUsageDayRange(for: range)
-        let meta = state.openCodeCumulativeSnapshot
 
         let records: [OpenCodeSessionRecord] = openCodeBucketsByModelKey.compactMap { key, buckets in
             let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
             guard inRange.isEmpty == false,
-                  let m = meta.sessions.first(where: { rawSessionID(from: $0.id) == key.sessionID })
+                  let m = ocMetadataByRawID[key.sessionID]
             else { return nil }
 
             let updatedAt = inRange.compactMap {
@@ -403,6 +402,14 @@ final class AgentUsageStore: ObservableObject {
             }.max() ?? m.updatedAt
 
             let compoundID = [key.sessionID, key.providerID, key.modelID, key.variant ?? ""].joined(separator: "::")
+
+            var input = 0, output = 0, reasoning = 0, cacheRead = 0, cacheWrite = 0, requests = 0
+            var cost = 0.0
+            for b in inRange {
+                input += b.inputTokens; output += b.outputTokens; reasoning += b.reasoningTokens
+                cacheRead += b.cacheReadTokens; cacheWrite += b.cacheWriteTokens; requests += b.requestCount
+                cost += b.cost
+            }
 
             return OpenCodeSessionRecord(
                 id: compoundID,
@@ -412,13 +419,13 @@ final class AgentUsageStore: ObservableObject {
                 modelProviderID: key.providerID,
                 modelID: key.modelID,
                 modelVariant: key.variant,
-                inputTokens: inRange.reduce(0) { $0 + $1.inputTokens },
-                outputTokens: inRange.reduce(0) { $0 + $1.outputTokens },
-                reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
-                cacheReadTokens: inRange.reduce(0) { $0 + $1.cacheReadTokens },
-                cacheWriteTokens: inRange.reduce(0) { $0 + $1.cacheWriteTokens },
-                requestCount: inRange.reduce(0) { $0 + $1.requestCount },
-                cost: inRange.reduce(0.0) { $0 + $1.cost },
+                inputTokens: input,
+                outputTokens: output,
+                reasoningTokens: reasoning,
+                cacheReadTokens: cacheRead,
+                cacheWriteTokens: cacheWrite,
+                requestCount: requests,
+                cost: cost,
                 createdAt: m.createdAt,
                 updatedAt: updatedAt
             )
@@ -429,17 +436,25 @@ final class AgentUsageStore: ObservableObject {
 
     private func aggregatedCodexSnapshot(for range: AgentTimeRange) -> CodexUsageSnapshot {
         let dayRange = agentUsageDayRange(for: range)
-        let meta = state.codexSnapshot
 
         let records: [CodexSessionRecord] = codexBucketsBySession.compactMap { sessionID, buckets in
             let inRange = buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
             guard inRange.isEmpty == false,
-                  let session = meta.sessions.first(where: { $0.id == sessionID })
+                  let session = cxMetadataBySession[sessionID]
             else { return nil }
 
-            let updatedAt = inRange.compactMap {
-                $0.latestActivityAt ?? approximateCodexActivityDate(for: $0.day, relativeTo: session.updatedAt)
-            }.max() ?? session.updatedAt
+            var maxActivity: Date?
+            for b in inRange {
+                let d = b.latestActivityAt ?? approximateCodexActivityDate(for: b.day, relativeTo: session.updatedAt)
+                if maxActivity == nil || d > maxActivity! { maxActivity = d }
+            }
+            let updatedAt = maxActivity ?? session.updatedAt
+
+            var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0
+            for b in inRange {
+                totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
+                reasoning += b.reasoningTokens; cacheRead += b.cacheReadTokens
+            }
 
             return CodexSessionRecord(
                 id: session.id,
@@ -447,11 +462,11 @@ final class AgentUsageStore: ObservableObject {
                 cwd: session.cwd,
                 model: session.model,
                 modelProvider: session.modelProvider,
-                tokensUsed: inRange.reduce(0) { $0 + $1.totalTokens },
-                inputTokens: inRange.reduce(0) { $0 + $1.inputTokens },
-                outputTokens: inRange.reduce(0) { $0 + $1.outputTokens },
-                reasoningTokens: inRange.reduce(0) { $0 + $1.reasoningTokens },
-                cacheReadTokens: inRange.reduce(0) { $0 + $1.cacheReadTokens },
+                tokensUsed: totalTokens,
+                inputTokens: input,
+                outputTokens: output,
+                reasoningTokens: reasoning,
+                cacheReadTokens: cacheRead,
                 reasoningEffort: session.reasoningEffort,
                 threadSource: session.threadSource,
                 agentNickname: session.agentNickname,
@@ -490,25 +505,25 @@ final class AgentUsageStore: ObservableObject {
             let ocProjects = Dictionary(grouping: openCodeSnapshot.sessions, by: \.directory)
             let cxProjects = Dictionary(grouping: codexSnapshot.sessions.filter { $0.isSubagent == false }, by: \.cwd)
             let allDirs = Set(ocProjects.keys).union(cxProjects.keys)
-            return allDirs.map { dir -> SearchableSelectorOption in
+            let sorted: [(option: SearchableSelectorOption, tokens: Int)] = allDirs.map { dir in
                 let ocSessions = ocProjects[dir] ?? []
                 let cxSessions = cxProjects[dir] ?? []
                 let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed }
                 let sessionsCount = ocSessions.count + cxSessions.count
-                return SearchableSelectorOption(
+                let option = SearchableSelectorOption(
                     id: dir,
                     title: URL(fileURLWithPath: dir).lastPathComponent,
                     subtitle: "\(compact(totalTokens)) total tokens \u{2022} \(sessionsCount) sessions \u{2022} \(dir)"
                 )
+                return (option, totalTokens)
             }
             .sorted { lhs, rhs in
-                let lhsTokens = totalTokensForProject(dir: lhs.id, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
-                let rhsTokens = totalTokensForProject(dir: rhs.id, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
-                if lhsTokens == rhsTokens {
-                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                if lhs.tokens == rhs.tokens {
+                    return lhs.option.title.localizedCaseInsensitiveCompare(rhs.option.title) == .orderedAscending
                 }
-                return lhsTokens > rhsTokens
+                return lhs.tokens > rhs.tokens
             }
+            return sorted.map { $0.option }
         case .openCode:
             return openCodeSnapshot.projectOptions.map {
                 SearchableSelectorOption(
@@ -526,12 +541,6 @@ final class AgentUsageStore: ObservableObject {
                 )
             }
         }
-    }
-
-    private func totalTokensForProject(dir: String, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> Int {
-        let ocTokens = openCodeSnapshot.sessions.filter { $0.directory == dir }.reduce(0) { $0 + $1.totalTokens }
-        let cxTokens = codexSnapshot.sessions.filter { $0.cwd == dir && $0.isSubagent == false }.reduce(0) { $0 + $1.tokensUsed }
-        return ocTokens + cxTokens
     }
 
     private func buildSessionOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, ocLatestBySession: [String: Date], cxLatestBySession: [String: Date]) -> [SearchableSelectorOption] {
@@ -890,12 +899,16 @@ final class AgentUsageStore: ObservableObject {
     ) -> [String: Date] {
         let dayRange = dayRange(for: range)
 
-        return state.openCodeDailyBuckets.reduce(into: [:]) { latestBySession, bucket in
-            guard dayRange.contains(bucket.day) else { return }
-            guard let metadata = ocMetadataByRawID[bucket.sessionID] else { return }
-            let activityAt = bucket.latestActivityAt ?? approximateOpenCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
-            latestBySession[bucket.sessionID] = max(latestBySession[bucket.sessionID] ?? .distantPast, activityAt)
+        var result: [String: Date] = [:]
+        for (key, buckets) in openCodeBucketsByModelKey {
+            guard let metadata = ocMetadataByRawID[key.sessionID] else { continue }
+            for bucket in buckets {
+                guard dayRange.contains(bucket.day) else { continue }
+                let activityAt = bucket.latestActivityAt ?? approximateOpenCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
+                result[key.sessionID] = max(result[key.sessionID] ?? .distantPast, activityAt)
+            }
         }
+        return result
     }
 
     private func codexLatestActivityBySession(
@@ -904,12 +917,16 @@ final class AgentUsageStore: ObservableObject {
     ) -> [String: Date] {
         let dayRange = dayRange(for: range)
 
-        return state.codexDailyBuckets.reduce(into: [:]) { latestBySession, bucket in
-            guard dayRange.contains(bucket.day) else { return }
-            guard let metadata = cxMetadataBySession[bucket.sessionID] else { return }
-            let activityAt = bucket.latestActivityAt ?? approximateCodexActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
-            latestBySession[bucket.sessionID] = max(latestBySession[bucket.sessionID] ?? .distantPast, activityAt)
+        var result: [String: Date] = [:]
+        for (sessionID, buckets) in codexBucketsBySession {
+            guard let metadata = cxMetadataBySession[sessionID] else { continue }
+            for bucket in buckets {
+                guard dayRange.contains(bucket.day) else { continue }
+                let activityAt = bucket.latestActivityAt ?? approximateCodexActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
+                result[sessionID] = max(result[sessionID] ?? .distantPast, activityAt)
+            }
         }
+        return result
     }
 
     private func openCodeSessionIDs(in scope: AgentScope, snapshot: OpenCodeUsageSnapshot) -> Set<String> {
