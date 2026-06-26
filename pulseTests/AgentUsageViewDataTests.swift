@@ -201,6 +201,7 @@ final class AgentUsageViewDataTests: XCTestCase {
                         reasoningTokens: 0,
                         cacheReadTokens: 0,
                         cacheWriteTokens: 0,
+                        requestCount: 0,
                         cost: 0
                     )
                 ],
@@ -241,6 +242,170 @@ final class AgentUsageViewDataTests: XCTestCase {
             "Pulse reads Codex session metadata from /Users/zyao/.codex/sqlite/state_5.sqlite and derives token usage from local transcripts under ~/.codex when you refresh the panel."
         )
     }
+
+    func testDerivedDataForCodexEnrichesRequestCountFromDailyBuckets() {
+        let store = AgentUsageStore(repository: StubRepository())
+        let now = Date()
+        let todayDay = agentUsageDayIdentifier(for: now)
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "t1", tokens: 100)]),
+                codexDailyBuckets: [
+                    CodexDailyBucket(
+                        sessionID: "t1",
+                        day: todayDay,
+                        inputTokens: 80,
+                        outputTokens: 20,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 40,
+                        totalTokens: 100,
+                        requestCount: 5,
+                        latestActivityAt: now
+                    )
+                ],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        XCTAssertEqual(data.summary.requestCount, 5)
+    }
+
+    func testBuildSummaryPillsIncludesHitRateWhenCacheReadAndInputAvailable() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "s1",
+                        title: "Test",
+                        directory: "/tmp",
+                        agent: "build",
+                        modelProviderID: "opencode",
+                        modelID: "model-a",
+                        modelVariant: nil,
+                        inputTokens: 100,
+                        outputTokens: 20,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 60,
+                        cacheWriteTokens: 0,
+                        requestCount: 3,
+                        cost: 0,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 2000)
+                    )
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let hitRatePill = data.summaryPills.first { $0.id == "hitRate" }
+        XCTAssertNotNil(hitRatePill)
+        XCTAssertEqual(hitRatePill?.valueText, "60%")
+    }
+
+    func testBuildSummaryPillsOmitsHitRateWhenNoCacheReadTokens() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "s1",
+                        title: "Test",
+                        directory: "/tmp",
+                        agent: "build",
+                        modelProviderID: "opencode",
+                        modelID: "model-a",
+                        modelVariant: nil,
+                        inputTokens: 0,
+                        outputTokens: 20,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        requestCount: 2,
+                        cost: 0,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 2000)
+                    )
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let hitRatePill = data.summaryPills.first { $0.id == "hitRate" }
+        XCTAssertNil(hitRatePill)
+    }
+
+    func testBuildUsageMetricsIncludesRequestsCard() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "s1",
+                        title: "Test",
+                        directory: "/tmp",
+                        agent: "build",
+                        modelProviderID: "opencode",
+                        modelID: "model-a",
+                        modelVariant: nil,
+                        inputTokens: 100,
+                        outputTokens: 0,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        requestCount: 15,
+                        cost: 0,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 2000)
+                    )
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let requestsCard = data.usageMetrics.first { $0.id == "requests" }
+        XCTAssertNotNil(requestsCard)
+        XCTAssertEqual(requestsCard?.title, "Requests")
+    }
 }
 
 private func makeOpenCodeSession(id: String, tokens: Int = 100, updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> OpenCodeSessionRecord {
@@ -257,6 +422,7 @@ private func makeOpenCodeSession(id: String, tokens: Int = 100, updatedAt: Date 
         reasoningTokens: 0,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        requestCount: 0,
         cost: 0,
         createdAt: Date(timeIntervalSince1970: 1000),
         updatedAt: updatedAt

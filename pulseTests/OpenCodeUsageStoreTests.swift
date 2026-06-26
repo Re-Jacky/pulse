@@ -31,6 +31,16 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         """)
 
         try execute(db, sql: """
+        create table message (
+            id text primary key,
+            session_id text not null,
+            time_created integer not null,
+            time_updated integer not null,
+            data text not null
+        );
+        """)
+
+        try execute(db, sql: """
         insert into session (
             id, project_id, title, directory, agent, model, cost,
             tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,

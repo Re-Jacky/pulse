@@ -379,7 +379,7 @@ final class AgentUsageStoreTests: XCTestCase {
     func testLoadedStateHoldsDailyBuckets() {
         let buckets = [OpenCodeDailyBucket(sessionID: "s1", day: 20000,
             inputTokens: 100, outputTokens: 50, reasoningTokens: 10,
-            cacheReadTokens: 1000, cacheWriteTokens: 4, cost: 0.02)]
+            cacheReadTokens: 1000, cacheWriteTokens: 4, requestCount: 0, cost: 0.02)]
         let state = AgentUsageLoadedState(
             openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
             openCodeDailyBuckets: buckets,
@@ -398,7 +398,7 @@ final class AgentUsageStoreTests: XCTestCase {
         repository.openCodeDailyBuckets = [
             OpenCodeDailyBucket(sessionID: "oc_1", day: 20000,
                 inputTokens: 50, outputTokens: 25, reasoningTokens: 5,
-                cacheReadTokens: 500, cacheWriteTokens: 2, cost: 0.01)
+                cacheReadTokens: 500, cacheWriteTokens: 2, requestCount: 0, cost: 0.01)
         ]
 
         let store = AgentUsageStore(repository: repository)
@@ -420,7 +420,7 @@ final class AgentUsageStoreTests: XCTestCase {
         repository.openCodeDailyBuckets = [
             OpenCodeDailyBucket(sessionID: "ses_1", day: todayDay,
                 inputTokens: 10, outputTokens: 5, reasoningTokens: 1,
-                cacheReadTokens: 20, cacheWriteTokens: 2, cost: 0.001)
+                cacheReadTokens: 20, cacheWriteTokens: 2, requestCount: 0, cost: 0.001)
         ]
 
         let store = AgentUsageStore(repository: repository)
@@ -461,6 +461,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 0,
                 cacheReadTokens: 0,
                 cacheWriteTokens: 0,
+                requestCount: 0,
                 cost: 0,
                 createdAt: now.addingTimeInterval(-3600),
                 updatedAt: futureUpdatedAt
@@ -475,6 +476,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 1,
                 cacheReadTokens: 20,
                 cacheWriteTokens: 2,
+                requestCount: 0,
                 cost: 0.001
             )
         ]
@@ -518,6 +520,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 0,
                 cacheReadTokens: 0,
                 cacheWriteTokens: 0,
+                requestCount: 0,
                 cost: 0,
                 createdAt: oldMetadataTime,
                 updatedAt: oldMetadataTime
@@ -532,6 +535,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 1,
                 cacheReadTokens: 20,
                 cacheWriteTokens: 2,
+                requestCount: 0,
                 cost: 0.001,
                 latestActivityAt: latestActivityTime
             )
@@ -588,6 +592,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 0,
                 cacheReadTokens: 0,
                 cacheWriteTokens: 0,
+                requestCount: 0,
                 cost: 0,
                 createdAt: oldMetadataTime,
                 updatedAt: oldMetadataTime
@@ -602,6 +607,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 1,
                 cacheReadTokens: 20,
                 cacheWriteTokens: 2,
+                requestCount: 0,
                 cost: 0.001,
                 latestActivityAt: latestActivityTime
             )
@@ -644,6 +650,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 5,
                 cacheReadTokens: 40,
                 totalTokens: 120,
+                requestCount: 0,
                 latestActivityAt: latestActivityTime
             )
         ]
@@ -697,6 +704,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 5,
                 cacheReadTokens: 40,
                 totalTokens: 120,
+                requestCount: 0,
                 latestActivityAt: latestActivityTime
             )
         ]
@@ -735,7 +743,8 @@ final class AgentUsageStoreTests: XCTestCase {
                 outputTokens: 20,
                 reasoningTokens: 5,
                 cacheReadTokens: 40,
-                totalTokens: 120
+                totalTokens: 120,
+                requestCount: 0
             )
         ]
 
@@ -773,7 +782,8 @@ final class AgentUsageStoreTests: XCTestCase {
                 outputTokens: 15,
                 reasoningTokens: 4,
                 cacheReadTokens: 11,
-                totalTokens: 90
+                totalTokens: 90,
+                requestCount: 0
             )
         ]
 
@@ -814,6 +824,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 0,
                 cacheReadTokens: 0,
                 cacheWriteTokens: 0,
+                requestCount: 0,
                 cost: 0,
                 createdAt: Date(),
                 updatedAt: Date()
@@ -830,6 +841,7 @@ final class AgentUsageStoreTests: XCTestCase {
                 reasoningTokens: 5,
                 cacheReadTokens: 40,
                 cacheWriteTokens: 0,
+                requestCount: 0,
                 cost: 0
             )
         ]
@@ -882,6 +894,7 @@ final class AgentUsageStoreTests: XCTestCase {
                         reasoningTokens: 5,
                         cacheReadTokens: 40,
                         totalTokens: 120,
+                        requestCount: 1,
                         latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T23:55:00Z")
                     ),
                     CodexDailyBucket(
@@ -892,6 +905,7 @@ final class AgentUsageStoreTests: XCTestCase {
                         reasoningTokens: 3,
                         cacheReadTokens: 40,
                         totalTokens: 100,
+                        requestCount: 1,
                         latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-17T00:05:00Z")
                     )
                 ]
@@ -932,6 +946,7 @@ final class AgentUsageStoreTests: XCTestCase {
                         reasoningTokens: 8,
                         cacheReadTokens: 80,
                         totalTokens: 220,
+                        requestCount: 2,
                         latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-18T00:05:00Z")
                     )
                 ]
@@ -988,7 +1003,8 @@ final class AgentUsageStoreTests: XCTestCase {
                 outputTokens: 60,
                 reasoningTokens: 20,
                 cacheReadTokens: 20,
-                totalTokens: 500
+                totalTokens: 500,
+                requestCount: 0
             )
         ]
 
@@ -1026,7 +1042,8 @@ final class AgentUsageStoreTests: XCTestCase {
                 outputTokens: 20,
                 reasoningTokens: 5,
                 cacheReadTokens: 40,
-                totalTokens: 120
+                totalTokens: 120,
+                requestCount: 0
             ),
             CodexDailyBucket(
                 sessionID: "cx_1",
@@ -1035,7 +1052,8 @@ final class AgentUsageStoreTests: XCTestCase {
                 outputTokens: 10,
                 reasoningTokens: 3,
                 cacheReadTokens: 40,
-                totalTokens: 100
+                totalTokens: 100,
+                requestCount: 0
             )
         ]
 
@@ -1134,6 +1152,7 @@ private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessi
         reasoningTokens: 0,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        requestCount: 0,
         cost: 0,
         createdAt: Date(timeIntervalSince1970: 1000),
         updatedAt: Date(timeIntervalSince1970: 2000)

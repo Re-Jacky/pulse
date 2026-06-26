@@ -16,6 +16,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 8,
             cacheReadTokens: 400,
             cacheWriteTokens: 16,
+            requestCount: 0,
             cost: 0,
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 20)
@@ -38,6 +39,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 0,
             cacheReadTokens: 0,
             cacheWriteTokens: 0,
+            requestCount: 0,
             cost: 0,
             createdAt: Date(timeIntervalSince1970: 1),
             updatedAt: Date(timeIntervalSince1970: 2)
@@ -56,6 +58,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 10,
             cacheReadTokens: 500,
             cacheWriteTokens: 0,
+            requestCount: 0,
             cost: 0,
             createdAt: Date(timeIntervalSince1970: 3),
             updatedAt: Date(timeIntervalSince1970: 4)
@@ -80,6 +83,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 0,
             cacheReadTokens: 1000,
             cacheWriteTokens: 0,
+            requestCount: 0,
             cost: 1.5,
             createdAt: Date(timeIntervalSince1970: 5),
             updatedAt: Date(timeIntervalSince1970: 6)
@@ -98,6 +102,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 0,
             cacheReadTokens: 200,
             cacheWriteTokens: 0,
+            requestCount: 0,
             cost: 0.5,
             createdAt: Date(timeIntervalSince1970: 7),
             updatedAt: Date(timeIntervalSince1970: 8)
@@ -128,6 +133,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 1,
             cacheReadTokens: 100,
             cacheWriteTokens: 2,
+            requestCount: 0,
             cost: 0,
             createdAt: Date(timeIntervalSince1970: 11),
             updatedAt: Date(timeIntervalSince1970: 12)
@@ -146,6 +152,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 999,
             cacheReadTokens: 999,
             cacheWriteTokens: 999,
+            requestCount: 0,
             cost: 9,
             createdAt: Date(timeIntervalSince1970: 13),
             updatedAt: Date(timeIntervalSince1970: 14)
@@ -178,6 +185,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 1,
             cacheReadTokens: 20,
             cacheWriteTokens: 2,
+            requestCount: 0,
             cost: 0,
             createdAt: now.addingTimeInterval(-2 * 24 * 60 * 60),
             updatedAt: now.addingTimeInterval(-2 * 24 * 60 * 60)
@@ -195,6 +203,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 10,
             cacheReadTokens: 200,
             cacheWriteTokens: 20,
+            requestCount: 0,
             cost: 0,
             createdAt: now.addingTimeInterval(-20 * 24 * 60 * 60),
             updatedAt: now.addingTimeInterval(-20 * 24 * 60 * 60)
@@ -228,6 +237,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 1,
             cacheReadTokens: 20,
             cacheWriteTokens: 2,
+            requestCount: 0,
             cost: 0,
             createdAt: sameDay,
             updatedAt: sameDay
@@ -245,6 +255,7 @@ final class OpenCodeUsageModelsTests: XCTestCase {
             reasoningTokens: 10,
             cacheReadTokens: 200,
             cacheWriteTokens: 20,
+            requestCount: 0,
             cost: 0,
             createdAt: previousDay,
             updatedAt: previousDay
