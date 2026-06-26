@@ -599,14 +599,18 @@ final class AgentUsageStore: ObservableObject {
         default: bucketSize = 1
         }
 
+        let sortedDays = totalsByDay.keys.sorted()
+
         var buckets: [TokenUsageDataPoint] = []
         var cursor = earliestDay
+        var si = 0
         while cursor <= latestDay {
             let bucketEnd = cursor + bucketSize
-            let sum = totalsByDay.reduce(0) { partial, entry in
-                let (day, value) = entry
-                guard day >= cursor && day < bucketEnd else { return partial }
-                return partial + value
+            var sum = 0
+            while si < sortedDays.count, sortedDays[si] < bucketEnd {
+                guard sortedDays[si] >= cursor else { si += 1; continue }
+                sum += totalsByDay[sortedDays[si]]!
+                si += 1
             }
             let date = Date(timeIntervalSince1970: Double(cursor * 86_400_000) / 1000)
             buckets.append(TokenUsageDataPoint(date: date, totalTokens: sum, bucketSizeDays: bucketSize))
@@ -621,11 +625,15 @@ final class AgentUsageStore: ObservableObject {
     ) -> [Int: Int] {
         if state.openCodeDailyBuckets.isEmpty == false {
             let dayRange = dayRange(for: range)
-            return state.openCodeDailyBuckets.reduce(into: [:]) { totals, bucket in
-                guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { return }
-                let value = bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
-                totals[bucket.day, default: 0] += value
+            var totals: [Int: Int] = [:]
+            for (_, buckets) in openCodeBucketsByModelKey {
+                for bucket in buckets {
+                    guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { continue }
+                    let value = bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
+                    totals[bucket.day, default: 0] += value
+                }
             }
+            return totals
         }
 
         return snapshot.sessions.reduce(into: [:]) { totals, session in
@@ -640,10 +648,14 @@ final class AgentUsageStore: ObservableObject {
     ) -> [Int: Int] {
         if state.codexDailyBuckets.isEmpty == false {
             let dayRange = dayRange(for: range)
-            return state.codexDailyBuckets.reduce(into: [:]) { totals, bucket in
-                guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { return }
-                totals[bucket.day, default: 0] += bucket.totalTokens
+            var totals: [Int: Int] = [:]
+            for (_, buckets) in codexBucketsBySession {
+                for bucket in buckets {
+                    guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { continue }
+                    totals[bucket.day, default: 0] += bucket.totalTokens
+                }
             }
+            return totals
         }
 
         return snapshot.sessions.reduce(into: [:]) { totals, session in
@@ -834,19 +846,22 @@ final class AgentUsageStore: ObservableObject {
     ) -> Int {
         guard selection.source == .codex || selection.source == .all else { return 0 }
         let dayRange = agentUsageDayRange(for: selection.timeRange)
-        var buckets = state.codexDailyBuckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }
 
         switch scope {
         case .allProjects:
-            break
+            return codexBucketsBySession.values.reduce(0) { total, buckets in
+                total + buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
+            }
         case .project(let directory):
             let sessionIDs = Set(state.codexSnapshot.sessions.filter { $0.cwd == directory }.map(\.id))
-            buckets = buckets.filter { sessionIDs.contains($0.sessionID) }
+            return codexBucketsBySession.reduce(0) { total, entry in
+                guard sessionIDs.contains(entry.key) else { return total }
+                return total + entry.value.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
+            }
         case .session(_, let sessionID):
-            buckets = buckets.filter { $0.sessionID == sessionID }
+            guard let buckets = codexBucketsBySession[sessionID] else { return 0 }
+            return buckets.filter { $0.day >= dayRange.lowerBound && $0.day < dayRange.upperBound }.reduce(0) { $0 + $1.requestCount }
         }
-
-        return buckets.reduce(0) { $0 + $1.requestCount }
     }
 
     private func replacingLastUpdated(in summary: AgentUsageSummary, with lastUpdated: Date?) -> AgentUsageSummary {
@@ -1067,18 +1082,22 @@ final class AgentUsageStore: ObservableObject {
     private func openCodeBuckets(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeDailyBucket] {
         let dayRange = agentUsageDayRange(for: range)
 
-        return state.openCodeDailyBuckets.filter { bucket in
-            guard dayRange.contains(bucket.day) else { return false }
-
+        var result: [OpenCodeDailyBucket] = []
+        for (key, buckets) in openCodeBucketsByModelKey {
             switch scope {
             case .allProjects:
-                return true
+                break
             case .project(let directory):
-                return ocMetadataByRawID[bucket.sessionID]?.directory == directory
+                guard ocMetadataByRawID[key.sessionID]?.directory == directory else { continue }
             case .session(_, let sessionID):
-                return bucket.sessionID == rawSessionID(from: sessionID)
+                guard key.sessionID == rawSessionID(from: sessionID) else { continue }
+            }
+            for bucket in buckets {
+                guard dayRange.contains(bucket.day) else { continue }
+                result.append(bucket)
             }
         }
+        return result
     }
 
     private func openCodeProviderBreakdown(for scope: AgentScope, range: AgentTimeRange) -> [ProviderBreakdown] {
@@ -1114,27 +1133,26 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func openCodeBucketSummary(from buckets: [OpenCodeDailyBucket]) -> AgentUsageSummary {
-        let totalTokens = buckets.reduce(0) { partial, bucket in
-            partial + bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
+        var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0, cacheWrite = 0, requests = 0
+        var cost = 0.0
+        var sessionIDs = Set<String>()
+        var lastUpdated: Date?
+        for b in buckets {
+            input += b.inputTokens; output += b.outputTokens; reasoning += b.reasoningTokens
+            cacheRead += b.cacheReadTokens; cacheWrite += b.cacheWriteTokens; requests += b.requestCount
+            cost += b.cost; sessionIDs.insert(b.sessionID)
+            if let a = b.latestActivityAt, lastUpdated == nil || a > lastUpdated! { lastUpdated = a }
         }
-        let inputTokens = buckets.reduce(0) { $0 + $1.inputTokens }
-        let outputTokens = buckets.reduce(0) { $0 + $1.outputTokens }
-        let reasoningTokens = buckets.reduce(0) { $0 + $1.reasoningTokens }
-        let cacheReadTokens = buckets.reduce(0) { $0 + $1.cacheReadTokens }
-        let cacheWriteTokens = buckets.reduce(0) { $0 + $1.cacheWriteTokens }
-        let sessionsCount = Set(buckets.map(\.sessionID)).count
-        let cost = buckets.reduce(0.0) { $0 + $1.cost }
-        let lastUpdated = buckets.compactMap(\.latestActivityAt).max()
-
+        totalTokens = input + output + reasoning + cacheRead + cacheWrite
         return AgentUsageSummary(
             totalTokens: totalTokens,
-            inputTokens: inputTokens,
-            outputTokens: outputTokens,
-            reasoningTokens: reasoningTokens,
-            cacheReadTokens: cacheReadTokens,
-            cacheWriteTokens: cacheWriteTokens,
-            requestCount: buckets.reduce(0) { $0 + $1.requestCount },
-            sessionsCount: sessionsCount,
+            inputTokens: input,
+            outputTokens: output,
+            reasoningTokens: reasoning,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            requestCount: requests,
+            sessionsCount: sessionIDs.count,
             cost: cost,
             lastUpdated: lastUpdated
         )
