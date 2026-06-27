@@ -479,6 +479,157 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertNil(hitRatePill)
     }
 
+    func testModelBreakdownRowsDeduplicatesCompoundSessionIDsForAllTime() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "ses_1::anthropic::claude-sonnet-4-20250514::",
+                        title: "Multi-model session",
+                        directory: "/Users/zyao/Desktop/pulse",
+                        agent: "build",
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet-4-20250514",
+                        modelVariant: nil,
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        reasoningTokens: 10,
+                        cacheReadTokens: 20,
+                        cacheWriteTokens: 5,
+                        requestCount: 3,
+                        cost: 0.01,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 2000)
+                    ),
+                    OpenCodeSessionRecord(
+                        id: "ses_1::anthropic::claude-sonnet-4-20250514::thinking",
+                        title: "Multi-model session",
+                        directory: "/Users/zyao/Desktop/pulse",
+                        agent: "build",
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet-4-20250514",
+                        modelVariant: "thinking",
+                        inputTokens: 200,
+                        outputTokens: 80,
+                        reasoningTokens: 50,
+                        cacheReadTokens: 30,
+                        cacheWriteTokens: 8,
+                        requestCount: 5,
+                        cost: 0.03,
+                        createdAt: Date(timeIntervalSince1970: 1000),
+                        updatedAt: Date(timeIntervalSince1970: 3000)
+                    )
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        let uniqueIDs = Set(data.modelBreakdownRows.map(\.id))
+        XCTAssertEqual(data.modelBreakdownRows.count, uniqueIDs.count, "modelBreakdownRows contains duplicate ids")
+        XCTAssertEqual(data.modelBreakdownRows.count, 2, "Should have two distinct model entries (default + thinking)")
+        let defaultRow = data.modelBreakdownRows.first { $0.title == "anthropic / claude-sonnet-4-20250514" }
+        let thinkingRow = data.modelBreakdownRows.first { $0.title == "anthropic / claude-sonnet-4-20250514 (thinking)" }
+        XCTAssertNotNil(defaultRow)
+        XCTAssertNotNil(thinkingRow)
+        XCTAssertEqual(defaultRow?.id, "anthropic::claude-sonnet-4-20250514::")
+        XCTAssertEqual(thinkingRow?.id, "anthropic::claude-sonnet-4-20250514::thinking")
+    }
+
+    func testModelBreakdownRowsDeduplicatesVariantBucketsForRangedTime() {
+        let todayDay = agentUsageDayIdentifier(for: Date())
+
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "ses_1",
+                        title: "Session ses_1",
+                        directory: "/Users/zyao/Desktop/pulse",
+                        agent: "build",
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet-4-20250514",
+                        modelVariant: nil,
+                        inputTokens: 500,
+                        outputTokens: 0,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        requestCount: 0,
+                        cost: 0,
+                        createdAt: Date(),
+                        updatedAt: Date()
+                    )
+                ]),
+                openCodeDailyBuckets: [
+                    OpenCodeDailyBucket(
+                        sessionID: "ses_1",
+                        day: todayDay,
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet-4-20250514",
+                        modelVariant: nil,
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        reasoningTokens: 10,
+                        cacheReadTokens: 20,
+                        cacheWriteTokens: 5,
+                        requestCount: 3,
+                        cost: 0.01
+                    ),
+                    OpenCodeDailyBucket(
+                        sessionID: "ses_1",
+                        day: todayDay,
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet-4-20250514",
+                        modelVariant: "thinking",
+                        inputTokens: 200,
+                        outputTokens: 80,
+                        reasoningTokens: 50,
+                        cacheReadTokens: 30,
+                        cacheWriteTokens: 8,
+                        requestCount: 5,
+                        cost: 0.03
+                    )
+                ],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        let uniqueIDs = Set(data.modelBreakdownRows.map(\.id))
+        XCTAssertEqual(data.modelBreakdownRows.count, uniqueIDs.count, "modelBreakdownRows contains duplicate ids for ranged time")
+        XCTAssertEqual(data.modelBreakdownRows.count, 2, "Should have two distinct model entries for ranged time (default + thinking)")
+        let defaultRow = data.modelBreakdownRows.first { $0.title == "anthropic / claude-sonnet-4-20250514" }
+        let thinkingRow = data.modelBreakdownRows.first { $0.title == "anthropic / claude-sonnet-4-20250514 (thinking)" }
+        XCTAssertNotNil(defaultRow)
+        XCTAssertNotNil(thinkingRow)
+        XCTAssertEqual(defaultRow?.id, "anthropic::claude-sonnet-4-20250514::")
+        XCTAssertEqual(thinkingRow?.id, "anthropic::claude-sonnet-4-20250514::thinking")
+    }
+
     func testBuildUsageMetricsIncludesRequestsCard() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(

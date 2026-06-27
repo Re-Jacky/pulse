@@ -1052,7 +1052,7 @@ final class AgentUsageStore: ObservableObject {
             }
             return rows.map {
                 AgentUsageDetailRow(
-                    id: "\($0.providerID)/\($0.modelID)",
+                    id: $0.id,
                     title: OpenCodeUsageSnapshot.modelDisplayName(providerID: $0.providerID, modelID: $0.modelID, variant: $0.variant),
                     valueText: compact($0.summary.totalTokens),
                     secondaryText: nil
