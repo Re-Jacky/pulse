@@ -1,21 +1,13 @@
 # AGENTS.md — pulse
 
-Compact repo guide for future OpenCode sessions.
+macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit entrypoint is `pulse/App/main.swift` → `AppDelegate`. Targets: `pulse`, `pulseUpdater`, `pulseTests`. No external dependencies — only Apple frameworks + system `SQLite3`.
 
-## Project
+## Build & Verify
 
-- macOS 14+ menu bar app in Swift 5.9+; AppKit entrypoint is `pulse/App/main.swift` -> `AppDelegate`
-- Targets: `pulse`, `pulseUpdater`, `pulseTests`
-- No external dependencies; use only Apple frameworks plus the system `SQLite3` library
-- `LSUIElement = true` must stay enabled so the app stays Dock-less
-
-## Build And Verify
-
-- Build app: `xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build`
-- Run tests: `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'`
-- Build release artifacts: `bash scripts/build-dmg.sh`
-- `scripts/build-dmg.sh` reads `MARKETING_VERSION` from `pulse.xcodeproj/project.pbxproj` and writes `dist/Pulse-<version>.dmg` plus `dist/Pulse-<version>-updater.zip`
-- Always build after changes; if you change shared logic, run the test target too
+- `xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build`
+- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'`
+- Release packaging: `bash scripts/build-dmg.sh` — reads `MARKETING_VERSION` from project.pbxproj, writes `dist/Pulse-<version>.dmg` + `dist/Pulse-<version>-updater.zip`
+- CI: `.github/workflows/release.yml` — triggers on push to `main` touching `project.pbxproj` or the workflow itself; runs on `macos-26` with Xcode 26.5
 
 ## Architecture That Matters
 
@@ -28,13 +20,30 @@ Compact repo guide for future OpenCode sessions.
 - Agent usage refresh is intentionally event-driven, not scheduled: refresh when the panel opens onto the Agent tab, and when switching onto the Agent tab during an open session; do not refresh just because the source picker changes between `OpenCode`, `Codex`, and `All`
 - `pulseUpdater` is a separate helper app bundled into `Contents/Helpers/PulseUpdater.app` for installs
 
+## AgentUsageStore Performance (DO NOT REGRESS)
+
+- SQL queries only run in `loadRefreshResult`; **range switching is purely in-memory** — no database access
+- `derivedDataCache` keyed by `selection + refreshGeneration` — same range twice hits cache; different range recomputes everything
+- Pre-computed dictionaries built once in `applyRefreshResult`/`replaceStateForTesting` and shared across all derived-data paths:
+  - `openCodeBucketsByModelKey` / `codexBucketsBySession` — per-model/per-session bucket groupings
+  - `ocMetadataByRawID` / `cxMetadataBySession` — metadata by session ID
+  - `ocSessionsByDirectory` / `cxCSessionsByDirectory` — session IDs per directory (Codex excludes subagents)
+- All iteration paths must use these pre-computed dicts, not raw `state.openCodeDailyBuckets` or `state.codexDailyBuckets` (which are only checked for `.isEmpty` / passed through to state copies)
+- No linear `.first(where:)` scans on bucket arrays — all replaced with O(1) dictionary lookups
+- No multi-pass `.reduce()` on the same data — all aggregations are single-pass `for` loops
+- `buildTokenFlowData` uses sorted day keys + cursor index scan (O(D)) not per-bucket reduce (O(B×D))
+- `latestActivityDate` for `.project` scopes uses `ocSessionsByDirectory` / `cxCSessionsByDirectory` — NOT `snapshot.sessions` scan
+- `codexRequestCountFromBuckets(.project)` uses `cxCSessionsByDirectory` — NOT `state.codexSnapshot.sessions.filter`
+- `buildContextRows` receives pre-computed `ocScopeSummary`/`cxScopeSummary`/`ocProjectCount`/`cxProjectCount`
+- `legacyTokenFlowData` has been deleted (was O(n²) dead code)
+
 ## Repo-Specific Conventions
 
 - Keep semantic colors from `pulse/Views/Colors.swift`; avoid hard-coded light/dark values
 - Do not introduce `@StateObject` into views that already receive environment objects from `AppDelegate`
 - `SettingsView` must stay resizable; do not hard-code an outer frame that fights the `520x280` minimum window size
 - When adding Swift files, update the Xcode project too; use `add_files.rb` or edit `pulse.xcodeproj/project.pbxproj` directly
-- Version bumps live in `pulse.xcodeproj/project.pbxproj` (`MARKETING_VERSION`); release workflow `workflow_dispatch` in `.github/workflows/release.yml` publishes from that value
+- Version bumps live in `pulse.xcodeproj/project.pbxproj` (`MARKETING_VERSION`); CI publishes from that value on push to `main`
 
 ## SQLite Database Open Pattern (DO NOT REGRESS)
 
@@ -60,6 +69,8 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 
 ## Agent Usage Data Source Facts
 
+- OpenCode multi-model sessions use a compound ID format: `sessionID::providerID::modelID::variant` for `OpenCodeSessionRecord.id` and daily bucket dictionary keys
+- `rawSessionID(from:)` helper extracts the real session ID from a compound ID (everything before `::`)
 - OpenCode currently resolves a single `opencode.db` from a short candidate list:
   - `OPENCODE_DB_PATH`
   - `$XDG_DATA_HOME/opencode/opencode.db`
