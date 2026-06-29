@@ -120,6 +120,11 @@ struct AgentUsageView: View {
 
                 Spacer()
 
+                Button("Manage Sessions") {
+                    NotificationCenter.default.post(name: .pulseShowSessionManagementWindow, object: nil)
+                }
+                .buttonStyle(.borderless)
+
                 Button(agentStore.isRefreshing ? "Refreshing..." : "Refresh") {
                     agentStore.refreshAllAsync()
                 }

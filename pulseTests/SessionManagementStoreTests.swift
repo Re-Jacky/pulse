@@ -53,6 +53,19 @@ final class SessionManagementStoreTests: XCTestCase {
         XCTAssertEqual(store.transcriptState, .idle)
     }
 
+    @MainActor
+    func testSessionManagementStoreRefreshesOnlyOncePerWindowLifecycleSeed() {
+        let repository = StubSessionManagementRepository(
+            sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.refreshIfNeeded()
+
+        XCTAssertEqual(repository.loadManagedSessionsCallCount, 1)
+    }
+
     func testManagedSessionSummaryUsesStableIdentityAcrossAgents() {
         let openCode = ManagedSessionSummary(
             id: "opencode::session-1",
@@ -220,12 +233,22 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 }
 
-private struct StubSessionManagementRepository: SessionManagementRepositorying {
+private final class StubSessionManagementRepository: SessionManagementRepositorying {
     var sessions: [ManagedSessionSummary] = []
     var transcripts: [String: [TranscriptTurn]] = [:]
+    private(set) var loadManagedSessionsCallCount = 0
+
+    init(
+        sessions: [ManagedSessionSummary] = [],
+        transcripts: [String: [TranscriptTurn]] = [:]
+    ) {
+        self.sessions = sessions
+        self.transcripts = transcripts
+    }
 
     func loadManagedSessions() throws -> [ManagedSessionSummary] {
-        sessions
+        loadManagedSessionsCallCount += 1
+        return sessions
     }
 
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {

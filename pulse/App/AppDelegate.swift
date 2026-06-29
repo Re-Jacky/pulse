@@ -31,6 +31,7 @@ private enum SettingsWindowMetrics {
 extension Notification.Name {
     static let pulsePanelTabDidChange = Notification.Name("pulsePanelTabDidChange")
     static let pulsePanelDidOpen = Notification.Name("pulsePanelDidOpen")
+    static let pulseShowSessionManagementWindow = Notification.Name("pulseShowSessionManagementWindow")
 }
 
 private final class InputPanel: NSPanel {
@@ -77,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var eventMonitor: Any?
     private var agentStatusEventMonitor: Any?
     private var settingsWindow: NSWindow?
+    private var sessionManagementWindow: NSWindow?
     private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
     private var menuBarStatusView: MenuBarStatusItemView?
@@ -84,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let themeManager = ThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
+    private let sessionManagementStore = SessionManagementStore()
     private let agentLightsSettings = AgentLightsSettings()
     private let agentStatusStore = AgentStatusStore(enabledAgents: AgentStatusAgent.allCases)
     private let agentStatusPanelSelection = AgentStatusPanelSelection()
@@ -398,6 +401,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 updatePanelLayout(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: selectedTab, animated: true)
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .pulseShowSessionManagementWindow)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.showSessionManagementWindow()
+            }
+            .store(in: &cancellables)
     }
 
     private func applyCurrentTheme() {
@@ -411,6 +421,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow?.appearance = appearance
         settingsWindow?.contentViewController?.view.appearance = appearance
         settingsWindow?.contentView?.needsDisplay = true
+        sessionManagementWindow?.appearance = appearance
+        sessionManagementWindow?.contentViewController?.view.appearance = appearance
+        sessionManagementWindow?.contentView?.needsDisplay = true
     }
 
     private func makePanel() -> InputPanel {
@@ -588,6 +601,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hasPresentedSettingsWindow = true
     }
 
+    @objc private func showSessionManagementWindow() {
+        let window = sessionManagementWindow ?? makeSessionManagementWindow()
+        sessionManagementWindow = window
+        window.appearance = themeManager.currentTheme.nsAppearance
+        window.contentViewController?.view.appearance = themeManager.currentTheme.nsAppearance
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.arrangeInFront(nil)
+    }
+
     private func makeSettingsWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: SettingsWindowMetrics.defaultWidth, height: SettingsWindowMetrics.defaultHeight),
@@ -616,9 +644,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return window
     }
 
+    private func makeSessionManagementWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 980, height: 640),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Manage Sessions"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 760, height: 480)
+        window.appearance = themeManager.currentTheme.nsAppearance
+        window.isExcludedFromWindowsMenu = false
+        window.delegate = self
+
+        let controller = NSHostingController(
+            rootView: SessionManagementWindowView()
+                .environmentObject(sessionManagementStore)
+        )
+        controller.view.appearance = themeManager.currentTheme.nsAppearance
+        window.contentViewController = controller
+        return window
+    }
+
     func windowWillClose(_ notification: Notification) {
-        guard notification.object as? NSWindow === settingsWindow else { return }
-        if panel?.isVisible != true {
+        guard let window = notification.object as? NSWindow,
+              window === settingsWindow || window === sessionManagementWindow else { return }
+        let otherOwnedWindowIsVisible =
+            (window !== settingsWindow && settingsWindow?.isVisible == true) ||
+            (window !== sessionManagementWindow && sessionManagementWindow?.isVisible == true)
+        if panel?.isVisible != true && otherOwnedWindowIsVisible == false {
             NSApp.setActivationPolicy(.accessory)
         }
     }
