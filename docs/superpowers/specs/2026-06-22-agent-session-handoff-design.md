@@ -1,7 +1,9 @@
 # Agent Session Handoff Design
 
 Date: 2026-06-22
-Status: Drafted for review
+Status: Deprecated
+
+Deprecated note: This design is no longer considered an acceptable implementation plan. It is preserved only as historical context and should not be used to drive feature work. Conversation history, copy-context behavior, cross-agent migration semantics, and edge-case handling need further product and technical design before implementation.
 
 ## Summary
 
