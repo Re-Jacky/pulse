@@ -12,6 +12,19 @@ struct SessionListSidebarView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker(
+                "Project",
+                selection: Binding(
+                    get: { store.selectedProjectPath ?? "__all__" },
+                    set: { store.selectedProjectPath = $0 == "__all__" ? nil : $0 }
+                )
+            ) {
+                Text("All Projects").tag("__all__")
+                ForEach(store.projectOptions) { option in
+                    Text(option.title).tag(option.id)
+                }
+            }
+
             TextField("Search Sessions", text: $store.searchQuery)
                 .textFieldStyle(.roundedBorder)
 

@@ -10,6 +10,23 @@ final class OpenCodeSessionTranscriptTests: XCTestCase {
         XCTAssertEqual(transcript.map(\.text), ["Fix the tests", "I updated the failing cases."])
     }
 
+    func testOpenCodeResumeActionUsesSourceNativeCommand() {
+        let action = SessionManagementRepository().resumeAction(
+            for: ManagedSessionSummary(
+                id: "opencode::ses_1::openai::gpt-5.4::default",
+                source: .openCode,
+                rawSessionID: "ses_1",
+                title: "Transcript",
+                projectPath: "/tmp/project",
+                projectName: "project",
+                subtitle: "openai / gpt-5.4",
+                updatedAt: Date(timeIntervalSince1970: 2_000)
+            )
+        )
+
+        XCTAssertEqual(action, .openCode(command: "opencode resume ses_1"))
+    }
+
     private func loadOpenCodeTranscriptFixture() throws -> [TranscriptTurn] {
         let databaseURL = try makeDatabase(named: "OpenCodeTranscriptTests.sqlite")
         defer { try? FileManager.default.removeItem(at: databaseURL) }

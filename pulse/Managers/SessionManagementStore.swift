@@ -1,6 +1,11 @@
 import Combine
 import Foundation
 
+struct SessionProjectOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
 @MainActor
 final class SessionManagementStore: ObservableObject {
     @Published private(set) var sessions: [ManagedSessionSummary] = []
@@ -8,6 +13,7 @@ final class SessionManagementStore: ObservableObject {
     @Published var selectedSourceFilter: SessionManagerSourceFilter = .all
     @Published var selectedProjectPath: String?
     @Published var searchQuery: String = ""
+    @Published private(set) var projectOptions: [SessionProjectOption] = []
     @Published private(set) var transcriptState: TranscriptLoadState = .idle
 
     private let repository: SessionManagementRepositorying
@@ -21,7 +27,17 @@ final class SessionManagementStore: ObservableObject {
         guard hasLoaded == false else { return }
 
         sessions = (try? repository.loadManagedSessions()) ?? []
+        projectOptions = buildProjectOptions(from: sessions)
         hasLoaded = true
+    }
+
+    var selectedResumeAction: ResumeAction? {
+        guard let id = selectedSessionID,
+              let session = sessions.first(where: { $0.id == id }) else {
+            return nil
+        }
+
+        return repository.resumeAction(for: session)
     }
 
     func selectSession(id: String?) {
@@ -56,5 +72,17 @@ final class SessionManagementStore: ObservableObject {
 
             return sourceMatches && projectMatches && searchMatches
         }
+    }
+
+    private func buildProjectOptions(from sessions: [ManagedSessionSummary]) -> [SessionProjectOption] {
+        var seenPaths = Set<String>()
+        var options: [SessionProjectOption] = []
+
+        for session in sessions {
+            guard seenPaths.insert(session.projectPath).inserted else { continue }
+            options.append(SessionProjectOption(id: session.projectPath, title: session.projectName))
+        }
+
+        return options
     }
 }

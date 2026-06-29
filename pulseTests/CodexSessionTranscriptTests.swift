@@ -44,6 +44,23 @@ final class CodexSessionTranscriptTests: XCTestCase {
         XCTAssertEqual(transcript.map(\.text), ["Investigate the crash", "I found the nil path in AppDelegate."])
     }
 
+    func testCodexResumeActionUsesSourceNativeCommand() {
+        let action = SessionManagementRepository().resumeAction(
+            for: ManagedSessionSummary(
+                id: "codex::thread_1",
+                source: .codex,
+                rawSessionID: "thread_1",
+                title: "Transcript",
+                projectPath: "/tmp/project",
+                projectName: "project",
+                subtitle: "openai / gpt-5.4",
+                updatedAt: Date(timeIntervalSince1970: 2_000)
+            )
+        )
+
+        XCTAssertEqual(action, .codex(command: "codex resume thread_1"))
+    }
+
     private func loadCodexTranscriptFixture() throws -> [TranscriptTurn] {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")

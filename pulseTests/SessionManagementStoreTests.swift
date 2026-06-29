@@ -66,6 +66,37 @@ final class SessionManagementStoreTests: XCTestCase {
         XCTAssertEqual(repository.loadManagedSessionsCallCount, 1)
     }
 
+    @MainActor
+    func testProjectFilterOptionsAreDerivedFromLoadedSessions() {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a"),
+                makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+            ]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+
+        XCTAssertEqual(store.projectOptions.map(\.id), ["/tmp/a", "/tmp/b"])
+    }
+
+    @MainActor
+    func testResumeActionTracksSelectedSessionSource() {
+        let repository = StubSessionManagementRepository(
+            sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectSession(id: "codex::2")
+
+        guard case .codex(let command)? = store.selectedResumeAction else {
+            return XCTFail("Expected codex resume action")
+        }
+        XCTAssertEqual(command, "codex resume 2")
+    }
+
     func testManagedSessionSummaryUsesStableIdentityAcrossAgents() {
         let openCode = ManagedSessionSummary(
             id: "opencode::session-1",
