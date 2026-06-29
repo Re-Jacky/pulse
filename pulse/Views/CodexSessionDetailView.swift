@@ -6,20 +6,33 @@ struct CodexSessionDetailView: View {
 
     var body: some View {
         switch detailState {
-        case .idle, .loading:
-            ProgressView()
-                .scaleEffect(0.6)
+        case .idle:
+            EmptyView()
+        case .loading:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Loading session detail...")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            }
         case .failed(let message):
             Text(message)
                 .font(.system(size: 12))
                 .foregroundColor(.appSecondaryText)
         case .loaded(let detail):
-            VStack(alignment: .leading, spacing: 12) {
-                if detail.edges.isEmpty == false {
-                    subagentsSection(edges: detail.edges)
-                }
-                if detail.goals.isEmpty == false {
-                    goalsSection(goals: detail.goals)
+            if detail.isEmpty {
+                Text("No extra session detail")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    if detail.edges.isEmpty == false {
+                        subagentsSection(edges: detail.edges)
+                    }
+                    if detail.goals.isEmpty == false {
+                        goalsSection(goals: detail.goals)
+                    }
                 }
             }
         }

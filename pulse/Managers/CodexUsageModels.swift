@@ -155,6 +155,10 @@ struct CodexSessionDetail: Equatable {
     let threadID: String
     let edges: [CodexSubagentEdge]
     let goals: [CodexGoal]
+
+    var isEmpty: Bool {
+        edges.isEmpty && goals.isEmpty
+    }
 }
 
 struct CodexUsageSnapshot: Equatable {

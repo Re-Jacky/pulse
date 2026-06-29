@@ -672,6 +672,51 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertNotNil(requestsCard)
         XCTAssertEqual(requestsCard?.title, "Requests")
     }
+
+    func testCodexSessionDetailIsEmptyWhenNoEdgesOrGoalsExist() {
+        let detail = CodexSessionDetail(
+            threadID: "thread_1",
+            edges: [],
+            goals: []
+        )
+
+        XCTAssertTrue(detail.isEmpty)
+    }
+
+    func testCodexSessionDetailIsNotEmptyWhenEdgesExist() {
+        let detail = CodexSessionDetail(
+            threadID: "thread_1",
+            edges: [
+                CodexSubagentEdge(
+                    parentThreadID: "thread_1",
+                    childThreadID: "thread_2",
+                    status: "complete"
+                )
+            ],
+            goals: []
+        )
+
+        XCTAssertFalse(detail.isEmpty)
+    }
+
+    func testCodexSessionDetailIsNotEmptyWhenGoalsExist() {
+        let detail = CodexSessionDetail(
+            threadID: "thread_1",
+            edges: [],
+            goals: [
+                CodexGoal(
+                    id: "goal_1",
+                    threadID: "thread_1",
+                    objective: "Ship the fix",
+                    status: "active",
+                    tokenBudget: 1_000,
+                    tokensUsed: 120
+                )
+            ]
+        )
+
+        XCTAssertFalse(detail.isEmpty)
+    }
 }
 
 private func makeOpenCodeSession(id: String, tokens: Int = 100, updatedAt: Date = Date(timeIntervalSince1970: 2000)) -> OpenCodeSessionRecord {
