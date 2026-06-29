@@ -731,5 +731,11 @@ private final class StubRepository: AgentUsageRepositorying {
     func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] { [] }
     func loadCodexSnapshot() throws -> CodexUsageSnapshot { CodexUsageSnapshot(sessions: []) }
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket] { [] }
-    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail { CodexSessionDetail(threadID: threadID, edges: [], goals: []) }
+    func loadCodexDetail(
+        threadID: String,
+        homeDirectoryURL: URL,
+        fileManager: FileManager
+    ) throws -> CodexSessionDetail {
+        CodexSessionDetail(threadID: threadID, edges: [], goals: [])
+    }
 }

@@ -130,7 +130,11 @@ final class AgentUsageStore: ObservableObject {
         )
 
         do {
-            let detail = try repository.loadCodexDetail(threadID: threadID)
+            let detail = try repository.loadCodexDetail(
+                threadID: threadID,
+                homeDirectoryURL: FileManager.default.homeDirectoryForCurrentUser,
+                fileManager: .default
+            )
             nextCache[threadID] = .loaded(detail)
         } catch {
             nextCache[threadID] = .failed(error.localizedDescription)

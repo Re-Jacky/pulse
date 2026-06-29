@@ -300,6 +300,77 @@ enum CodexUsageQuery {
 
         return goals
     }
+
+    static func loadDetail(
+        threadID: String,
+        preferredDatabaseURL: URL? = nil,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> CodexSessionDetail {
+        var databaseURLs: [URL] = []
+        if let preferredDatabaseURL {
+            databaseURLs.append(preferredDatabaseURL)
+        }
+        for url in validStateDatabaseURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) where databaseURLs.contains(url) == false {
+            databaseURLs.append(url)
+        }
+
+        guard databaseURLs.isEmpty == false else {
+            throw QueryError.databaseNotFound(path: homeDirectoryURL.appendingPathComponent(".codex").path)
+        }
+
+        var allEdges: [CodexSubagentEdge] = []
+        var goalsByID: [String: CodexGoal] = [:]
+        var loadedAnyDatabase = false
+
+        for databaseURL in databaseURLs {
+            let edges = try loadSubagentEdges(databaseURL: databaseURL, threadID: threadID)
+            let goals = try loadGoals(databaseURL: databaseURL, threadID: threadID)
+            loadedAnyDatabase = true
+
+            if edges.isEmpty == false {
+                allEdges.append(contentsOf: edges)
+            }
+            for goal in goals {
+                goalsByID[goal.id] = goal
+            }
+        }
+
+        guard loadedAnyDatabase else {
+            throw QueryError.databaseNotFound(path: homeDirectoryURL.appendingPathComponent(".codex").path)
+        }
+
+        let uniqueEdges = Array(
+            Dictionary(
+                allEdges.map { edge in
+                    ("\(edge.parentThreadID)::\(edge.childThreadID)::\(edge.status)", edge)
+                },
+                uniquingKeysWith: { first, _ in first }
+            ).values
+        )
+        .sorted { lhs, rhs in
+            if lhs.parentThreadID == rhs.parentThreadID {
+                if lhs.childThreadID == rhs.childThreadID {
+                    return lhs.status < rhs.status
+                }
+                return lhs.childThreadID < rhs.childThreadID
+            }
+            return lhs.parentThreadID < rhs.parentThreadID
+        }
+
+        let mergedGoals = goalsByID.values.sorted { lhs, rhs in
+            if lhs.objective == rhs.objective {
+                return lhs.id < rhs.id
+            }
+            return lhs.objective < rhs.objective
+        }
+
+        return CodexSessionDetail(
+            threadID: threadID,
+            edges: uniqueEdges,
+            goals: mergedGoals
+        )
+    }
 }
 
 private func stringColumn(_ statement: OpaquePointer?, index: Int32) -> String {

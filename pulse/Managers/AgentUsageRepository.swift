@@ -8,7 +8,11 @@ protocol AgentUsageRepositorying {
     func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket]
     func loadCodexSnapshot() throws -> CodexUsageSnapshot
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket]
-    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail
+    func loadCodexDetail(
+        threadID: String,
+        homeDirectoryURL: URL,
+        fileManager: FileManager
+    ) throws -> CodexSessionDetail
 }
 
 struct AgentUsageRepository: AgentUsageRepositorying {
@@ -39,18 +43,16 @@ struct AgentUsageRepository: AgentUsageRepositorying {
         try CodexUsageQuery.loadDailyBuckets()
     }
 
-    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {
-        guard let codexDatabaseURL else {
-            throw CodexUsageQuery.QueryError.databaseNotFound(path: "Codex database not found")
-        }
-
-        let edges = try CodexUsageQuery.loadSubagentEdges(databaseURL: codexDatabaseURL, threadID: threadID)
-        let goals = try CodexUsageQuery.loadGoals(databaseURL: codexDatabaseURL, threadID: threadID)
-
-        return CodexSessionDetail(
+    func loadCodexDetail(
+        threadID: String,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> CodexSessionDetail {
+        try CodexUsageQuery.loadDetail(
             threadID: threadID,
-            edges: edges,
-            goals: goals
+            preferredDatabaseURL: codexDatabaseURL,
+            homeDirectoryURL: homeDirectoryURL,
+            fileManager: fileManager
         )
     }
 }

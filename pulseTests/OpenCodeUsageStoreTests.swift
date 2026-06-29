@@ -67,6 +67,74 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 1164)
     }
 
+    func testLoadSnapshotIgnoresNonAssistantTokenRows() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeUsageStoreAssistantOnlyTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try execute(db, sql: """
+        create table session (
+            id text primary key,
+            project_id text not null,
+            title text not null,
+            directory text not null,
+            agent text,
+            model text,
+            cost real default 0 not null,
+            tokens_input integer default 0 not null,
+            tokens_output integer default 0 not null,
+            tokens_reasoning integer default 0 not null,
+            tokens_cache_read integer default 0 not null,
+            tokens_cache_write integer default 0 not null,
+            time_created integer not null,
+            time_updated integer not null
+        );
+        """)
+
+        try execute(db, sql: """
+        create table message (
+            id text primary key,
+            session_id text not null,
+            time_created integer not null,
+            time_updated integer not null,
+            data text not null
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values (
+            'ses_1', 'project_1', 'Pulse agent work', '/Users/zyao/Desktop/pulse', 'build',
+            '{"id":"gpt-5.4","providerID":"codex-gpt","variant":"default"}',
+            0, 0, 0, 0, 0, 0, 1000, 2000
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 1000,
+         '{"role":"assistant","providerID":"codex-gpt","modelID":"gpt-5.4","variant":"default","tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":1.25}'),
+        ('msg_2', 'ses_1', 2000, 2000,
+         '{"role":"user","providerID":"codex-gpt","modelID":"gpt-5.4","variant":"default","tokens":{"input":999,"output":888,"reasoning":777,"cache":{"read":666,"write":555}},"cost":9.99}');
+        """)
+
+        let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertEqual(snapshot.sessions[0].inputTokens, 100)
+        XCTAssertEqual(snapshot.sessions[0].outputTokens, 50)
+        XCTAssertEqual(snapshot.sessions[0].reasoningTokens, 10)
+        XCTAssertEqual(snapshot.sessions[0].cacheReadTokens, 1000)
+        XCTAssertEqual(snapshot.sessions[0].cacheWriteTokens, 4)
+        XCTAssertEqual(snapshot.sessions[0].cost, 1.25, accuracy: 0.001)
+        XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 1164)
+    }
+
     func testLoadSnapshotThrowsMissingDatabaseError() {
         let missingURL = URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString).sqlite")
 

@@ -270,6 +270,94 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 350)
     }
 
+    func testAgentUsageRepositoryLoadsCodexDetailFromAnyValidStateDatabase() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let codexRoot = home.appendingPathComponent(".codex")
+        let sqliteDir = codexRoot.appendingPathComponent("sqlite")
+        let primaryDB = codexRoot.appendingPathComponent("state_6.sqlite")
+        let detailOnlyDB = sqliteDir.appendingPathComponent("state_5.sqlite")
+
+        try FileManager.default.createDirectory(at: sqliteDir, withIntermediateDirectories: true)
+
+        let primaryWriter = try openWritableDatabase(primaryDB)
+        defer { sqlite3_close(primaryWriter) }
+        let detailWriter = try openWritableDatabase(detailOnlyDB)
+        defer { sqlite3_close(detailWriter) }
+
+        let threadSchema = """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """
+        let edgeSchema = """
+        create table thread_spawn_edges (
+            parent_thread_id text not null,
+            child_thread_id text not null,
+            status text
+        );
+        """
+        let goalSchema = """
+        create table thread_goals (
+            goal_id text,
+            thread_id text not null,
+            objective text,
+            status text,
+            token_budget integer,
+            tokens_used integer
+        );
+        """
+
+        try execute(primaryWriter, sql: threadSchema)
+        try execute(primaryWriter, sql: edgeSchema)
+        try execute(primaryWriter, sql: goalSchema)
+        try execute(primaryWriter, sql: """
+        insert into threads values
+        ('thread_1', 'Primary Metadata', '/tmp/project', 'gpt-5.4', 'openai', 100, '', 'user', null, null, 1000, 5000, 0);
+        """)
+
+        try execute(detailWriter, sql: threadSchema)
+        try execute(detailWriter, sql: edgeSchema)
+        try execute(detailWriter, sql: goalSchema)
+        try execute(detailWriter, sql: """
+        insert into threads values
+        ('thread_1', 'Historical Metadata', '/tmp/project', 'gpt-5.4', 'openai', 80, '', 'user', null, null, 1000, 4000, 0);
+        insert into thread_spawn_edges values ('thread_1', 'child_1', 'complete');
+        insert into thread_goals values ('goal_1', 'thread_1', 'Ship it', 'active', 5000, 1234);
+        """)
+
+        let repository = AgentUsageRepository(
+            openCodeDatabaseURL: URL(fileURLWithPath: "/tmp/opencode.db"),
+            codexDatabaseURL: primaryDB
+        )
+
+        let detail = try repository.loadCodexDetail(
+            threadID: "thread_1",
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(detail.threadID, "thread_1")
+        XCTAssertEqual(detail.edges.count, 1)
+        XCTAssertEqual(detail.edges.first?.childThreadID, "child_1")
+        XCTAssertEqual(detail.goals.count, 1)
+        XCTAssertEqual(detail.goals.first?.objective, "Ship it")
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
     func testRefreshAllLoadsBothSnapshotsAndClearsPreviousDetailCache() {
         let repository = StubAgentUsageRepository()
         repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1")])
@@ -1241,7 +1329,11 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
         return codexDailyBuckets
     }
 
-    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {
+    func loadCodexDetail(
+        threadID: String,
+        homeDirectoryURL: URL,
+        fileManager: FileManager
+    ) throws -> CodexSessionDetail {
         codexDetailLoadCount += 1
         return codexDetail
     }
@@ -1272,7 +1364,11 @@ private final class BlockingAgentUsageRepository: AgentUsageRepositorying {
         []
     }
 
-    func loadCodexDetail(threadID: String) throws -> CodexSessionDetail {
+    func loadCodexDetail(
+        threadID: String,
+        homeDirectoryURL: URL,
+        fileManager: FileManager
+    ) throws -> CodexSessionDetail {
         CodexSessionDetail(threadID: threadID, edges: [], goals: [])
     }
 
