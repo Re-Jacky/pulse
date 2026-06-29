@@ -113,6 +113,45 @@ final class AgentStatusStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionStartCreatesIdleSlotUntilWorkBegins() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "New Codex Window",
+                timestamp: Date(timeIntervalSince1970: 100),
+                kind: .sessionStarted,
+                message: nil
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "New Codex Window",
+                timestamp: Date(timeIntervalSince1970: 101),
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .working)
+    }
+
+    @MainActor
     func testPersistPreservesGroupsForAgentsThatAreNotCurrentlyEnabled() {
         let persistence = SpyAgentStatusPersistence(
             persisted: PersistedAgentStatusStore(

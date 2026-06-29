@@ -196,6 +196,22 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertEqual(childNormalizedPayload["isSubagent"] as? Bool, true)
     }
 
+    func testCodexHookReportsSessionStartWithoutMarkingItWorking() throws {
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
+
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        let payload = """
+        {"hook_event_name":"SessionStart","session_id":"thread_parent","thread_id":"thread_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!
+
+        let normalizedPayload = try harness.normalizedSenderPayload(from: payload)
+        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_parent")
+        XCTAssertEqual(normalizedPayload["kind"] as? String, "session.started")
+    }
+
     func testCodexHookUsesTranscriptPathInsteadOfTurnIdentifierForSessionID() throws {
         let harness = try CodexHookRegressionHarness()
         defer { harness.cleanup() }

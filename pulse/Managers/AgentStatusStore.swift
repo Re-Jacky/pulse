@@ -351,8 +351,10 @@ final class AgentStatusStore: ObservableObject {
 
     private static func map(_ kind: PulseAgentStatusEventKind) -> AgentSessionLightState {
         switch kind {
-        case .sessionStarted, .sessionWorking:
+        case .sessionWorking:
             return .working
+        case .sessionStarted:
+            return .idle
         case .sessionIdle, .sessionClosed:
             return .idle
         case .sessionError:
