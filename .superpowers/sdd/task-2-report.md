@@ -104,3 +104,57 @@ No additional Task 2 blockers found.
 
 - I intentionally kept `loadTranscript(for:)` returning `[]` for `.all`, matching the narrow repository contract and avoiding inventing cross-source behavior in Task 2.
 - The targeted test run emitted existing macOS 14 `onChange(of:perform:)` deprecation warnings in unrelated UI files, but they did not affect Task 2.
+
+## Review Fix Follow-Up
+
+Addressed the review findings with three scoped repository/source-reader fixes:
+
+1. `loadManagedSessions()` now degrades per source:
+   - returns Codex sessions when OpenCode fails and Codex succeeds
+   - returns OpenCode sessions when Codex fails and OpenCode succeeds
+   - only throws when both sources fail
+2. Codex transcript loading now chooses the best deterministic matching transcript candidate instead of the first non-empty traversal hit:
+   - prefer higher transcript turn count
+   - then prefer newer latest turn timestamp
+   - then prefer lexicographically smaller transcript path as a stable tie-breaker
+3. OpenCode transcript loading is now anchored to the same concrete database URL used during session discovery:
+   - repository stores the discovered OpenCode DB URL
+   - repository also maps each managed OpenCode session ID to that concrete DB URL
+   - transcript reads prefer the stored DB URL rather than re-resolving later
+
+### Additional Tests Added
+
+- `CodexSessionTranscriptTests.testCodexTranscriptLoaderChoosesMostCompleteMatchingTranscript()`
+- `SessionManagementStoreTests.testLoadManagedSessionsReturnsCodexWhenOpenCodeFails()`
+- `SessionManagementStoreTests.testLoadManagedSessionsReturnsOpenCodeWhenCodexFails()`
+- `SessionManagementStoreTests.testLoadTranscriptUsesDiscoveredOpenCodeDatabaseInstance()`
+
+### Commands Run And Results
+
+1. First post-fix verification run:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/OpenCodeSessionTranscriptTests -only-testing:pulseTests/CodexSessionTranscriptTests -only-testing:pulseTests/SessionManagementStoreTests
+```
+
+Result:
+
+- Failed at compile time.
+- Root cause: injected default closure values in `SessionManagementRepository` used overloaded function symbols directly and did not match the stored closure signatures.
+- Compiler errors:
+  - `Cannot convert value of type '([String : String], FileManager, URL, URL?) -> URL' to specified type '() -> URL'`
+  - `Cannot convert value of type '(URL, FileManager) throws -> CodexUsageSnapshot' to specified type '() throws -> CodexUsageSnapshot'`
+
+2. After correcting the injected defaults to explicit zero-argument closures, re-ran the same command:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/OpenCodeSessionTranscriptTests -only-testing:pulseTests/CodexSessionTranscriptTests -only-testing:pulseTests/SessionManagementStoreTests
+```
+
+Result:
+
+- Passed.
+- Test suites green:
+  - `CodexSessionTranscriptTests`
+  - `OpenCodeSessionTranscriptTests`
+  - `SessionManagementStoreTests`

@@ -214,13 +214,19 @@ enum CodexUsageQuery {
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default
     ) throws -> [TranscriptTurn] {
+        var bestCandidate: TranscriptCandidate?
+
         for url in candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) {
-            let turns = try loadTranscriptIfMatching(threadID: threadID, transcriptURL: url)
-            if turns.isEmpty == false {
-                return turns
+            guard let candidate = try loadTranscriptIfMatching(threadID: threadID, transcriptURL: url) else { continue }
+            guard candidate.turns.isEmpty == false else { continue }
+
+            if let bestCandidate, bestCandidate.isPreferred(over: candidate) {
+                continue
             }
+            bestCandidate = candidate
         }
-        return []
+
+        return bestCandidate?.turns ?? []
     }
 
     static func loadSubagentEdges(databaseURL: URL, threadID: String) throws -> [CodexSubagentEdge] {
@@ -496,14 +502,33 @@ private func accumulateDailyBuckets(
     }
 }
 
-private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) throws -> [TranscriptTurn] {
+private struct TranscriptCandidate {
+    let turns: [TranscriptTurn]
+    let transcriptURL: URL
+
+    func isPreferred(over other: TranscriptCandidate) -> Bool {
+        if turns.count != other.turns.count {
+            return turns.count > other.turns.count
+        }
+
+        let selfLastTimestamp = turns.compactMap(\.timestamp).max() ?? .distantPast
+        let otherLastTimestamp = other.turns.compactMap(\.timestamp).max() ?? .distantPast
+        if selfLastTimestamp != otherLastTimestamp {
+            return selfLastTimestamp > otherLastTimestamp
+        }
+
+        return transcriptURL.path < other.transcriptURL.path
+    }
+}
+
+private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) throws -> TranscriptCandidate? {
     guard let handle = try? FileHandle(forReadingFrom: transcriptURL) else {
         throw CodexUsageQuery.QueryError.queryStepFailed(message: "Failed to read transcript at \(transcriptURL.path)")
     }
     defer { try? handle.close() }
 
     guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
-        return []
+        return nil
     }
 
     var transcriptThreadID: String?
@@ -548,7 +573,11 @@ private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) thro
         turns.append(TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp))
     }
 
-    return turns
+    guard transcriptThreadID == threadID else {
+        return nil
+    }
+
+    return TranscriptCandidate(turns: turns, transcriptURL: transcriptURL)
 }
 
 private func transcriptRole(from value: String?) -> TranscriptTurnRole? {

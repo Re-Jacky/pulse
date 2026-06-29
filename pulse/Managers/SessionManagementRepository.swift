@@ -6,14 +6,51 @@ protocol SessionManagementRepositorying {
     func resumeAction(for session: ManagedSessionSummary) -> ResumeAction
 }
 
-struct SessionManagementRepository: SessionManagementRepositorying {
+final class SessionManagementRepository: SessionManagementRepositorying {
+    private let resolveOpenCodeDatabaseURL: () -> URL
+    private let loadOpenCodeSnapshot: (URL) throws -> OpenCodeUsageSnapshot
+    private let loadOpenCodeTranscript: (URL, String) throws -> [TranscriptTurn]
+    private let loadCodexSnapshot: () throws -> CodexUsageSnapshot
+    private let loadCodexTranscript: (String) throws -> [TranscriptTurn]
+
+    private var discoveredOpenCodeDatabaseURL: URL?
+    private var openCodeDatabaseURLByManagedSessionID: [String: URL] = [:]
+
+    init(
+        resolveOpenCodeDatabaseURL: @escaping () -> URL = { OpenCodeUsageQuery.resolveDatabaseURL() },
+        loadOpenCodeSnapshot: @escaping (URL) throws -> OpenCodeUsageSnapshot = OpenCodeUsageQuery.loadSnapshot,
+        loadOpenCodeTranscript: @escaping (URL, String) throws -> [TranscriptTurn] = OpenCodeUsageQuery.loadTranscript,
+        loadCodexSnapshot: @escaping () throws -> CodexUsageSnapshot = { try CodexUsageQuery.loadMergedSnapshot() },
+        loadCodexTranscript: @escaping (String) throws -> [TranscriptTurn] = { try CodexUsageQuery.loadTranscript(threadID: $0) }
+    ) {
+        self.resolveOpenCodeDatabaseURL = resolveOpenCodeDatabaseURL
+        self.loadOpenCodeSnapshot = loadOpenCodeSnapshot
+        self.loadOpenCodeTranscript = loadOpenCodeTranscript
+        self.loadCodexSnapshot = loadCodexSnapshot
+        self.loadCodexTranscript = loadCodexTranscript
+    }
+
     func loadManagedSessions() throws -> [ManagedSessionSummary] {
-        let openCodeDatabaseURL = OpenCodeUsageQuery.resolveDatabaseURL()
-        let openCode = try OpenCodeUsageQuery.loadSnapshot(databaseURL: openCodeDatabaseURL)
-            .sessions
-            .map { session in
-                ManagedSessionSummary(
-                    id: "opencode::\(session.id)",
+        var openCodeSessions: [ManagedSessionSummary] = []
+        var codexSessions: [ManagedSessionSummary] = []
+        var openCodeLoaded = false
+        var codexLoaded = false
+        var openCodeError: Error?
+        var codexError: Error?
+
+        do {
+            let openCodeDatabaseURL = resolveOpenCodeDatabaseURL()
+            let snapshot = try loadOpenCodeSnapshot(openCodeDatabaseURL)
+            openCodeLoaded = true
+            discoveredOpenCodeDatabaseURL = openCodeDatabaseURL
+
+            var databaseURLBySessionID: [String: URL] = [:]
+            openCodeSessions = snapshot.sessions.map { session in
+                let managedSessionID = "opencode::\(session.id)"
+                databaseURLBySessionID[managedSessionID] = openCodeDatabaseURL
+
+                return ManagedSessionSummary(
+                    id: managedSessionID,
                     source: .openCode,
                     rawSessionID: openCodeRawSessionID(from: session.id),
                     title: session.title,
@@ -27,11 +64,18 @@ struct SessionManagementRepository: SessionManagementRepositorying {
                     updatedAt: session.updatedAt
                 )
             }
+            openCodeDatabaseURLByManagedSessionID = databaseURLBySessionID
+        } catch {
+            openCodeError = error
+            discoveredOpenCodeDatabaseURL = nil
+            openCodeDatabaseURLByManagedSessionID = [:]
+        }
 
-        let codex = try CodexUsageQuery.loadMergedSnapshot()
-            .sessions
-            .filter { $0.isSubagent == false }
-            .map { session in
+        do {
+            codexSessions = try loadCodexSnapshot()
+                .sessions
+                .filter { $0.isSubagent == false }
+                .map { session in
                 ManagedSessionSummary(
                     id: "codex::\(session.id)",
                     source: .codex,
@@ -42,9 +86,21 @@ struct SessionManagementRepository: SessionManagementRepositorying {
                     subtitle: "\(session.modelProvider) / \(session.model)",
                     updatedAt: session.updatedAt
                 )
-            }
+                }
+            codexLoaded = true
+        } catch {
+            codexError = error
+        }
 
-        return (openCode + codex).sorted { lhs, rhs in
+        guard openCodeLoaded || codexLoaded else {
+            throw codexError ?? openCodeError ?? NSError(
+                domain: "SessionManagementRepository",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to load session sources."]
+            )
+        }
+
+        return (openCodeSessions + codexSessions).sorted { lhs, rhs in
             if lhs.updatedAt == rhs.updatedAt {
                 return lhs.id < rhs.id
             }
@@ -55,12 +111,12 @@ struct SessionManagementRepository: SessionManagementRepositorying {
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {
         switch session.source {
         case .openCode:
-            return try OpenCodeUsageQuery.loadTranscript(
-                databaseURL: OpenCodeUsageQuery.resolveDatabaseURL(),
-                sessionID: session.rawSessionID
-            )
+            let databaseURL = openCodeDatabaseURLByManagedSessionID[session.id]
+                ?? discoveredOpenCodeDatabaseURL
+                ?? resolveOpenCodeDatabaseURL()
+            return try loadOpenCodeTranscript(databaseURL, session.rawSessionID)
         case .codex:
-            return try CodexUsageQuery.loadTranscript(threadID: session.rawSessionID)
+            return try loadCodexTranscript(session.rawSessionID)
         case .all:
             return []
         }
