@@ -240,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async {
-            if self.settingsWindow?.isVisible != true {
+            if self.hasVisibleOwnedRegularWindow(excluding: self.panel) == false {
                 NSApp.setActivationPolicy(.accessory)
             }
         }
@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func closePanel() {
         panel?.orderOut(nil)
-        if settingsWindow?.isVisible != true {
+        if hasVisibleOwnedRegularWindow() == false {
             NSApp.setActivationPolicy(.accessory)
         }
         if let m = eventMonitor {
@@ -278,7 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSApp.activate(ignoringOtherApps: true)
             agentStatusPanel.makeKeyAndOrderFront(nil)
             DispatchQueue.main.async {
-                if self.settingsWindow?.isVisible != true {
+                if self.hasVisibleOwnedRegularWindow(excluding: self.agentStatusPanel) == false {
                     NSApp.setActivationPolicy(.accessory)
                 }
             }
@@ -313,7 +313,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         p.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async {
-            if self.settingsWindow?.isVisible != true {
+            if self.hasVisibleOwnedRegularWindow(excluding: self.agentStatusPanel) == false {
                 NSApp.setActivationPolicy(.accessory)
             }
         }
@@ -325,7 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func closeAgentStatusPanel() {
         agentStatusPanel?.orderOut(nil)
-        if settingsWindow?.isVisible != true && panel?.isVisible != true {
+        if hasVisibleOwnedRegularWindow() == false {
             NSApp.setActivationPolicy(.accessory)
         }
         if let monitor = agentStatusEventMonitor {
@@ -668,13 +668,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return window
     }
 
+    private func hasVisibleOwnedRegularWindow(excluding excludedWindow: NSWindow? = nil) -> Bool {
+        let ownedWindows: [NSWindow?] = [panel, settingsWindow, sessionManagementWindow]
+        return ownedWindows.contains { window in
+            guard let window else { return false }
+            return window !== excludedWindow && window.isVisible
+        }
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window === settingsWindow || window === sessionManagementWindow else { return }
-        let otherOwnedWindowIsVisible =
-            (window !== settingsWindow && settingsWindow?.isVisible == true) ||
-            (window !== sessionManagementWindow && sessionManagementWindow?.isVisible == true)
-        if panel?.isVisible != true && otherOwnedWindowIsVisible == false {
+        if hasVisibleOwnedRegularWindow(excluding: window) == false {
             NSApp.setActivationPolicy(.accessory)
         }
     }
