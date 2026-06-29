@@ -82,6 +82,41 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testProjectFilterOptionsFollowActiveSourcePivot() {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a"),
+                makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+            ]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectedSourceFilter = .codex
+
+        XCTAssertEqual(store.projectOptions.map(\.id), ["/tmp/b"])
+    }
+
+    @MainActor
+    func testVisibleSessionsClearsStaleProjectSelectionWhenSourcePivotChanges() {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a"),
+                makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+            ]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectedProjectPath = "/tmp/a"
+        store.selectedSourceFilter = .codex
+
+        XCTAssertNil(store.selectedProjectPath)
+        XCTAssertEqual(store.projectOptions.map(\.id), ["/tmp/b"])
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["codex::2"])
+    }
+
+    @MainActor
     func testResumeActionTracksSelectedSessionSource() {
         let repository = StubSessionManagementRepository(
             sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")]

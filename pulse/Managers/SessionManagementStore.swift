@@ -10,8 +10,16 @@ struct SessionProjectOption: Identifiable, Equatable {
 final class SessionManagementStore: ObservableObject {
     @Published private(set) var sessions: [ManagedSessionSummary] = []
     @Published private(set) var selectedSessionID: String?
-    @Published var selectedSourceFilter: SessionManagerSourceFilter = .all
-    @Published var selectedProjectPath: String?
+    @Published var selectedSourceFilter: SessionManagerSourceFilter = .all {
+        didSet {
+            refreshProjectOptionsForCurrentSource()
+        }
+    }
+    @Published var selectedProjectPath: String? {
+        didSet {
+            normalizeSelectedProjectPath()
+        }
+    }
     @Published var searchQuery: String = ""
     @Published private(set) var projectOptions: [SessionProjectOption] = []
     @Published private(set) var transcriptState: TranscriptLoadState = .idle
@@ -27,7 +35,7 @@ final class SessionManagementStore: ObservableObject {
         guard hasLoaded == false else { return }
 
         sessions = (try? repository.loadManagedSessions()) ?? []
-        projectOptions = buildProjectOptions(from: sessions)
+        refreshProjectOptionsForCurrentSource()
         hasLoaded = true
     }
 
@@ -84,5 +92,24 @@ final class SessionManagementStore: ObservableObject {
         }
 
         return options
+    }
+
+    private func refreshProjectOptionsForCurrentSource() {
+        projectOptions = buildProjectOptions(from: sessionsForCurrentSource())
+        normalizeSelectedProjectPath()
+    }
+
+    private func sessionsForCurrentSource() -> [ManagedSessionSummary] {
+        sessions.filter { session in
+            selectedSourceFilter == .all || session.source.rawValue == selectedSourceFilter.rawValue
+        }
+    }
+
+    private func normalizeSelectedProjectPath() {
+        guard let selectedProjectPath else { return }
+        guard projectOptions.contains(where: { $0.id == selectedProjectPath }) else {
+            self.selectedProjectPath = nil
+            return
+        }
     }
 }

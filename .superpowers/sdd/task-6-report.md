@@ -133,3 +133,41 @@ Result:
 ## Commit
 
 Created one commit for Task 6 after verification.
+
+## Follow-Up: Source-Aware Project Picker
+
+Addressed the remaining Task 6 review finding that the project picker must track the active source pivot.
+
+### Problem
+
+- `projectOptions` was originally derived once from all loaded sessions
+- Switching `selectedSourceFilter` to `OpenCode` or `Codex` could still show projects that only existed in the other source
+- Selecting one of those projects could leave the list empty in a confusing way
+
+### Fix
+
+- Made `projectOptions` source-aware by deriving them from the current `selectedSourceFilter`
+- Added source-filter observers in `SessionManagementStore` so project options refresh whenever the active source pivot changes
+- Normalized `selectedProjectPath` whenever the source pivot changes so stale project selections are cleared if they are no longer valid for the current source
+- Kept behavior scoped to the existing store/project-filter surface only
+
+### Additional Tests
+
+Added store coverage for the combined source-filter + project-filter behavior:
+
+- `testProjectFilterOptionsFollowActiveSourcePivot`
+- `testVisibleSessionsClearsStaleProjectSelectionWhenSourcePivotChanges`
+
+### Follow-Up Verification
+
+Re-ran the required commands after this fix:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
+```
+
+Results recorded after the follow-up implementation:
+
+- `** TEST SUCCEEDED **`
+- `** BUILD SUCCEEDED **`
