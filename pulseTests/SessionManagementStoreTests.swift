@@ -38,6 +38,21 @@ final class SessionManagementStoreTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testSessionManagementStoreClearsTranscriptWhenSelectionIsRemoved() {
+        let repository = StubSessionManagementRepository(
+            sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")],
+            transcripts: ["codex::2": [TranscriptTurn(id: "t1", role: .user, text: "Investigate", timestamp: nil)]]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectSession(id: "codex::2")
+        store.selectSession(id: nil)
+
+        XCTAssertEqual(store.transcriptState, .idle)
+    }
+
     func testManagedSessionSummaryUsesStableIdentityAcrossAgents() {
         let openCode = ManagedSessionSummary(
             id: "opencode::session-1",
