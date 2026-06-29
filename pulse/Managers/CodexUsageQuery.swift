@@ -209,6 +209,20 @@ enum CodexUsageQuery {
             }
     }
 
+    static func loadTranscript(
+        threadID: String,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> [TranscriptTurn] {
+        for url in candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) {
+            let turns = try loadTranscriptIfMatching(threadID: threadID, transcriptURL: url)
+            if turns.isEmpty == false {
+                return turns
+            }
+        }
+        return []
+    }
+
     static func loadSubagentEdges(databaseURL: URL, threadID: String) throws -> [CodexSubagentEdge] {
         let db = try openReadOnlyDatabase(databaseURL: databaseURL)
         defer { sqlite3_close(db) }
@@ -480,6 +494,90 @@ private func accumulateDailyBuckets(
         let existing = totalsBySessionAndDay[key, default: .zero(sessionID: currentSessionID, day: day)]
         totalsBySessionAndDay[key] = existing.merging(deltaBucket)
     }
+}
+
+private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) throws -> [TranscriptTurn] {
+    guard let handle = try? FileHandle(forReadingFrom: transcriptURL) else {
+        throw CodexUsageQuery.QueryError.queryStepFailed(message: "Failed to read transcript at \(transcriptURL.path)")
+    }
+    defer { try? handle.close() }
+
+    guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
+        return []
+    }
+
+    var transcriptThreadID: String?
+    var turns: [TranscriptTurn] = []
+
+    for line in contents.split(whereSeparator: \.isNewline) {
+        guard
+            let data = line.data(using: .utf8),
+            let rawObject = try? JSONSerialization.jsonObject(with: data),
+            let object = rawObject as? [String: Any],
+            let type = object["type"] as? String
+        else {
+            continue
+        }
+
+        if type == "session_meta", transcriptThreadID == nil,
+           let payload = object["payload"] as? [String: Any] {
+            transcriptThreadID = (payload["thread_id"] as? String)
+                ?? (payload["threadId"] as? String)
+                ?? (payload["session_id"] as? String)
+                ?? (payload["sessionId"] as? String)
+                ?? (payload["id"] as? String)
+            continue
+        }
+
+        guard transcriptThreadID == threadID else { continue }
+
+        guard type == "response_item",
+              let payload = object["payload"] as? [String: Any],
+              (payload["type"] as? String) == "message",
+              let role = transcriptRole(from: payload["role"] as? String),
+              let text = extractCodexTranscriptText(from: payload),
+              text.isEmpty == false else {
+            continue
+        }
+
+        let id = (payload["id"] as? String)
+            ?? (payload["message_id"] as? String)
+            ?? UUID().uuidString
+        let timestamp = (object["timestamp"] as? String).flatMap(parseCodexTimestamp)
+
+        turns.append(TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp))
+    }
+
+    return turns
+}
+
+private func transcriptRole(from value: String?) -> TranscriptTurnRole? {
+    guard let value else { return nil }
+    switch value {
+    case "user": return .user
+    case "assistant": return .assistant
+    case "system": return .system
+    default: return .unknown
+    }
+}
+
+private func extractCodexTranscriptText(from payload: [String: Any]) -> String? {
+    guard let content = payload["content"] as? [[String: Any]] else {
+        return nil
+    }
+
+    let parts = content.compactMap { item -> String? in
+        if let text = item["text"] as? String, text.isEmpty == false {
+            return text
+        }
+        if let text = item["content"] as? String, text.isEmpty == false {
+            return text
+        }
+        return nil
+    }
+
+    let joined = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    return joined.isEmpty ? nil : joined
 }
 
 private func hasTotalTokenUsage(payload: [String: Any]) -> Bool {

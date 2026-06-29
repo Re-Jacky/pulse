@@ -32,4 +32,23 @@ final class SessionManagementStoreTests: XCTestCase {
         XCTAssertNotEqual(TranscriptLoadState.idle, .loading)
         XCTAssertNotEqual(TranscriptLoadState.loading, .loaded([]))
     }
+
+    func testResumeActionIsSourceNative() {
+        let codexAction = SessionManagementRepository().resumeAction(
+            for: ManagedSessionSummary(
+                id: "codex::thread_1",
+                source: .codex,
+                rawSessionID: "thread_1",
+                title: "Codex Session",
+                projectPath: "/tmp/project",
+                projectName: "project",
+                subtitle: "Codex",
+                updatedAt: Date()
+            )
+        )
+
+        guard case .codex = codexAction else {
+            return XCTFail("Expected codex resume action")
+        }
+    }
 }

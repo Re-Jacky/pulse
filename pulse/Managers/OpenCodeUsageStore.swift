@@ -288,6 +288,67 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         return lhs.sessionID < rhs.sessionID
     }
 }
+
+static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [TranscriptTurn] {
+    guard FileManager.default.fileExists(atPath: databaseURL.path) else {
+        throw QueryError.databaseNotFound(path: databaseURL.path)
+    }
+
+    let uri = "file://\(databaseURL.path)?immutable=1"
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+        sqlite3_close(db)
+        throw QueryError.databaseOpenFailed(message: message)
+    }
+    defer { sqlite3_close(db) }
+
+    let sql = """
+    SELECT id, time_created, data
+    FROM message
+    WHERE session_id = ?
+    ORDER BY time_created ASC, id ASC
+    """
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw QueryError.queryPrepareFailed(message: String(cString: sqlite3_errmsg(db)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    sqlite3_bind_text(statement, 1, (sessionID as NSString).utf8String, -1, nil)
+
+    var turns: [TranscriptTurn] = []
+
+    while true {
+        let stepResult = sqlite3_step(statement)
+        if stepResult == SQLITE_DONE { break }
+        guard stepResult == SQLITE_ROW else {
+            throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+        }
+
+        let id = stringColumn(statement, index: 0)
+        let timestampMilliseconds = sqlite3_column_int64(statement, 1)
+        let payload = stringColumn(statement, index: 2)
+
+        guard
+            let data = payload.data(using: .utf8),
+            let jsonObject = try? JSONSerialization.jsonObject(with: data),
+            let object = jsonObject as? [String: Any],
+            let turn = transcriptTurnFromOpenCodeMessage(
+                id: id,
+                timestampMilliseconds: timestampMilliseconds,
+                object: object
+            )
+        else {
+            continue
+        }
+
+        turns.append(turn)
+    }
+
+    return turns
+}
 }
 
 private func stringColumn(_ statement: OpaquePointer?, index: Int32) -> String {
@@ -298,4 +359,58 @@ return String(cString: value)
 private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> String? {
 let value = stringColumn(statement, index: index)
 return value.isEmpty ? nil : value
+}
+
+private func transcriptTurnFromOpenCodeMessage(
+    id: String,
+    timestampMilliseconds: Int64,
+    object: [String: Any]
+) -> TranscriptTurn? {
+    let role = transcriptRole(from: object["role"] as? String)
+    guard role == .user || role == .assistant || role == .system else {
+        return nil
+    }
+
+    guard let text = extractTranscriptText(from: object), text.isEmpty == false else {
+        return nil
+    }
+
+    let timestamp = timestampMilliseconds > 0
+        ? Date(timeIntervalSince1970: Double(timestampMilliseconds) / 1000)
+        : nil
+
+    return TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp)
+}
+
+private func transcriptRole(from value: String?) -> TranscriptTurnRole {
+    guard let value else { return .unknown }
+    switch value {
+    case "user": return .user
+    case "assistant": return .assistant
+    case "system": return .system
+    default: return .unknown
+    }
+}
+
+private func extractTranscriptText(from object: [String: Any]) -> String? {
+    if let text = object["text"] as? String, text.isEmpty == false {
+        return text
+    }
+
+    if let content = object["content"] as? String, content.isEmpty == false {
+        return content
+    }
+
+    if let contentItems = object["content"] as? [[String: Any]] {
+        let parts = contentItems.compactMap { item -> String? in
+            if let text = item["text"] as? String, text.isEmpty == false {
+                return text
+            }
+            return item["content"] as? String
+        }
+        let joined = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    return nil
 }

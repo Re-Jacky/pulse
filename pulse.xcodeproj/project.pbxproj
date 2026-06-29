@@ -12,9 +12,12 @@
 		100000000000000000000010 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* AppVersionInfo.swift */; };
 		100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* OpenCodeUsageModelsTests.swift */; };
 		100000000000000000000074 /* SessionManagementStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000071 /* SessionManagementStoreTests.swift */; };
+		100000000000000000000075 /* OpenCodeSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */; };
+		100000000000000000000077 /* CodexSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000078 /* CodexSessionTranscriptTests.swift */; };
 		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000072 /* SessionManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000073 /* SessionManagementModels.swift */; };
+		100000000000000000000079 /* SessionManagementRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007A /* SessionManagementRepository.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
@@ -117,9 +120,12 @@
 		100000000000000000000011 /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AppVersionInfo.swift; sourceTree = "<group>"; };
 		100000000000000000000013 /* OpenCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageModelsTests.swift; sourceTree = "<group>"; };
 		100000000000000000000071 /* SessionManagementStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeSessionTranscriptTests.swift; sourceTree = "<group>"; };
+		100000000000000000000078 /* CodexSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionTranscriptTests.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000073 /* SessionManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementModels.swift; sourceTree = "<group>"; };
+		10000000000000000000007A /* SessionManagementRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementRepository.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -231,6 +237,8 @@
 				C0D300000000000000000004 /* AgentIntegrationManagerTests.swift */,
 				100000000000000000000013 /* OpenCodeUsageModelsTests.swift */,
 				100000000000000000000071 /* SessionManagementStoreTests.swift */,
+				100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */,
+				100000000000000000000078 /* CodexSessionTranscriptTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 			);
 			path = pulseTests;
@@ -269,6 +277,7 @@
 				100000000000000000000035 /* UpdateModels.swift */,
 				100000000000000000000017 /* OpenCodeUsageModels.swift */,
 				100000000000000000000073 /* SessionManagementModels.swift */,
+				10000000000000000000007A /* SessionManagementRepository.swift */,
 				100000000000000000000021 /* OpenCodeUsageStore.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
 				A555DA5BBA52686079843F84 /* CodexUsageModels.swift */,
@@ -497,6 +506,8 @@
 				C0D300000000000000000003 /* AgentIntegrationManagerTests.swift in Sources */,
 				100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */,
 				100000000000000000000074 /* SessionManagementStoreTests.swift in Sources */,
+				100000000000000000000075 /* OpenCodeSessionTranscriptTests.swift in Sources */,
+				100000000000000000000077 /* CodexSessionTranscriptTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -550,6 +561,7 @@
 				100000000000000000000034 /* UpdateModels.swift in Sources */,
 				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
 				100000000000000000000072 /* SessionManagementModels.swift in Sources */,
+				100000000000000000000079 /* SessionManagementRepository.swift in Sources */,
 				100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,
 				8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */,
