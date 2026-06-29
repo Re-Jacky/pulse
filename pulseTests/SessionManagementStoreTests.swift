@@ -117,6 +117,26 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testSelectionClearsWhenFiltersHideSelectedSession() {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a"),
+                makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+            ],
+            transcripts: ["codex::2": [TranscriptTurn(id: "t1", role: .user, text: "Investigate", timestamp: nil)]]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectSession(id: "codex::2")
+        store.selectedSourceFilter = .openCode
+
+        XCTAssertNil(store.selectedSessionID)
+        XCTAssertEqual(store.transcriptState, .idle)
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["opencode::1"])
+    }
+
+    @MainActor
     func testResumeActionTracksSelectedSessionSource() {
         let repository = StubSessionManagementRepository(
             sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")]

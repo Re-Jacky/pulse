@@ -171,3 +171,40 @@ Results recorded after the follow-up implementation:
 
 - `** TEST SUCCEEDED **`
 - `** BUILD SUCCEEDED **`
+
+## Follow-Up: Selection / Filter Coherence
+
+Addressed the remaining Task 6 review finding that the selected session and transcript state must stay aligned with the filtered list.
+
+### Problem
+
+- `selectedSessionID` and `transcriptState` could remain pointed at a previously selected session
+- Changing source, project, or search filters could remove that session from `visibleSessions()`
+- The left pane could then show one filtered list while the right pane still showed a hidden session transcript
+
+### Fix
+
+- Added selection reconciliation in `SessionManagementStore`
+- Whenever `selectedSourceFilter`, `selectedProjectPath`, or `searchQuery` changes, the store now checks whether `selectedSessionID` still belongs to `visibleSessions()`
+- If the selected session is no longer visible, the store clears the selection through `selectSession(id: nil)`, which also returns `transcriptState` to `.idle`
+- Kept the change scoped to store/filter/detail-state coherence only
+
+### Additional Tests
+
+Added filter-selection coherence coverage:
+
+- `testSelectionClearsWhenFiltersHideSelectedSession`
+
+### Follow-Up Verification
+
+Re-ran the required commands after this fix:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
+```
+
+Results recorded after the follow-up implementation:
+
+- `** TEST SUCCEEDED **`
+- `** BUILD SUCCEEDED **`

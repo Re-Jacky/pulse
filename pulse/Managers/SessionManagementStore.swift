@@ -13,14 +13,20 @@ final class SessionManagementStore: ObservableObject {
     @Published var selectedSourceFilter: SessionManagerSourceFilter = .all {
         didSet {
             refreshProjectOptionsForCurrentSource()
+            reconcileSelectionWithVisibleSessions()
         }
     }
     @Published var selectedProjectPath: String? {
         didSet {
             normalizeSelectedProjectPath()
+            reconcileSelectionWithVisibleSessions()
         }
     }
-    @Published var searchQuery: String = ""
+    @Published var searchQuery: String = "" {
+        didSet {
+            reconcileSelectionWithVisibleSessions()
+        }
+    }
     @Published private(set) var projectOptions: [SessionProjectOption] = []
     @Published private(set) var transcriptState: TranscriptLoadState = .idle
 
@@ -109,6 +115,14 @@ final class SessionManagementStore: ObservableObject {
         guard let selectedProjectPath else { return }
         guard projectOptions.contains(where: { $0.id == selectedProjectPath }) else {
             self.selectedProjectPath = nil
+            return
+        }
+    }
+
+    private func reconcileSelectionWithVisibleSessions() {
+        guard let selectedSessionID else { return }
+        guard visibleSessions().contains(where: { $0.id == selectedSessionID }) else {
+            selectSession(id: nil)
             return
         }
     }
