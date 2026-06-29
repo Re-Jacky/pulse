@@ -669,7 +669,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func hasVisibleOwnedRegularWindow(excluding excludedWindow: NSWindow? = nil) -> Bool {
-        let ownedWindows: [NSWindow?] = [panel, settingsWindow, sessionManagementWindow]
+        let ownedWindows: [NSWindow?] = [settingsWindow, sessionManagementWindow]
         return ownedWindows.contains { window in
             guard let window else { return false }
             return window !== excludedWindow && window.isVisible
