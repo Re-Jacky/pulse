@@ -17,6 +17,7 @@
 		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000072 /* SessionManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000073 /* SessionManagementModels.swift */; };
+		10000000000000000000007B /* SessionManagementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007C /* SessionManagementStore.swift */; };
 		100000000000000000000079 /* SessionManagementRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007A /* SessionManagementRepository.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
@@ -125,6 +126,7 @@
 		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000073 /* SessionManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementModels.swift; sourceTree = "<group>"; };
+		10000000000000000000007C /* SessionManagementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementStore.swift; sourceTree = "<group>"; };
 		10000000000000000000007A /* SessionManagementRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementRepository.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 				100000000000000000000035 /* UpdateModels.swift */,
 				100000000000000000000017 /* OpenCodeUsageModels.swift */,
 				100000000000000000000073 /* SessionManagementModels.swift */,
+				10000000000000000000007C /* SessionManagementStore.swift */,
 				10000000000000000000007A /* SessionManagementRepository.swift */,
 				100000000000000000000021 /* OpenCodeUsageStore.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
@@ -561,6 +564,7 @@
 				100000000000000000000034 /* UpdateModels.swift in Sources */,
 				100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */,
 				100000000000000000000072 /* SessionManagementModels.swift in Sources */,
+				10000000000000000000007B /* SessionManagementStore.swift in Sources */,
 				100000000000000000000079 /* SessionManagementRepository.swift in Sources */,
 				100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,

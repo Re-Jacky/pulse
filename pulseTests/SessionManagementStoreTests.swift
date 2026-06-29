@@ -2,6 +2,42 @@ import XCTest
 @testable import Pulse
 
 final class SessionManagementStoreTests: XCTestCase {
+    @MainActor
+    func testVisibleSessionsFiltersBySourceProjectAndSearch() {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a"),
+                makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+            ]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        store.selectedSourceFilter = .codex
+        store.searchQuery = "Crash"
+
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["codex::2"])
+    }
+
+    @MainActor
+    func testSelectingSessionLoadsTranscriptLazily() {
+        let repository = StubSessionManagementRepository(
+            sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")],
+            transcripts: ["codex::2": [TranscriptTurn(id: "t1", role: .user, text: "Investigate", timestamp: nil)]]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        XCTAssertEqual(store.transcriptState, .idle)
+
+        store.selectSession(id: "codex::2")
+
+        XCTAssertEqual(
+            store.transcriptState,
+            .loaded([TranscriptTurn(id: "t1", role: .user, text: "Investigate", timestamp: nil)])
+        )
+    }
+
     func testManagedSessionSummaryUsesStableIdentityAcrossAgents() {
         let openCode = ManagedSessionSummary(
             id: "opencode::session-1",
@@ -167,4 +203,46 @@ final class SessionManagementStoreTests: XCTestCase {
 
         XCTAssertEqual(transcriptDatabasePaths, [expectedDatabaseURL.path])
     }
+}
+
+private struct StubSessionManagementRepository: SessionManagementRepositorying {
+    var sessions: [ManagedSessionSummary] = []
+    var transcripts: [String: [TranscriptTurn]] = [:]
+
+    func loadManagedSessions() throws -> [ManagedSessionSummary] {
+        sessions
+    }
+
+    func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {
+        transcripts[session.id] ?? []
+    }
+
+    func resumeAction(for session: ManagedSessionSummary) -> ResumeAction {
+        switch session.source {
+        case .openCode:
+            return .openCode(command: "opencode resume \(session.rawSessionID)")
+        case .codex:
+            return .codex(command: "codex resume \(session.rawSessionID)")
+        case .all:
+            return .codex(command: "")
+        }
+    }
+}
+
+private func makeManagedSession(
+    id: String,
+    source: AgentSource,
+    title: String,
+    projectPath: String
+) -> ManagedSessionSummary {
+    ManagedSessionSummary(
+        id: id,
+        source: source,
+        rawSessionID: id.components(separatedBy: "::").dropFirst().first ?? id,
+        title: title,
+        projectPath: projectPath,
+        projectName: URL(fileURLWithPath: projectPath).lastPathComponent,
+        subtitle: source.rawValue,
+        updatedAt: Date(timeIntervalSince1970: 2_000)
+    )
 }
