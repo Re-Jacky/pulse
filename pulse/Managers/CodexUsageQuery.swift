@@ -64,6 +64,7 @@ enum CodexUsageQuery {
     }
 
     static func loadMergedSnapshot(
+        includeTranscriptURLs: Bool = true,
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default
     ) throws -> CodexUsageSnapshot {
@@ -77,14 +78,40 @@ enum CodexUsageQuery {
         }
 
         var sessionsByID: [String: CodexSessionRecord] = [:]
+        let transcriptURLByThreadID = includeTranscriptURLs
+            ? buildTranscriptURLIndex(
+                homeDirectoryURL: homeDirectoryURL,
+                fileManager: fileManager
+            )
+            : [:]
 
         for databaseURL in databaseURLs {
             let snapshot = try loadSnapshot(databaseURL: databaseURL)
             for session in snapshot.sessions {
-                if let existing = sessionsByID[session.id], existing.updatedAt >= session.updatedAt {
+                let sessionWithTranscriptURL = CodexSessionRecord(
+                    id: session.id,
+                    title: session.title,
+                    cwd: session.cwd,
+                    model: session.model,
+                    modelProvider: session.modelProvider,
+                    tokensUsed: session.tokensUsed,
+                    inputTokens: session.inputTokens,
+                    outputTokens: session.outputTokens,
+                    reasoningTokens: session.reasoningTokens,
+                    cacheReadTokens: session.cacheReadTokens,
+                    reasoningEffort: session.reasoningEffort,
+                    threadSource: session.threadSource,
+                    agentNickname: session.agentNickname,
+                    agentRole: session.agentRole,
+                    createdAt: session.createdAt,
+                    updatedAt: session.updatedAt,
+                    transcriptURL: transcriptURLByThreadID[session.id]
+                )
+
+                if let existing = sessionsByID[session.id], existing.updatedAt >= sessionWithTranscriptURL.updatedAt {
                     continue
                 }
-                sessionsByID[session.id] = session
+                sessionsByID[session.id] = sessionWithTranscriptURL
             }
         }
 
@@ -211,13 +238,26 @@ enum CodexUsageQuery {
 
     static func loadTranscript(
         threadID: String,
+        transcriptURL: URL? = nil,
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        onPartialUpdate: (@Sendable ([TranscriptTurn]) -> Void)? = nil
     ) throws -> [TranscriptTurn] {
         var bestCandidate: TranscriptCandidate?
 
-        for url in candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) {
-            guard let candidate = try loadTranscriptIfMatching(threadID: threadID, transcriptURL: url) else { continue }
+        let transcriptURLs: [URL]
+        if let transcriptURL {
+            transcriptURLs = [transcriptURL]
+        } else {
+            transcriptURLs = candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        }
+
+        for url in transcriptURLs {
+            guard let candidate = try loadTranscriptIfMatching(
+                threadID: threadID,
+                transcriptURL: url,
+                onPartialUpdate: onPartialUpdate
+            ) else { continue }
             guard candidate.turns.isEmpty == false else { continue }
 
             if let bestCandidate, bestCandidate.isPreferred(over: candidate) {
@@ -393,6 +433,32 @@ enum CodexUsageQuery {
     }
 }
 
+private func buildTranscriptURLIndex(
+    homeDirectoryURL: URL,
+    fileManager: FileManager
+) -> [String: URL] {
+    var transcriptURLByThreadID: [String: URL] = [:]
+
+    for url in candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) {
+        guard let candidate = try? loadTranscriptIfMatching(threadID: "", transcriptURL: url, collectTurns: false),
+              let threadID = candidate.threadID else {
+            continue
+        }
+
+        if let existingURL = transcriptURLByThreadID[threadID] {
+            let existingCandidate = TranscriptCandidate(threadID: threadID, turns: [], transcriptURL: existingURL)
+            let newCandidate = TranscriptCandidate(threadID: threadID, turns: [], transcriptURL: url)
+            if existingCandidate.isPreferred(over: newCandidate) {
+                continue
+            }
+        }
+
+        transcriptURLByThreadID[threadID] = url
+    }
+
+    return transcriptURLByThreadID
+}
+
 private func stringColumn(_ statement: OpaquePointer?, index: Int32) -> String {
     guard let value = sqlite3_column_text(statement, index) else { return "" }
     return String(cString: value)
@@ -503,6 +569,7 @@ private func accumulateDailyBuckets(
 }
 
 private struct TranscriptCandidate {
+    let threadID: String?
     let turns: [TranscriptTurn]
     let transcriptURL: URL
 
@@ -521,7 +588,12 @@ private struct TranscriptCandidate {
     }
 }
 
-private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) throws -> TranscriptCandidate? {
+private func loadTranscriptIfMatching(
+    threadID: String,
+    transcriptURL: URL,
+    collectTurns: Bool = true,
+    onPartialUpdate: (@Sendable ([TranscriptTurn]) -> Void)? = nil
+) throws -> TranscriptCandidate? {
     guard let handle = try? FileHandle(forReadingFrom: transcriptURL) else {
         throw CodexUsageQuery.QueryError.queryStepFailed(message: "Failed to read transcript at \(transcriptURL.path)")
     }
@@ -533,6 +605,8 @@ private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) thro
 
     var transcriptThreadID: String?
     var turns: [TranscriptTurn] = []
+    var publishedCount = 0
+    let partialBatchSize = 24
 
     for line in contents.split(whereSeparator: \.isNewline) {
         guard
@@ -554,7 +628,7 @@ private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) thro
             continue
         }
 
-        guard transcriptThreadID == threadID else { continue }
+        guard transcriptThreadID == threadID || threadID.isEmpty else { continue }
 
         guard type == "response_item",
               let payload = object["payload"] as? [String: Any],
@@ -565,19 +639,30 @@ private func loadTranscriptIfMatching(threadID: String, transcriptURL: URL) thro
             continue
         }
 
+        guard collectTurns else { continue }
+
         let id = (payload["id"] as? String)
             ?? (payload["message_id"] as? String)
             ?? UUID().uuidString
         let timestamp = (object["timestamp"] as? String).flatMap(parseCodexTimestamp)
 
         turns.append(TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp))
+
+        if let onPartialUpdate, turns.count - publishedCount >= partialBatchSize {
+            publishedCount = turns.count
+            onPartialUpdate(turns)
+        }
     }
 
-    guard transcriptThreadID == threadID else {
+    guard transcriptThreadID == threadID || threadID.isEmpty else {
         return nil
     }
 
-    return TranscriptCandidate(turns: turns, transcriptURL: transcriptURL)
+    if let onPartialUpdate, turns.count > publishedCount {
+        onPartialUpdate(turns)
+    }
+
+    return TranscriptCandidate(threadID: transcriptThreadID, turns: turns, transcriptURL: transcriptURL)
 }
 
 private func transcriptRole(from value: String?) -> TranscriptTurnRole? {

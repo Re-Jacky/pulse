@@ -290,11 +290,20 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
 }
 
 static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [TranscriptTurn] {
+    try loadTranscript(databaseURL: databaseURL, sessionID: sessionID, partialBatchSize: 24, onPartialUpdate: nil)
+}
+
+static func loadTranscript(
+    databaseURL: URL,
+    sessionID: String,
+    partialBatchSize: Int = 24,
+    onPartialUpdate: (@Sendable ([TranscriptTurn]) -> Void)?
+) throws -> [TranscriptTurn] {
     guard FileManager.default.fileExists(atPath: databaseURL.path) else {
         throw QueryError.databaseNotFound(path: databaseURL.path)
     }
 
-    let uri = "file://\(databaseURL.path)?immutable=1"
+    let uri = openCodeTranscriptDatabaseURI(for: databaseURL)
     var db: OpaquePointer?
     guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
@@ -304,10 +313,17 @@ static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [Trans
     defer { sqlite3_close(db) }
 
     let sql = """
-    SELECT id, time_created, data
-    FROM message
-    WHERE session_id = ?
-    ORDER BY time_created ASC, id ASC
+    SELECT m.id,
+           m.time_created,
+           m.data,
+           p.id,
+           p.time_created,
+           p.data
+    FROM message m
+    LEFT JOIN part p
+      ON p.message_id = m.id
+    WHERE m.session_id = ?
+    ORDER BY m.time_created ASC, m.id ASC, p.time_created ASC, p.id ASC
     """
 
     var statement: OpaquePointer?
@@ -318,7 +334,37 @@ static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [Trans
 
     sqlite3_bind_text(statement, 1, (sessionID as NSString).utf8String, -1, nil)
 
+    struct TranscriptMessageAccumulator {
+        let id: String
+        let timestampMilliseconds: Int64
+        let object: [String: Any]
+        var partObjects: [[String: Any]]
+    }
+
     var turns: [TranscriptTurn] = []
+    var currentMessage: TranscriptMessageAccumulator?
+    var publishedCount = 0
+
+    func flushCurrentMessage() {
+        guard let message = currentMessage else { return }
+        guard let turn = transcriptTurnFromOpenCodeMessage(
+            id: message.id,
+            timestampMilliseconds: message.timestampMilliseconds,
+            object: message.object,
+            partObjects: message.partObjects
+        ) else {
+            return
+        }
+
+        turns.append(turn)
+
+        if let onPartialUpdate,
+           partialBatchSize > 0,
+           turns.count - publishedCount >= partialBatchSize {
+            publishedCount = turns.count
+            onPartialUpdate(turns)
+        }
+    }
 
     while true {
         let stepResult = sqlite3_step(statement)
@@ -334,21 +380,47 @@ static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [Trans
         guard
             let data = payload.data(using: .utf8),
             let jsonObject = try? JSONSerialization.jsonObject(with: data),
-            let object = jsonObject as? [String: Any],
-            let turn = transcriptTurnFromOpenCodeMessage(
-                id: id,
-                timestampMilliseconds: timestampMilliseconds,
-                object: object
-            )
+            let object = jsonObject as? [String: Any]
         else {
             continue
         }
 
-        turns.append(turn)
+        if currentMessage?.id != id {
+            flushCurrentMessage()
+            currentMessage = TranscriptMessageAccumulator(
+                id: id,
+                timestampMilliseconds: timestampMilliseconds,
+                object: object,
+                partObjects: []
+            )
+        }
+
+        let partPayload = stringColumn(statement, index: 5)
+        if partPayload.isEmpty == false,
+           let partData = partPayload.data(using: .utf8),
+           let partJSONObject = try? JSONSerialization.jsonObject(with: partData),
+           let partObject = partJSONObject as? [String: Any] {
+            currentMessage?.partObjects.append(partObject)
+        }
+    }
+
+    flushCurrentMessage()
+
+    if let onPartialUpdate, turns.count > publishedCount {
+        onPartialUpdate(turns)
     }
 
     return turns
 }
+}
+
+private func openCodeTranscriptDatabaseURI(for databaseURL: URL) -> String {
+    let walPath = databaseURL.path + "-wal"
+    if FileManager.default.fileExists(atPath: walPath) {
+        return "file://\(databaseURL.path)"
+    }
+
+    return "file://\(databaseURL.path)?immutable=1"
 }
 
 private func stringColumn(_ statement: OpaquePointer?, index: Int32) -> String {
@@ -364,14 +436,16 @@ return value.isEmpty ? nil : value
 private func transcriptTurnFromOpenCodeMessage(
     id: String,
     timestampMilliseconds: Int64,
-    object: [String: Any]
+    object: [String: Any],
+    partObjects: [[String: Any]] = []
 ) -> TranscriptTurn? {
     let role = transcriptRole(from: object["role"] as? String)
     guard role == .user || role == .assistant || role == .system else {
         return nil
     }
 
-    guard let text = extractTranscriptText(from: object), text.isEmpty == false else {
+    let text = extractTranscriptText(from: object, partObjects: partObjects)
+    guard let text, text.isEmpty == false else {
         return nil
     }
 
@@ -392,25 +466,53 @@ private func transcriptRole(from value: String?) -> TranscriptTurnRole {
     }
 }
 
-private func extractTranscriptText(from object: [String: Any]) -> String? {
-    if let text = object["text"] as? String, text.isEmpty == false {
-        return text
+private func extractTranscriptText(from object: [String: Any], partObjects: [[String: Any]] = []) -> String? {
+    if partObjects.isEmpty == false,
+       let partText = transcriptTextValue(from: partObjects) {
+        return partText
     }
 
-    if let content = object["content"] as? String, content.isEmpty == false {
-        return content
-    }
-
-    if let contentItems = object["content"] as? [[String: Any]] {
-        let parts = contentItems.compactMap { item -> String? in
-            if let text = item["text"] as? String, text.isEmpty == false {
-                return text
-            }
-            return item["content"] as? String
-        }
-        let joined = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return joined.isEmpty ? nil : joined
-    }
-
-    return nil
+    return transcriptTextValue(from: object)
 }
+
+private func transcriptTextValue(from value: Any?) -> String? {
+    switch value {
+    case let text as String:
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    case let object as [String: Any]:
+        if let type = object["type"] as? String,
+           ignoredTranscriptPartTypes.contains(type) {
+            return nil
+        }
+
+        if let text = transcriptTextValue(from: object["text"]) {
+            return text
+        }
+
+        if let content = transcriptTextValue(from: object["content"]) {
+            return content
+        }
+
+        return nil
+    case let items as [[String: Any]]:
+        let joined = items
+            .compactMap { transcriptTextValue(from: $0) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    case let items as [Any]:
+        let joined = items
+            .compactMap { transcriptTextValue(from: $0) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    default:
+        return nil
+    }
+}
+
+private let ignoredTranscriptPartTypes: Set<String> = [
+    "step-start",
+    "step-finish"
+]

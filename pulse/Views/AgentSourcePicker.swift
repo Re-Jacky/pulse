@@ -12,16 +12,19 @@ struct AgentSourcePicker: View {
                     onSelect(source)
                 } label: {
                     Text(source.displayName)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .font(.system(size: 12, weight: source == selectedSource ? .semibold : .medium))
                         .foregroundColor(source == selectedSource ? .appPrimaryText : .appSecondaryText)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                    .background(source == selectedSource ? Color.accentColor.opacity(0.18) : Color.clear)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+                        .background(source == selectedSource ? Color.accentColor.opacity(0.18) : Color.clear)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
+        .fixedSize(horizontal: true, vertical: false)
         .clipShape(Capsule())
         .overlay(
             Capsule()

@@ -84,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var menuBarStatusView: MenuBarStatusItemView?
     private let monitor = SystemMonitor()
     private let themeManager = ThemeManager()
+    private let sessionManagerThemeManager = SessionManagerThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
     private let sessionManagementStore = SessionManagementStore()
@@ -363,11 +364,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func setupThemeObservation() {
         applyCurrentTheme()
+        applySessionManagementTheme()
 
         themeManager.$currentTheme
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.applyCurrentTheme()
+            }
+            .store(in: &cancellables)
+
+        sessionManagerThemeManager.$currentTheme
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.applySessionManagementTheme()
             }
             .store(in: &cancellables)
     }
@@ -421,6 +430,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow?.appearance = appearance
         settingsWindow?.contentViewController?.view.appearance = appearance
         settingsWindow?.contentView?.needsDisplay = true
+    }
+
+    private func applySessionManagementTheme() {
+        let appearance = sessionManagerThemeManager.currentTheme.nsAppearance
         sessionManagementWindow?.appearance = appearance
         sessionManagementWindow?.contentViewController?.view.appearance = appearance
         sessionManagementWindow?.contentView?.needsDisplay = true
@@ -602,13 +615,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func showSessionManagementWindow() {
+        closePanel()
+        closeAgentStatusPanel()
+
         let window = sessionManagementWindow ?? makeSessionManagementWindow()
         sessionManagementWindow = window
-        window.appearance = themeManager.currentTheme.nsAppearance
-        window.contentViewController?.view.appearance = themeManager.currentTheme.nsAppearance
+        window.appearance = sessionManagerThemeManager.currentTheme.nsAppearance
+        window.contentViewController?.view.appearance = sessionManagerThemeManager.currentTheme.nsAppearance
         if window.isMiniaturized {
             window.deminiaturize(nil)
         }
+        window.center()
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -646,7 +663,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func makeSessionManagementWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 980, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: 1770, height: 1280),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -654,16 +671,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.title = "Manage Sessions"
         window.center()
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 760, height: 480)
-        window.appearance = themeManager.currentTheme.nsAppearance
+        window.minSize = NSSize(width: 1240, height: 720)
+        window.appearance = sessionManagerThemeManager.currentTheme.nsAppearance
         window.isExcludedFromWindowsMenu = false
         window.delegate = self
 
         let controller = NSHostingController(
             rootView: SessionManagementWindowView()
                 .environmentObject(sessionManagementStore)
+                .environmentObject(sessionManagerThemeManager)
         )
-        controller.view.appearance = themeManager.currentTheme.nsAppearance
+        controller.view.appearance = sessionManagerThemeManager.currentTheme.nsAppearance
         window.contentViewController = controller
         return window
     }

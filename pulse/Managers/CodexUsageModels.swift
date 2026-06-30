@@ -17,6 +17,45 @@ struct CodexSessionRecord: Identifiable, Equatable {
     let agentRole: String?
     let createdAt: Date
     let updatedAt: Date
+    let transcriptURL: URL?
+
+    init(
+        id: String,
+        title: String,
+        cwd: String,
+        model: String,
+        modelProvider: String,
+        tokensUsed: Int,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        reasoningTokens: Int?,
+        cacheReadTokens: Int?,
+        reasoningEffort: String,
+        threadSource: String,
+        agentNickname: String?,
+        agentRole: String?,
+        createdAt: Date,
+        updatedAt: Date,
+        transcriptURL: URL? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.cwd = cwd
+        self.model = model
+        self.modelProvider = modelProvider
+        self.tokensUsed = tokensUsed
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.reasoningTokens = reasoningTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.reasoningEffort = reasoningEffort
+        self.threadSource = threadSource
+        self.agentNickname = agentNickname
+        self.agentRole = agentRole
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.transcriptURL = transcriptURL
+    }
 
     var shortProjectName: String {
         URL(fileURLWithPath: cwd).lastPathComponent

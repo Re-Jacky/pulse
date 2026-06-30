@@ -20,11 +20,115 @@ final class OpenCodeSessionTranscriptTests: XCTestCase {
                 projectPath: "/tmp/project",
                 projectName: "project",
                 subtitle: "openai / gpt-5.4",
-                updatedAt: Date(timeIntervalSince1970: 2_000)
+                updatedAt: Date(timeIntervalSince1970: 2_000),
+                transcriptURL: nil
             )
         )
 
-        XCTAssertEqual(action, .openCode(command: "opencode resume ses_1"))
+        XCTAssertEqual(action, .openCode(command: "opencode --session ses_1"))
+    }
+
+    func testOpenCodeTranscriptLoaderSupportsStructuredContentItemTypes() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeTranscriptStructuredTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createTranscriptSchema(in: db)
+        try insertTranscriptSession(into: db, sessionID: "ses_1")
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 1000,
+         '{"role":"user","content":[{"type":"input_text","text":"Fix the tests"}]}'),
+        ('msg_2', 'ses_1', 2000, 2000,
+         '{"role":"assistant","content":[{"type":"output_text","text":"I updated the failing cases."}]}');
+        """)
+
+        let transcript = try OpenCodeUsageQuery.loadTranscript(databaseURL: databaseURL, sessionID: "ses_1")
+
+        XCTAssertEqual(transcript.map(\.role), [.user, .assistant])
+        XCTAssertEqual(transcript.map(\.text), ["Fix the tests", "I updated the failing cases."])
+    }
+
+    func testOpenCodeTranscriptLoaderFallsBackToNestedContentStrings() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeTranscriptNestedContentTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createTranscriptSchema(in: db)
+        try insertTranscriptSession(into: db, sessionID: "ses_1")
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 1000,
+         '{"role":"assistant","content":[{"type":"tool_result","content":"Compiled successfully"}]}');
+        """)
+
+        let transcript = try OpenCodeUsageQuery.loadTranscript(databaseURL: databaseURL, sessionID: "ses_1")
+
+        XCTAssertEqual(transcript.map(\.text), ["Compiled successfully"])
+    }
+
+    func testOpenCodeTranscriptLoaderReadsConversationTextFromPartRows() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeTranscriptPartRowsTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createTranscriptSchema(in: db)
+        try insertTranscriptSession(into: db, sessionID: "ses_1")
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 1000, '{"role":"user"}'),
+        ('msg_2', 'ses_1', 2000, 2000, '{"role":"assistant"}');
+        """)
+        try execute(db, sql: """
+        insert into part (id, message_id, session_id, time_created, time_updated, data) values
+        ('prt_1', 'msg_1', 'ses_1', 1001, 1001, '{"type":"text","text":"Fix the tests"}'),
+        ('prt_2', 'msg_2', 'ses_1', 2001, 2001, '{"type":"step-start"}'),
+        ('prt_3', 'msg_2', 'ses_1', 2002, 2002, '{"type":"text","text":"I updated the failing cases."}'),
+        ('prt_4', 'msg_2', 'ses_1', 2003, 2003, '{"type":"step-finish","reason":"stop"}');
+        """)
+
+        let transcript = try OpenCodeUsageQuery.loadTranscript(databaseURL: databaseURL, sessionID: "ses_1")
+
+        XCTAssertEqual(transcript.map(\.role), [.user, .assistant])
+        XCTAssertEqual(transcript.map(\.text), ["Fix the tests", "I updated the failing cases."])
+    }
+
+    func testOpenCodeTranscriptLoaderPublishesPartialTurnsWhileLoading() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeTranscriptPartialRowsTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createTranscriptSchema(in: db)
+        try insertTranscriptSession(into: db, sessionID: "ses_1")
+        try execute(db, sql: """
+        insert into message (id, session_id, time_created, time_updated, data) values
+        ('msg_1', 'ses_1', 1000, 1000, '{"role":"user","content":[{"type":"text","text":"One"}]}'),
+        ('msg_2', 'ses_1', 2000, 2000, '{"role":"assistant","content":[{"type":"text","text":"Two"}]}'),
+        ('msg_3', 'ses_1', 3000, 3000, '{"role":"user","content":[{"type":"text","text":"Three"}]}');
+        """)
+
+        var partialBatches: [[TranscriptTurn]] = []
+        let transcript = try OpenCodeUsageQuery.loadTranscript(
+            databaseURL: databaseURL,
+            sessionID: "ses_1",
+            partialBatchSize: 2,
+            onPartialUpdate: { turns in
+                partialBatches.append(turns)
+            }
+        )
+
+        XCTAssertEqual(transcript.map(\.text), ["One", "Two", "Three"])
+        XCTAssertEqual(partialBatches.count, 2)
+        XCTAssertEqual(partialBatches[0].map(\.text), ["One", "Two"])
+        XCTAssertEqual(partialBatches[1].map(\.text), ["One", "Two", "Three"])
     }
 
     private func loadOpenCodeTranscriptFixture() throws -> [TranscriptTurn] {
@@ -34,46 +138,8 @@ final class OpenCodeSessionTranscriptTests: XCTestCase {
         let db = try openWritableDatabase(databaseURL)
         defer { sqlite3_close(db) }
 
-        try execute(db, sql: """
-        create table session (
-            id text primary key,
-            project_id text not null,
-            title text not null,
-            directory text not null,
-            agent text,
-            model text,
-            cost real default 0 not null,
-            tokens_input integer default 0 not null,
-            tokens_output integer default 0 not null,
-            tokens_reasoning integer default 0 not null,
-            tokens_cache_read integer default 0 not null,
-            tokens_cache_write integer default 0 not null,
-            time_created integer not null,
-            time_updated integer not null
-        );
-        """)
-
-        try execute(db, sql: """
-        create table message (
-            id text primary key,
-            session_id text not null,
-            time_created integer not null,
-            time_updated integer not null,
-            data text not null
-        );
-        """)
-
-        try execute(db, sql: """
-        insert into session (
-            id, project_id, title, directory, agent, model, cost,
-            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
-            time_created, time_updated
-        ) values (
-            'ses_1', 'project_1', 'Transcript', '/tmp/project', 'build',
-            '{"id":"gpt-5.4","providerID":"openai"}',
-            0, 0, 0, 0, 0, 0, 1000, 2000
-        );
-        """)
+        try createTranscriptSchema(in: db)
+        try insertTranscriptSession(into: db, sessionID: "ses_1")
 
         try execute(db, sql: """
         insert into message (id, session_id, time_created, time_updated, data) values
@@ -85,6 +151,62 @@ final class OpenCodeSessionTranscriptTests: XCTestCase {
 
         return try OpenCodeUsageQuery.loadTranscript(databaseURL: databaseURL, sessionID: "ses_1")
     }
+}
+
+private func createTranscriptSchema(in db: OpaquePointer?) throws {
+    try execute(db, sql: """
+    create table session (
+        id text primary key,
+        project_id text not null,
+        title text not null,
+        directory text not null,
+        agent text,
+        model text,
+        cost real default 0 not null,
+        tokens_input integer default 0 not null,
+        tokens_output integer default 0 not null,
+        tokens_reasoning integer default 0 not null,
+        tokens_cache_read integer default 0 not null,
+        tokens_cache_write integer default 0 not null,
+        time_created integer not null,
+        time_updated integer not null
+    );
+    """)
+
+    try execute(db, sql: """
+    create table message (
+        id text primary key,
+        session_id text not null,
+        time_created integer not null,
+        time_updated integer not null,
+        data text not null
+    );
+    """)
+
+    try execute(db, sql: """
+    create table part (
+        id text primary key,
+        message_id text not null,
+        session_id text not null,
+        time_created integer not null,
+        time_updated integer not null,
+        data text not null
+    );
+    """)
+}
+
+private func insertTranscriptSession(into db: OpaquePointer?, sessionID: String) throws {
+    try execute(db, sql: """
+    insert into session (
+        id, project_id, title, directory, agent, model, cost,
+        tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+        time_created, time_updated
+    ) values (
+        '\(sessionID)', 'project_1', 'Transcript', '/tmp/project', 'build',
+        '{"id":"gpt-5.4","providerID":"openai"}',
+        0, 0, 0, 0, 0, 0, 1000, 2000
+    );
+    """)
 }
 
 private func makeDatabase(named name: String) throws -> URL {

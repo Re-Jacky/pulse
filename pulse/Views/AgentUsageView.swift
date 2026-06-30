@@ -125,6 +125,10 @@ struct AgentUsageView: View {
                 }
                 .buttonStyle(.borderless)
 
+                Text("|")
+                    .foregroundColor(.appTertiaryText)
+                    .padding(.horizontal, 6)
+
                 Button(agentStore.isRefreshing ? "Refreshing..." : "Refresh") {
                     agentStore.refreshAllAsync()
                 }

@@ -5,60 +5,157 @@ struct SessionListSidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Source", selection: $store.selectedSourceFilter) {
+            Picker("Source", selection: sourceFilterBinding) {
                 ForEach(SessionManagerSourceFilter.allCases) { source in
                     Text(sourceLabel(for: source)).tag(source)
                 }
             }
             .pickerStyle(.segmented)
 
-            Picker(
-                "Project",
-                selection: Binding(
-                    get: { store.selectedProjectPath ?? "__all__" },
-                    set: { store.selectedProjectPath = $0 == "__all__" ? nil : $0 }
-                )
-            ) {
-                Text("All Projects").tag("__all__")
-                ForEach(store.projectOptions) { option in
-                    Text(option.title).tag(option.id)
+            SearchableSelectorView(
+                label: "Project",
+                placeholder: "All Projects",
+                selectedTitle: selectedProjectTitle,
+                options: [
+                    SearchableSelectorOption(
+                        id: "__all__",
+                        title: "All Projects",
+                        subtitle: "Show every session in the current source"
+                    )
+                ] + store.projectOptions.map { option in
+                    SearchableSelectorOption(
+                        id: option.id,
+                        title: option.title,
+                        subtitle: option.id
+                    )
                 }
+            ) { option in
+                store.setSelectedProjectPath(option.id == "__all__" ? nil : option.id)
             }
 
-            TextField("Search Sessions", text: $store.searchQuery)
+            TextField("Search Sessions", text: searchQueryBinding)
                 .textFieldStyle(.roundedBorder)
 
-            List(
-                store.visibleSessions(),
-                selection: Binding(
-                    get: { store.selectedSessionID },
-                    set: { store.selectSession(id: $0) }
-                )
-            ) { session in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(session.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.appPrimaryText)
-                        .lineLimit(2)
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    if visibleSessions.isEmpty {
+                        emptyStateView
+                    } else {
+                        ForEach(visibleSessions) { session in
+                            Button {
+                                store.selectSession(id: session.id)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(session.title)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.appPrimaryText)
+                                        .lineLimit(2)
 
-                    Text(session.projectName)
-                        .font(.system(size: 11))
-                        .foregroundColor(.appSecondaryText)
-                        .lineLimit(1)
+                                    Text(session.projectName)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.appSecondaryText)
+                                        .lineLimit(1)
 
-                    Text(session.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.appTertiaryText)
-                        .lineLimit(1)
+                                    Text(session.subtitle)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.appTertiaryText)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(rowBackground(for: session))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(rowBorder(for: session), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
-            .listStyle(.sidebar)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.appSidebarBackground)
+    }
+
+    private var selectedProjectTitle: String {
+        guard let selectedProjectPath = store.selectedProjectPath else {
+            return "All Projects"
+        }
+
+        return store.projectOptions.first(where: { $0.id == selectedProjectPath })?.title ?? "All Projects"
+    }
+
+    private var visibleSessions: [ManagedSessionSummary] {
+        store.visibleSessions()
+    }
+
+    private var sourceFilterBinding: Binding<SessionManagerSourceFilter> {
+        Binding(
+            get: { store.selectedSourceFilter },
+            set: { store.setSelectedSourceFilter($0) }
+        )
+    }
+
+    private var searchQueryBinding: Binding<String> {
+        Binding(
+            get: { store.searchQuery },
+            set: { store.setSearchQuery($0) }
+        )
+    }
+
+    @ViewBuilder
+    private var emptyStateView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if store.isLoadingSessions(for: store.selectedSourceFilter) {
+                ProgressView()
+                    .controlSize(.small)
+
+                Text(loadingStateMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            } else {
+                Text(emptyStateMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
+    }
+
+    private var loadingStateMessage: String {
+        switch store.selectedSourceFilter {
+        case .all:
+            return "Loading sessions..."
+        case .openCode:
+            return "Loading OpenCode sessions..."
+        case .codex:
+            return "Loading Codex sessions..."
+        }
+    }
+
+    private var emptyStateMessage: String {
+        if store.searchQuery.isEmpty == false {
+            return "No sessions match the current search."
+        }
+        if store.selectedProjectPath != nil {
+            return "No sessions match the current project."
+        }
+
+        switch store.selectedSourceFilter {
+        case .all:
+            return "No sessions found yet."
+        case .openCode:
+            return "No OpenCode sessions found."
+        case .codex:
+            return "No Codex sessions found."
+        }
     }
 
     private func sourceLabel(for source: SessionManagerSourceFilter) -> String {
@@ -70,5 +167,21 @@ struct SessionListSidebarView: View {
         case .codex:
             return "Codex"
         }
+    }
+
+    private func rowBackground(for session: ManagedSessionSummary) -> Color {
+        guard store.selectedSessionID == session.id else {
+            return Color.appFieldBackground.opacity(0.28)
+        }
+
+        return Color.accentColor.opacity(0.14)
+    }
+
+    private func rowBorder(for session: ManagedSessionSummary) -> Color {
+        guard store.selectedSessionID == session.id else {
+            return Color.appFieldBorder.opacity(0.18)
+        }
+
+        return Color.accentColor.opacity(0.28)
     }
 }

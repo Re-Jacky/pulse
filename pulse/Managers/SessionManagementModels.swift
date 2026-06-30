@@ -8,6 +8,11 @@ enum SessionManagerSourceFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct ManagedSessionsPartialUpdate: Equatable {
+    let sessions: [ManagedSessionSummary]
+    let loadedSources: Set<AgentSource>
+}
+
 enum ManagedSessionKind: Equatable {
     case openCode(OpenCodeSessionRecord)
     case codex(CodexSessionRecord)
@@ -22,6 +27,7 @@ struct ManagedSessionSummary: Identifiable, Equatable {
     let projectName: String
     let subtitle: String
     let updatedAt: Date
+    let transcriptURL: URL?
 }
 
 enum TranscriptTurnRole: String, Equatable {
@@ -40,8 +46,15 @@ struct TranscriptTurn: Identifiable, Equatable {
 
 enum TranscriptLoadState: Equatable {
     case idle
-    case loading
+    case loading([TranscriptTurn])
     case loaded([TranscriptTurn])
+    case failed(String)
+}
+
+enum SessionListLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
     case failed(String)
 }
 
