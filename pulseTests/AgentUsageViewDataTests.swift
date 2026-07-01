@@ -26,6 +26,26 @@ final class AgentUsageViewDataTests: XCTestCase {
         )
     }
 
+    func testDateSelectionSummaryLabelForSingleDayUsesLocalCalendarWhenReconstructingStoredDay() {
+        XCTAssertEqual(
+            AgentDateSelectionTriggerLabel.text(
+                for: .singleDay(19_909),
+                calendar: .gregorianPacificForTests
+            ),
+            "Jul 5, 2024"
+        )
+    }
+
+    func testDateSelectionSummaryLabelForRangeUsesLocalCalendarWhenReconstructingStoredDays() {
+        XCTAssertEqual(
+            AgentDateSelectionTriggerLabel.text(
+                for: .dayRange(startDay: 19_909, endDay: 19_911),
+                calendar: .gregorianPacificForTests
+            ),
+            "Jul 5 - Jul 7"
+        )
+    }
+
     func testExplicitDateSelectionUsesCustomDisplayLabel() {
         XCTAssertEqual(AgentDateSelection.singleDay(123).displayLabel, "Custom Range")
         XCTAssertEqual(AgentDateSelection.dayRange(startDay: 100, endDay: 104).displayLabel, "Custom Range")
@@ -866,6 +886,12 @@ private extension Calendar {
     static var gregorianUTCForTests: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    static var gregorianPacificForTests: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         return calendar
     }
 }

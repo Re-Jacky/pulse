@@ -32,6 +32,31 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertNil(agentUsageDayInterval(for: AgentDateSelection.preset(.allTime), now: Date(), calendar: .gregorianUTCForTests))
     }
 
+    func testPresetShortcutAndEquivalentExplicitRangeProduceSameSummaryForToday() {
+        let today = agentUsageDayIdentifier(for: Date())
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [openCodeBucket(day: today, totalTokens: 42, sessionID: "oc-1")],
+            codexBuckets: []
+        )
+
+        let preset = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .preset(.today),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let explicit = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .singleDay(today),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(preset.summary.totalTokens, explicit.summary.totalTokens)
+    }
+
     func testAgentUsageSelectionInitializesDateSelectionWithoutLosingExplicitSelection() {
         let selection = AgentUsageSelection(
             source: .openCode,
