@@ -46,9 +46,166 @@ final class AgentUsageViewDataTests: XCTestCase {
         )
     }
 
+    func testCalendarDatesForLast7DaysPresetExpandToConcreteLocalRange() {
+        let now = Date(timeIntervalSince1970: 1_720_558_400)
+        let dates = agentDateSelectionCalendarDates(
+            for: .preset(.last7Days),
+            calendar: .gregorianUTCForTests,
+            now: now
+        )
+
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.startDate, calendar: .gregorianUTCForTests),
+            19_907
+        )
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.endDate, calendar: .gregorianUTCForTests),
+            19_913
+        )
+    }
+
+    func testCalendarDatesForYesterdayPresetExpandToPreviousLocalDay() {
+        let now = Date(timeIntervalSince1970: 1_720_558_400)
+        let dates = agentDateSelectionCalendarDates(
+            for: .preset(.today),
+            calendar: .gregorianUTCForTests,
+            now: now.addingTimeInterval(-86_400)
+        )
+
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.startDate, calendar: .gregorianUTCForTests),
+            19_912
+        )
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.endDate, calendar: .gregorianUTCForTests),
+            19_912
+        )
+    }
+
+    func testCalendarDatesForExplicitRangeNormalizeReversedEndpoints() {
+        let dates = agentDateSelectionCalendarDates(
+            for: .dayRange(startDay: 19_911, endDay: 19_909),
+            calendar: .gregorianUTCForTests,
+            now: Date(timeIntervalSince1970: 1_720_558_400)
+        )
+
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.startDate, calendar: .gregorianUTCForTests),
+            19_909
+        )
+        XCTAssertEqual(
+            agentUsageDayIdentifier(for: dates.endDate, calendar: .gregorianUTCForTests),
+            19_911
+        )
+    }
+
+    func testAssigningDateToActiveInputOnlyUpdatesThatEndpoint() {
+        let start = Date(timeIntervalSince1970: 1_720_224_000)
+        let end = Date(timeIntervalSince1970: 1_720_396_800)
+        let updated = Date(timeIntervalSince1970: 1_720_483_200)
+
+        let startResult = agentDateSelectionDates(
+            byAssigning: updated,
+            to: .start,
+            startDate: start,
+            endDate: end
+        )
+        XCTAssertEqual(startResult.startDate, updated)
+        XCTAssertEqual(startResult.endDate, end)
+
+        let endResult = agentDateSelectionDates(
+            byAssigning: updated,
+            to: .end,
+            startDate: start,
+            endDate: end
+        )
+        XCTAssertEqual(endResult.startDate, start)
+        XCTAssertEqual(endResult.endDate, updated)
+    }
+
     func testExplicitDateSelectionUsesCustomDisplayLabel() {
         XCTAssertEqual(AgentDateSelection.singleDay(123).displayLabel, "Custom Range")
         XCTAssertEqual(AgentDateSelection.dayRange(startDay: 100, endDay: 104).displayLabel, "Custom Range")
+    }
+
+    func testDateSelectionCustomPillLabelDefaultsWhenPresetIsInlineShortcut() {
+        XCTAssertEqual(
+            AgentDateSelectionInlineTagLabel.customText(for: .preset(.today), calendar: .gregorianUTCForTests),
+            "Custom"
+        )
+        XCTAssertEqual(
+            AgentDateSelectionInlineTagLabel.customText(for: .preset(.allTime), calendar: .gregorianUTCForTests),
+            "Custom"
+        )
+    }
+
+    func testDateSelectionCustomPillLabelReflectsNonInlineSelection() {
+        XCTAssertEqual(
+            AgentDateSelectionInlineTagLabel.customText(for: .preset(.last7Days), calendar: .gregorianUTCForTests),
+            "7 Days"
+        )
+        XCTAssertEqual(
+            AgentDateSelectionInlineTagLabel.customText(for: .singleDay(19_909), calendar: .gregorianUTCForTests),
+            "Jul 5, 2024"
+        )
+    }
+
+    func testDateSelectionCustomPillLabelUsesRememberedDraftForInlineShortcutSelections() {
+        XCTAssertEqual(
+            agentDateSelectionCustomTagText(
+                activeSelection: .preset(.today),
+                customDraftSelection: .dayRange(startDay: 19_909, endDay: 19_911),
+                calendar: .gregorianUTCForTests
+            ),
+            "Jul 5 - Jul 7"
+        )
+        XCTAssertEqual(
+            agentDateSelectionCustomTagText(
+                activeSelection: .preset(.allTime),
+                customDraftSelection: .singleDay(19_909),
+                calendar: .gregorianUTCForTests
+            ),
+            "Jul 5, 2024"
+        )
+    }
+
+    func testCustomTagPrimaryActionOpensPopoverWithoutRememberedRange() {
+        XCTAssertEqual(
+            agentDateSelectionCustomTagPrimaryAction(
+                activeSelection: .preset(.today),
+                customDraftSelection: nil
+            ),
+            .openPopover
+        )
+    }
+
+    func testCustomTagPrimaryActionAppliesRememberedRangeForInlineShortcutSelections() {
+        XCTAssertEqual(
+            agentDateSelectionCustomTagPrimaryAction(
+                activeSelection: .preset(.today),
+                customDraftSelection: .dayRange(startDay: 19_909, endDay: 19_911)
+            ),
+            .applySelection(.dayRange(startDay: 19_909, endDay: 19_911))
+        )
+        XCTAssertEqual(
+            agentDateSelectionCustomTagPrimaryAction(
+                activeSelection: .preset(.allTime),
+                customDraftSelection: .singleDay(19_909)
+            ),
+            .applySelection(.singleDay(19_909))
+        )
+    }
+
+    func testDateSelectionDraftStorageRoundTripsCustomRange() {
+        let defaults = UserDefaults(suiteName: #function)!
+        let selection = AgentDateSelection.dayRange(startDay: 100, endDay: 104)
+
+        AgentDateSelectionDraftStorage.save(selection, userDefaults: defaults)
+
+        XCTAssertEqual(
+            AgentDateSelectionDraftStorage.load(userDefaults: defaults),
+            selection
+        )
     }
 
     func testLegacyPresetRawValueMigratesToPresetSelection() {

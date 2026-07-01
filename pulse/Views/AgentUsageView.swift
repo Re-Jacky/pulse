@@ -8,6 +8,7 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageSelectedSessionID") private var selectedSessionID = ""
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
     @State private var persistedDateSelection = AgentDateSelectionStorage.load()
+    @State private var persistedCustomDraftSelection = AgentDateSelectionDraftStorage.load()
 
     private var selection: AgentUsageSelection {
         let requestedSource = AgentSource(rawValue: selectedSourceRawValue) ?? .all
@@ -101,10 +102,6 @@ struct AgentUsageView: View {
                             .background(Color.appFieldBackground)
                             .clipShape(Capsule())
                     }
-
-                    AgentDateSelectionPicker(selection: selection.dateSelection) { updatedSelection in
-                        persistDateSelection(updatedSelection)
-                    }
                 }
 
                 Spacer()
@@ -152,6 +149,21 @@ struct AgentUsageView: View {
 
     private func selectorsBlock(selection: AgentUsageSelection, data: AgentUsageDerivedViewData) -> some View {
         VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("Range")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.appSecondaryText)
+
+                AgentDateSelectionPicker(
+                    selection: selection.dateSelection,
+                    customDraftSelection: persistedCustomDraftSelection
+                ) { updatedSelection in
+                    persistDateSelection(updatedSelection)
+                }
+
+                Spacer(minLength: 0)
+            }
+
             SearchableSelectorView(
                 label: "Project",
                 placeholder: "All Projects",
@@ -206,11 +218,22 @@ struct AgentUsageView: View {
         if loadedSelection != persistedDateSelection {
             persistedDateSelection = loadedSelection
         }
+        let loadedDraftSelection = AgentDateSelectionDraftStorage.load()
+        if loadedDraftSelection != persistedCustomDraftSelection {
+            persistedCustomDraftSelection = loadedDraftSelection
+        }
     }
 
     private func persistDateSelection(_ selection: AgentDateSelection) {
         persistedDateSelection = selection
         AgentDateSelectionStorage.save(selection)
+        switch selection {
+        case .preset:
+            break
+        case .singleDay, .dayRange:
+            persistedCustomDraftSelection = selection
+            AgentDateSelectionDraftStorage.save(selection)
+        }
     }
 
     private func detailBlock(selection: AgentUsageSelection, data: AgentUsageDerivedViewData) -> some View {

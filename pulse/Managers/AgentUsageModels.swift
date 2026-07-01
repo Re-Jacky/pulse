@@ -164,6 +164,49 @@ enum AgentDateSelectionStorage {
     }
 }
 
+enum AgentDateSelectionDraftStorage {
+    static let kindKey = "agentUsageCustomDraftKind"
+    static let startDayKey = "agentUsageCustomDraftStartDay"
+    static let endDayKey = "agentUsageCustomDraftEndDay"
+
+    static func load(userDefaults: UserDefaults = .standard) -> AgentDateSelection? {
+        guard let kind = userDefaults.string(forKey: kindKey) else {
+            return nil
+        }
+
+        switch kind {
+        case "single":
+            guard let day = userDefaults.object(forKey: startDayKey) as? Int else {
+                return nil
+            }
+            return .singleDay(day)
+        case "range":
+            guard let startDay = userDefaults.object(forKey: startDayKey) as? Int,
+                  let endDay = userDefaults.object(forKey: endDayKey) as? Int else {
+                return nil
+            }
+            return .dayRange(startDay: startDay, endDay: endDay)
+        default:
+            return nil
+        }
+    }
+
+    static func save(_ selection: AgentDateSelection, userDefaults: UserDefaults = .standard) {
+        switch selection {
+        case .preset:
+            return
+        case let .singleDay(day):
+            userDefaults.set("single", forKey: kindKey)
+            userDefaults.set(day, forKey: startDayKey)
+            userDefaults.removeObject(forKey: endDayKey)
+        case let .dayRange(startDay, endDay):
+            userDefaults.set("range", forKey: kindKey)
+            userDefaults.set(startDay, forKey: startDayKey)
+            userDefaults.set(endDay, forKey: endDayKey)
+        }
+    }
+}
+
 func agentUsageDayIdentifier(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> Int {
     Int(calendar.startOfDay(for: date).timeIntervalSince1970 * 1000) / 86_400_000
 }
