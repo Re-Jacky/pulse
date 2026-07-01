@@ -2,6 +2,35 @@ import XCTest
 @testable import Pulse
 
 final class AgentUsageViewDataTests: XCTestCase {
+    func testLegacyPresetRawValueMigratesToPresetSelection() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defaults.set("last_7_days", forKey: "agentUsageSelectedTimeRange")
+
+        let selection = AgentDateSelectionStorage.load(
+            userDefaults: defaults,
+            calendar: .gregorianUTCForTests,
+            now: Date(timeIntervalSince1970: 1_720_558_400)
+        )
+
+        XCTAssertEqual(selection, .preset(.last7Days))
+    }
+
+    func testExplicitRangeRoundTripsThroughStorage() {
+        let defaults = UserDefaults(suiteName: #function)!
+        let selection = AgentDateSelection.dayRange(startDay: 100, endDay: 104)
+
+        AgentDateSelectionStorage.save(selection, userDefaults: defaults)
+
+        XCTAssertEqual(
+            AgentDateSelectionStorage.load(
+                userDefaults: defaults,
+                calendar: .gregorianUTCForTests,
+                now: Date()
+            ),
+            selection
+        )
+    }
+
     func testSelectionScopeUsesSessionOnlyWhenProjectAndSessionExistAndSourceIsNotAll() {
         let sessionSelection = AgentUsageSelection(
             source: .codex,
@@ -786,6 +815,14 @@ final class AgentUsageViewDataTests: XCTestCase {
         )
 
         XCTAssertFalse(detail.isEmpty)
+    }
+}
+
+private extension Calendar {
+    static var gregorianUTCForTests: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
     }
 }
 

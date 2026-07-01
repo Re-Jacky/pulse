@@ -64,6 +64,64 @@ enum AgentDateSelection: Equatable, Hashable {
     }
 }
 
+enum AgentDateSelectionStorage {
+    static let legacyPresetKey = "agentUsageSelectedTimeRange"
+    static let kindKey = "agentUsageDateSelectionKind"
+    static let presetKey = "agentUsageDatePreset"
+    static let startDayKey = "agentUsageDateStartDay"
+    static let endDayKey = "agentUsageDateEndDay"
+
+    static func load(
+        userDefaults: UserDefaults = .standard,
+        calendar: Calendar = .autoupdatingCurrent,
+        now: Date = Date()
+    ) -> AgentDateSelection {
+        if let kind = userDefaults.string(forKey: kindKey) {
+            switch kind {
+            case "preset":
+                let rawValue = userDefaults.string(forKey: presetKey) ?? AgentDatePreset.today.rawValue
+                return .preset(AgentDatePreset(rawValue: rawValue) ?? .today)
+            case "single":
+                return .singleDay(userDefaults.integer(forKey: startDayKey))
+            case "range":
+                return .dayRange(
+                    startDay: userDefaults.integer(forKey: startDayKey),
+                    endDay: userDefaults.integer(forKey: endDayKey)
+                )
+            default:
+                break
+            }
+        }
+
+        if let legacyPreset = userDefaults.string(forKey: legacyPresetKey),
+           let preset = AgentDatePreset(rawValue: legacyPreset) {
+            return .preset(preset)
+        }
+
+        return .preset(.today)
+    }
+
+    static func save(_ selection: AgentDateSelection, userDefaults: UserDefaults = .standard) {
+        switch selection {
+        case let .preset(preset):
+            userDefaults.set("preset", forKey: kindKey)
+            userDefaults.set(preset.rawValue, forKey: presetKey)
+            userDefaults.removeObject(forKey: startDayKey)
+            userDefaults.removeObject(forKey: endDayKey)
+        case let .singleDay(day):
+            userDefaults.set("single", forKey: kindKey)
+            userDefaults.set(day, forKey: startDayKey)
+            userDefaults.removeObject(forKey: presetKey)
+            userDefaults.removeObject(forKey: endDayKey)
+        case let .dayRange(startDay, endDay):
+            userDefaults.set("range", forKey: kindKey)
+            userDefaults.set(startDay, forKey: startDayKey)
+            userDefaults.set(endDay, forKey: endDayKey)
+            userDefaults.removeObject(forKey: presetKey)
+        }
+    }
+}
+
 func agentUsageDayIdentifier(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> Int {
     Int(calendar.startOfDay(for: date).timeIntervalSince1970 * 1000) / 86_400_000
 }

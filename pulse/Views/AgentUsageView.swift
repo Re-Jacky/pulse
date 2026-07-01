@@ -6,8 +6,8 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageSelectedSource") private var selectedSourceRawValue = AgentSource.openCode.rawValue
     @AppStorage("agentUsageSelectedProjectDirectory") private var selectedProjectDirectory = ""
     @AppStorage("agentUsageSelectedSessionID") private var selectedSessionID = ""
-    @AppStorage("agentUsageSelectedTimeRange") private var selectedTimeRangeRawValue = AgentTimeRange.allTime.rawValue
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
+    @State private var persistedDateSelection = AgentDateSelectionStorage.load()
 
     private var selection: AgentUsageSelection {
         let requestedSource = AgentSource(rawValue: selectedSourceRawValue) ?? .all
@@ -16,7 +16,7 @@ struct AgentUsageView: View {
             : (agentStore.availableSources.first ?? .all)
         return AgentUsageSelection(
             source: source,
-            timeRange: AgentTimeRange(rawValue: selectedTimeRangeRawValue) ?? .allTime,
+            dateSelection: persistedDateSelection,
             projectDirectory: selectedProjectDirectory.isEmpty ? nil : selectedProjectDirectory,
             sessionID: selectedSessionID.isEmpty ? nil : selectedSessionID,
             modelGroupBy: AgentModelGroupBy(rawValue: modelGroupBy) ?? .model
@@ -63,6 +63,7 @@ struct AgentUsageView: View {
         }
         .onAppear {
             syncSelectedSourceIfNeeded()
+            syncPersistedDateSelectionIfNeeded()
             if let threadID = data.codexDetailThreadID {
                 agentStore.ensureCodexDetailLoaded(for: threadID)
             }
@@ -83,7 +84,7 @@ struct AgentUsageView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.appSecondaryText)
 
-            Picker("Range", selection: $selectedTimeRangeRawValue) {
+            Picker("Range", selection: timeRangeBinding) {
                 ForEach(AgentTimeRange.allCases) { range in
                     Text(range.label).tag(range.rawValue)
                 }
@@ -210,6 +211,30 @@ struct AgentUsageView: View {
             selectedProjectDirectory = ""
             selectedSessionID = ""
         }
+    }
+
+    private func syncPersistedDateSelectionIfNeeded() {
+        let loadedSelection = AgentDateSelectionStorage.load()
+        if loadedSelection != persistedDateSelection {
+            persistedDateSelection = loadedSelection
+        }
+    }
+
+    private var timeRangeBinding: Binding<String> {
+        Binding(
+            get: {
+                persistedDateSelection.preset?.rawValue ?? AgentTimeRange.today.rawValue
+            },
+            set: { newValue in
+                let preset = AgentTimeRange(rawValue: newValue) ?? .today
+                persistDateSelection(.preset(preset))
+            }
+        )
+    }
+
+    private func persistDateSelection(_ selection: AgentDateSelection) {
+        persistedDateSelection = selection
+        AgentDateSelectionStorage.save(selection)
     }
 
     private func detailBlock(selection: AgentUsageSelection, data: AgentUsageDerivedViewData) -> some View {
