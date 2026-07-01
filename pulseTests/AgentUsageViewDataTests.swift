@@ -2,6 +2,30 @@ import XCTest
 @testable import Pulse
 
 final class AgentUsageViewDataTests: XCTestCase {
+    func testDateSelectionSummaryLabelForPresetToday() {
+        XCTAssertEqual(
+            AgentDateSelectionTriggerLabel.text(for: .preset(.today), calendar: .gregorianUTCForTests),
+            "Today"
+        )
+    }
+
+    func testDateSelectionSummaryLabelForSingleDayUsesFormattedDate() {
+        XCTAssertEqual(
+            AgentDateSelectionTriggerLabel.text(for: .singleDay(19_909), calendar: .gregorianUTCForTests),
+            "Jul 5, 2024"
+        )
+    }
+
+    func testDateSelectionSummaryLabelForRangeUsesBothDates() {
+        XCTAssertEqual(
+            AgentDateSelectionTriggerLabel.text(
+                for: .dayRange(startDay: 19_909, endDay: 19_911),
+                calendar: .gregorianUTCForTests
+            ),
+            "Jul 5 - Jul 7"
+        )
+    }
+
     func testExplicitDateSelectionUsesCustomDisplayLabel() {
         XCTAssertEqual(AgentDateSelection.singleDay(123).displayLabel, "Custom Range")
         XCTAssertEqual(AgentDateSelection.dayRange(startDay: 100, endDay: 104).displayLabel, "Custom Range")

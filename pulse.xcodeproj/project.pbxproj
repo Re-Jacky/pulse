@@ -11,17 +11,8 @@
 		100000000000000000000001 /* AppVersionInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* AppVersionInfoTests.swift */; };
 		100000000000000000000010 /* AppVersionInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* AppVersionInfo.swift */; };
 		100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* OpenCodeUsageModelsTests.swift */; };
-		100000000000000000000074 /* SessionManagementStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000071 /* SessionManagementStoreTests.swift */; };
-		100000000000000000000075 /* OpenCodeSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */; };
-		100000000000000000000077 /* CodexSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000078 /* CodexSessionTranscriptTests.swift */; };
 		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
-		100000000000000000000072 /* SessionManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000073 /* SessionManagementModels.swift */; };
-		10000000000000000000007B /* SessionManagementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007C /* SessionManagementStore.swift */; };
-		100000000000000000000080 /* SessionManagementWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000081 /* SessionManagementWindowView.swift */; };
-		100000000000000000000082 /* SessionListSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000083 /* SessionListSidebarView.swift */; };
-		100000000000000000000084 /* SessionTranscriptDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000085 /* SessionTranscriptDetailView.swift */; };
-		100000000000000000000079 /* SessionManagementRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007A /* SessionManagementRepository.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
@@ -50,13 +41,22 @@
 		100000000000000000000064 /* AgentStatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000065 /* AgentStatusStore.swift */; };
 		100000000000000000000066 /* PulseAgentStatusServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000067 /* PulseAgentStatusServer.swift */; };
 		100000000000000000000068 /* PulseAgentStatusServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000069 /* PulseAgentStatusServerTests.swift */; };
+		100000000000000000000072 /* SessionManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000073 /* SessionManagementModels.swift */; };
+		100000000000000000000074 /* SessionManagementStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000071 /* SessionManagementStoreTests.swift */; };
+		100000000000000000000075 /* OpenCodeSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */; };
+		100000000000000000000077 /* CodexSessionTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000078 /* CodexSessionTranscriptTests.swift */; };
+		100000000000000000000079 /* SessionManagementRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007A /* SessionManagementRepository.swift */; };
+		10000000000000000000007B /* SessionManagementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000007C /* SessionManagementStore.swift */; };
+		100000000000000000000080 /* SessionManagementWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000081 /* SessionManagementWindowView.swift */; };
+		100000000000000000000082 /* SessionListSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000083 /* SessionListSidebarView.swift */; };
+		100000000000000000000084 /* SessionTranscriptDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000085 /* SessionTranscriptDetailView.swift */; };
 		1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */; };
 		1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */; };
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
 		2808CF4C2EA05A430DEEC0D3 /* MenuBarStatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */; };
 		37738B59E3B191F1EEB94103 /* CodexSessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007A3ED0FFE322101E5A062 /* CodexSessionDetailView.swift */; };
 		4574B222A7AC14CC2FFF51D5 /* AgentStatusManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */; };
-		E2A11C4B6D8F90A1B2C3D4E6 /* AgentSessionLightColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A11C4B6D8F90A1B2C3D4E5 /* AgentSessionLightColor.swift */; };
+		4796E0D77356525AA0A8791F /* AgentDateSelectionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
 		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
@@ -85,6 +85,7 @@
 		D1E000000000000000000001 /* MenuBarStatusItemViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E000000000000000000002 /* MenuBarStatusItemViewTests.swift */; };
 		D1E000000000000000000003 /* AgentStatusManagementViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */; };
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
+		E2A11C4B6D8F90A1B2C3D4E6 /* AgentSessionLightColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A11C4B6D8F90A1B2C3D4E5 /* AgentSessionLightColor.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
 
@@ -123,17 +124,8 @@
 		100000000000000000000004 /* pulseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000011 /* AppVersionInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AppVersionInfo.swift; sourceTree = "<group>"; };
 		100000000000000000000013 /* OpenCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageModelsTests.swift; sourceTree = "<group>"; };
-		100000000000000000000071 /* SessionManagementStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementStoreTests.swift; sourceTree = "<group>"; };
-		100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeSessionTranscriptTests.swift; sourceTree = "<group>"; };
-		100000000000000000000078 /* CodexSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionTranscriptTests.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
-		100000000000000000000073 /* SessionManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementModels.swift; sourceTree = "<group>"; };
-		10000000000000000000007C /* SessionManagementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementStore.swift; sourceTree = "<group>"; };
-		100000000000000000000081 /* SessionManagementWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementWindowView.swift; sourceTree = "<group>"; };
-		100000000000000000000083 /* SessionListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListSidebarView.swift; sourceTree = "<group>"; };
-		100000000000000000000085 /* SessionTranscriptDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTranscriptDetailView.swift; sourceTree = "<group>"; };
-		10000000000000000000007A /* SessionManagementRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementRepository.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -161,8 +153,16 @@
 		100000000000000000000065 /* AgentStatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentStatusStore.swift; sourceTree = "<group>"; };
 		100000000000000000000067 /* PulseAgentStatusServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/PulseAgentStatusServer.swift; sourceTree = "<group>"; };
 		100000000000000000000069 /* PulseAgentStatusServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseAgentStatusServerTests.swift; sourceTree = "<group>"; };
+		100000000000000000000071 /* SessionManagementStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000073 /* SessionManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementModels.swift; sourceTree = "<group>"; };
+		100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeSessionTranscriptTests.swift; sourceTree = "<group>"; };
+		100000000000000000000078 /* CodexSessionTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionTranscriptTests.swift; sourceTree = "<group>"; };
+		10000000000000000000007A /* SessionManagementRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementRepository.swift; sourceTree = "<group>"; };
+		10000000000000000000007C /* SessionManagementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/SessionManagementStore.swift; sourceTree = "<group>"; };
+		100000000000000000000081 /* SessionManagementWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManagementWindowView.swift; sourceTree = "<group>"; };
+		100000000000000000000083 /* SessionListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListSidebarView.swift; sourceTree = "<group>"; };
+		100000000000000000000085 /* SessionTranscriptDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTranscriptDetailView.swift; sourceTree = "<group>"; };
 		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
-		E2A11C4B6D8F90A1B2C3D4E5 /* AgentSessionLightColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentSessionLightColor.swift; sourceTree = "<group>"; };
 		2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageFlowChartView.swift; sourceTree = "<group>"; };
 		301784F7059433DCC99F2522 /* AgentSourcePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentSourcePicker.swift; sourceTree = "<group>"; };
 		30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentStatusManagementView.swift; sourceTree = "<group>"; };
@@ -198,6 +198,8 @@
 		D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusManagementViewTests.swift; sourceTree = "<group>"; };
 		D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessRowView.swift; sourceTree = "<group>"; };
 		D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessListView.swift; sourceTree = "<group>"; };
+		E2A11C4B6D8F90A1B2C3D4E5 /* AgentSessionLightColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentSessionLightColor.swift; sourceTree = "<group>"; };
+		E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentDateSelectionPicker.swift; sourceTree = "<group>"; };
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -320,6 +322,7 @@
 				2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */,
 				32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */,
 				30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */,
+				E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -594,6 +597,7 @@
 				4574B222A7AC14CC2FFF51D5 /* AgentStatusManagementView.swift in Sources */,
 				E2A11C4B6D8F90A1B2C3D4E6 /* AgentSessionLightColor.swift in Sources */,
 				B071DEC4AEE5182E2557A705 /* CodexHooksManifest.swift in Sources */,
+				4796E0D77356525AA0A8791F /* AgentDateSelectionPicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

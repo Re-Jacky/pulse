@@ -38,7 +38,6 @@ struct AgentUsageView: View {
                 } else if let error = agentStore.lastError {
                     errorState(error)
                 } else {
-                    timeRangeSelector
                     selectorsBlock(selection: selection, data: data)
                     detailBlock(selection: selection, data: data)
 
@@ -78,27 +77,6 @@ struct AgentUsageView: View {
         }
     }
 
-    private var timeRangeSelector: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Range")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.appSecondaryText)
-
-            Picker("Range", selection: timeRangeBinding) {
-                ForEach(AgentTimeRange.allCases) { range in
-                    Text(range.label).tag(range.rawValue)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            if persistedDateSelection.preset == nil {
-                Text(persistedDateSelection.displayLabel)
-                    .font(.system(size: 10))
-                    .foregroundColor(.appSecondaryText)
-            }
-        }
-    }
-
     private func header(selection: AgentUsageSelection) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -122,6 +100,10 @@ struct AgentUsageView: View {
                             .padding(.vertical, 6)
                             .background(Color.appFieldBackground)
                             .clipShape(Capsule())
+                    }
+
+                    AgentDateSelectionPicker(selection: selection.dateSelection) { updatedSelection in
+                        persistDateSelection(updatedSelection)
                     }
                 }
 
@@ -224,18 +206,6 @@ struct AgentUsageView: View {
         if loadedSelection != persistedDateSelection {
             persistedDateSelection = loadedSelection
         }
-    }
-
-    private var timeRangeBinding: Binding<String> {
-        Binding(
-            get: {
-                persistedDateSelection.preset?.rawValue ?? AgentTimeRange.today.rawValue
-            },
-            set: { newValue in
-                let preset = AgentTimeRange(rawValue: newValue) ?? .today
-                persistDateSelection(.preset(preset))
-            }
-        )
     }
 
     private func persistDateSelection(_ selection: AgentDateSelection) {
