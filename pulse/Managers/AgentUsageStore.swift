@@ -43,6 +43,7 @@ final class AgentUsageStore: ObservableObject {
     let repository: AgentUsageRepositorying
 
     @Published private(set) var availableSources: [AgentSource]
+    let mappingStore: AgentUsageMappingStore
 
     private var hasLoadedGeneralData = false
     private var derivedDataCache: (key: DerivedDataCacheKey, value: AgentUsageDerivedViewData)?
@@ -55,13 +56,17 @@ final class AgentUsageStore: ObservableObject {
     private let supportedSources: [AgentSource]
     private var enabledSources: Set<AgentSource>
 
-    init(repository: AgentUsageRepositorying? = nil) {
+    init(
+        repository: AgentUsageRepositorying? = nil,
+        mappingStore: AgentUsageMappingStore = AgentUsageMappingStore()
+    ) {
         let defaultRepository = AgentUsageRepository(
             openCodeDatabaseURL: OpenCodeUsageQuery.resolveDatabaseURL(),
             codexDatabaseURL: CodexUsageQuery.resolveDatabaseURL()
         )
 
         self.repository = repository ?? defaultRepository
+        self.mappingStore = mappingStore
         self.state = .empty
         self.supportedSources = makeAvailableSources(
             openCodeDatabaseURL: self.repository.openCodeDatabaseURL,
@@ -239,6 +244,22 @@ final class AgentUsageStore: ObservableObject {
 
         let ocScopeSummary = openCodeSnapshot.summary(for: scope)
         let cxScopeSummary = codexSnapshot.summary(for: scope)
+        let allProviderCandidates = selection.source == .all && selection.isSessionScope == false
+            ? buildAllProviderMappingCandidates(
+                selection: selection,
+                scope: scope,
+                openCodeSnapshot: openCodeSnapshot,
+                codexSnapshot: codexSnapshot
+            )
+            : []
+        let allModelCandidates = selection.source == .all && selection.isSessionScope == false
+            ? buildAllModelMappingCandidates(
+                selection: selection,
+                scope: scope,
+                openCodeSnapshot: openCodeSnapshot,
+                codexSnapshot: codexSnapshot
+            )
+            : []
         let ocProjectCount: Int
         let cxProjectCount: Int
         if scope == .allProjects {
@@ -299,13 +320,15 @@ final class AgentUsageStore: ObservableObject {
             usageMetrics: buildUsageMetrics(summary: summary),
             summaryPills: buildSummaryPills(summary: summary),
             contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocScopeSummary: ocScopeSummary, cxScopeSummary: cxScopeSummary, ocProjectCount: ocProjectCount, cxProjectCount: cxProjectCount, openCodeSessionsByID: openCodeSessionsByID, codexSessionsByID: codexSessionsByID, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
-            providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
-            modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, allProviderCandidates: allProviderCandidates),
+            modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, allModelCandidates: allModelCandidates),
+            providerMappingCandidates: allProviderCandidates,
+            modelMappingCandidates: allModelCandidates,
             selectedOpenCodeSession: selection.source == .openCode ? normalizedOpenCodeSession(id: selection.sessionID, sessionsByID: openCodeSessionsByID, ocLatestBySession: ocLatestBySession) : nil,
             selectedCodexSession: selection.source == .codex ? normalizedCodexSession(id: selection.sessionID, sessionsByID: codexSessionsByID, cxLatestBySession: cxLatestBySession) : nil,
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
-            showsByModel: selection.source != .all && selection.isSessionScope == false,
+            showsByModel: selection.isSessionScope == false,
             showsTokenFlow: selection.source == .all && isTodayEquivalentSelection == false
         )
 
@@ -1073,10 +1096,16 @@ final class AgentUsageStore: ObservableObject {
         )
     }
 
-    private func buildProviderBreakdown(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [ProviderBreakdown] {
-        guard selection.source != .all else { return [] }
+    private func buildProviderBreakdown(
+        selection: AgentUsageSelection,
+        scope: AgentScope,
+        openCodeSnapshot: OpenCodeUsageSnapshot,
+        codexSnapshot: CodexUsageSnapshot,
+        allProviderCandidates: [AgentUsageProviderMappingCandidate]
+    ) -> [ProviderBreakdown] {
         switch selection.source {
-        case .all: return []
+        case .all:
+            return buildMappedProviderBreakdown(from: allProviderCandidates)
         case .openCode:
             if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
                 return openCodeSnapshot.providerBreakdown(for: scope)
@@ -1086,10 +1115,16 @@ final class AgentUsageStore: ObservableObject {
         }
     }
 
-    private func buildModelBreakdownRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [AgentUsageDetailRow] {
-        guard selection.source != .all else { return [] }
+    private func buildModelBreakdownRows(
+        selection: AgentUsageSelection,
+        scope: AgentScope,
+        openCodeSnapshot: OpenCodeUsageSnapshot,
+        codexSnapshot: CodexUsageSnapshot,
+        allModelCandidates: [AgentUsageModelMappingCandidate]
+    ) -> [AgentUsageDetailRow] {
         switch selection.source {
-        case .all: return []
+        case .all:
+            return buildMappedModelBreakdownRows(from: allModelCandidates)
         case .openCode:
             let rows: [OpenCodeModelBreakdown]
             if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
@@ -1115,6 +1150,213 @@ final class AgentUsageStore: ObservableObject {
                 )
             }
         }
+    }
+
+    private func buildAllProviderMappingCandidates(
+        selection: AgentUsageSelection,
+        scope: AgentScope,
+        openCodeSnapshot: OpenCodeUsageSnapshot,
+        codexSnapshot: CodexUsageSnapshot
+    ) -> [AgentUsageProviderMappingCandidate] {
+        var candidates: [AgentUsageProviderMappingCandidate] = []
+
+        let openCodeRows: [ProviderBreakdown]
+        if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
+            openCodeRows = openCodeSnapshot.providerBreakdown(for: scope)
+        } else {
+            openCodeRows = openCodeProviderBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
+        }
+        candidates.append(contentsOf: openCodeRows.map {
+            AgentUsageProviderMappingCandidate(
+                identity: AgentUsageProviderRawIdentity(
+                    source: .openCode,
+                    rawProviderID: $0.provider,
+                    rawProviderName: $0.provider
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
+        candidates.append(contentsOf: codexSnapshot.providerBreakdown(for: scope).map {
+            AgentUsageProviderMappingCandidate(
+                identity: AgentUsageProviderRawIdentity(
+                    source: .codex,
+                    rawProviderID: $0.provider,
+                    rawProviderName: $0.provider
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
+        return candidates.sorted { lhs, rhs in
+            if lhs.totalTokens == rhs.totalTokens {
+                return lhs.identity.sourceQualifiedDisplayName.localizedCaseInsensitiveCompare(rhs.identity.sourceQualifiedDisplayName) == .orderedAscending
+            }
+            return lhs.totalTokens > rhs.totalTokens
+        }
+    }
+
+    private func buildAllModelMappingCandidates(
+        selection: AgentUsageSelection,
+        scope: AgentScope,
+        openCodeSnapshot: OpenCodeUsageSnapshot,
+        codexSnapshot: CodexUsageSnapshot
+    ) -> [AgentUsageModelMappingCandidate] {
+        var candidates: [AgentUsageModelMappingCandidate] = []
+
+        let openCodeRows: [OpenCodeModelBreakdown]
+        if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
+            openCodeRows = openCodeSnapshot.modelBreakdown(for: scope)
+        } else {
+            openCodeRows = openCodeModelBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
+        }
+        candidates.append(contentsOf: openCodeRows.map {
+            AgentUsageModelMappingCandidate(
+                identity: AgentUsageModelRawIdentity(
+                    source: .openCode,
+                    rawProviderID: $0.providerID,
+                    rawProviderName: $0.providerID,
+                    rawModelID: $0.modelID,
+                    rawModelName: $0.modelID,
+                    rawModelVariant: $0.variant
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
+        candidates.append(contentsOf: codexSnapshot.modelBreakdown(for: scope).map {
+            AgentUsageModelMappingCandidate(
+                identity: AgentUsageModelRawIdentity(
+                    source: .codex,
+                    rawProviderID: $0.modelProvider,
+                    rawProviderName: $0.modelProvider,
+                    rawModelID: $0.model,
+                    rawModelName: $0.model,
+                    rawModelVariant: nil
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
+        return candidates.sorted { lhs, rhs in
+            if lhs.totalTokens == rhs.totalTokens {
+                return lhs.identity.sourceQualifiedDisplayName.localizedCaseInsensitiveCompare(rhs.identity.sourceQualifiedDisplayName) == .orderedAscending
+            }
+            return lhs.totalTokens > rhs.totalTokens
+        }
+    }
+
+    private func buildMappedProviderBreakdown(
+        from candidates: [AgentUsageProviderMappingCandidate]
+    ) -> [ProviderBreakdown] {
+        var summariesByKey: [String: AgentUsageSummary] = [:]
+        var titlesByKey: [String: String] = [:]
+
+        for candidate in candidates {
+            let summary = AgentUsageSummary(
+                totalTokens: candidate.totalTokens,
+                inputTokens: nil,
+                outputTokens: nil,
+                reasoningTokens: nil,
+                cacheReadTokens: nil,
+                cacheWriteTokens: nil,
+                requestCount: 0,
+                sessionsCount: 0,
+                cost: nil,
+                lastUpdated: nil
+            )
+            let displayProviderName = mappingStore.displayProviderName(for: candidate.identity)
+            let key: String
+            let title: String
+            if let displayProviderName {
+                key = "mapped::\(displayProviderName)"
+                title = displayProviderName
+            } else {
+                key = "raw::\(candidate.identity.id)"
+                title = candidate.identity.sourceQualifiedDisplayName
+            }
+
+            if let existing = summariesByKey[key] {
+                summariesByKey[key] = AgentUsageSummary.merge(existing, summary)
+            } else {
+                summariesByKey[key] = summary
+            }
+            titlesByKey[key] = title
+        }
+
+        return titlesByKey.compactMap { key, title in
+            guard let summary = summariesByKey[key] else { return nil }
+            return ProviderBreakdown(provider: title, summary: summary)
+        }
+        .sorted { lhs, rhs in
+            if lhs.summary.totalTokens == rhs.summary.totalTokens {
+                return lhs.provider.localizedCaseInsensitiveCompare(rhs.provider) == .orderedAscending
+            }
+            return lhs.summary.totalTokens > rhs.summary.totalTokens
+        }
+    }
+
+    private func buildMappedModelBreakdownRows(
+        from candidates: [AgentUsageModelMappingCandidate]
+    ) -> [AgentUsageDetailRow] {
+        var summariesByKey: [String: AgentUsageSummary] = [:]
+        var titlesByKey: [String: String] = [:]
+
+        for candidate in candidates {
+            let summary = AgentUsageSummary(
+                totalTokens: candidate.totalTokens,
+                inputTokens: nil,
+                outputTokens: nil,
+                reasoningTokens: nil,
+                cacheReadTokens: nil,
+                cacheWriteTokens: nil,
+                requestCount: 0,
+                sessionsCount: 0,
+                cost: nil,
+                lastUpdated: nil
+            )
+            let modelMapping = mappingStore.displayModelMapping(for: candidate.identity)
+            let key: String
+            let title: String
+            if let modelMapping {
+                key = "mapped::\(modelMapping.displayProviderName)::\(modelMapping.displayModelName)"
+                title = "\(modelMapping.displayProviderName) / \(modelMapping.displayModelName)"
+            } else {
+                key = "raw::\(candidate.identity.id)"
+                title = candidate.identity.sourceQualifiedDisplayName
+            }
+
+            if let existing = summariesByKey[key] {
+                summariesByKey[key] = AgentUsageSummary.merge(existing, summary)
+            } else {
+                summariesByKey[key] = summary
+            }
+            titlesByKey[key] = title
+        }
+
+        let rows = titlesByKey.compactMap { entry -> (summary: AgentUsageSummary, row: AgentUsageDetailRow)? in
+            let key = entry.key
+            let title = entry.value
+            guard let summary = summariesByKey[key] else { return nil }
+            return (
+                summary: summary,
+                row: AgentUsageDetailRow(
+                    id: key,
+                    title: title,
+                    valueText: compact(summary.totalTokens),
+                    secondaryText: nil
+                )
+            )
+        }
+
+        return rows
+            .sorted { lhs, rhs in
+                if lhs.summary.totalTokens == rhs.summary.totalTokens {
+                    return lhs.row.title.localizedCaseInsensitiveCompare(rhs.row.title) == .orderedAscending
+                }
+                return lhs.summary.totalTokens > rhs.summary.totalTokens
+            }
+            .map { $0.row }
     }
 
     private func compact(_ value: Int) -> String {

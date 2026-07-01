@@ -649,6 +649,125 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(store.availableSources, [.codex])
     }
 
+    func testDerivedDataAllSourceShowsProviderAndModelBreakdownsPerSourceWhenUnmapped() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            makeOpenCodeSession(id: "oc_1", tokens: 100, providerID: "custom", modelID: "gpt-5.4")
+        ])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 200, provider: "codex-gpt", model: "gpt-5.4")
+        ])
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertTrue(data.showsByModel)
+        XCTAssertEqual(Set(data.providerBreakdown.map(\.provider)), ["OpenCode / custom", "Codex / codex-gpt"])
+        XCTAssertEqual(Set(data.modelBreakdownRows.map(\.title)), ["OpenCode / custom / gpt-5.4", "Codex / codex-gpt / gpt-5.4"])
+    }
+
+    func testDerivedDataAllSourceAppliesMappingsWithoutChangingPerAgentBreakdowns() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            makeOpenCodeSession(id: "oc_1", tokens: 100, providerID: "custom", modelID: "gpt-5.4")
+        ])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 200, provider: "codex-gpt", model: "gpt-5.4")
+        ])
+
+        let mappingStore = AgentUsageMappingStore(
+            persistence: InMemoryAgentUsageMappingPersistence()
+        )
+        mappingStore.upsertProviderMapping(
+            AgentUsageProviderDisplayMapping(
+                identity: AgentUsageProviderRawIdentity(
+                    source: .openCode,
+                    rawProviderID: "custom",
+                    rawProviderName: "custom"
+                ),
+                displayProviderName: "OpenAI"
+            )
+        )
+        mappingStore.upsertProviderMapping(
+            AgentUsageProviderDisplayMapping(
+                identity: AgentUsageProviderRawIdentity(
+                    source: .codex,
+                    rawProviderID: "codex-gpt",
+                    rawProviderName: "codex-gpt"
+                ),
+                displayProviderName: "OpenAI"
+            )
+        )
+        mappingStore.upsertModelMapping(
+            AgentUsageModelDisplayMapping(
+                identity: AgentUsageModelRawIdentity(
+                    source: .openCode,
+                    rawProviderID: "custom",
+                    rawProviderName: "custom",
+                    rawModelID: "gpt-5.4",
+                    rawModelName: "gpt-5.4",
+                    rawModelVariant: nil
+                ),
+                displayProviderName: "OpenAI",
+                displayModelName: "gpt-5.4"
+            )
+        )
+        mappingStore.upsertModelMapping(
+            AgentUsageModelDisplayMapping(
+                identity: AgentUsageModelRawIdentity(
+                    source: .codex,
+                    rawProviderID: "codex-gpt",
+                    rawProviderName: "codex-gpt",
+                    rawModelID: "gpt-5.4",
+                    rawModelName: "gpt-5.4",
+                    rawModelVariant: nil
+                ),
+                displayProviderName: "OpenAI",
+                displayModelName: "gpt-5.4"
+            )
+        )
+
+        let store = AgentUsageStore(repository: repository, mappingStore: mappingStore)
+        store.refreshAll()
+
+        let allData = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let openCodeData = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let codexData = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(allData.providerBreakdown.map(\.provider), ["OpenAI"])
+        XCTAssertEqual(allData.modelBreakdownRows.map(\.title), ["OpenAI / gpt-5.4"])
+        XCTAssertEqual(openCodeData.providerBreakdown.map(\.provider), ["custom"])
+        XCTAssertEqual(openCodeData.modelBreakdownRows.map(\.title), ["custom / gpt-5.4"])
+        XCTAssertEqual(codexData.providerBreakdown.map(\.provider), ["codex-gpt"])
+        XCTAssertEqual(codexData.modelBreakdownRows.map(\.title), ["codex-gpt / gpt-5.4"])
+    }
+
     func testRefreshAllSkipsDeselectedSources() {
         let repository = StubAgentUsageRepository()
         repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 100)])
@@ -1526,15 +1645,21 @@ private func openCodeBucket(day: Int, totalTokens: Int, sessionID: String) -> Op
     )
 }
 
-private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessionRecord {
+private func makeOpenCodeSession(
+    id: String,
+    tokens: Int = 100,
+    providerID: String = "opencode",
+    modelID: String = "model-a",
+    modelVariant: String? = nil
+) -> OpenCodeSessionRecord {
     OpenCodeSessionRecord(
         id: id,
         title: "Session \(id)",
         directory: "/Users/zyao/Desktop/pulse",
         agent: "build",
-        modelProviderID: "opencode",
-        modelID: "model-a",
-        modelVariant: nil,
+        modelProviderID: providerID,
+        modelID: modelID,
+        modelVariant: modelVariant,
         inputTokens: tokens,
         outputTokens: 0,
         reasoningTokens: 0,
@@ -1548,24 +1673,26 @@ private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessi
 }
 
 private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionRecord {
-    makeCodexSession(id: id, tokens: tokens, updatedAt: Date(timeIntervalSince1970: 2000))
+    makeCodexSession(id: id, tokens: tokens, provider: "openai", model: "gpt-5", updatedAt: Date(timeIntervalSince1970: 2000))
 }
 
 private func makeCodexSession(
     id: String,
     tokens: Int = 100,
+    provider: String = "openai",
+    model: String = "gpt-5",
     inputTokens: Int? = nil,
     outputTokens: Int? = nil,
     reasoningTokens: Int? = nil,
     cacheReadTokens: Int? = nil,
-    updatedAt: Date
+    updatedAt: Date = Date(timeIntervalSince1970: 2000)
 ) -> CodexSessionRecord {
     CodexSessionRecord(
         id: id,
         title: "Session \(id)",
         cwd: "/Users/zyao/Desktop/pulse",
-        model: "gpt-5",
-        modelProvider: "openai",
+        model: model,
+        modelProvider: provider,
         tokensUsed: tokens,
         inputTokens: inputTokens,
         outputTokens: outputTokens,

@@ -9,6 +9,7 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
     @State private var persistedDateSelection = AgentDateSelectionStorage.load()
     @State private var persistedCustomDraftSelection = AgentDateSelectionDraftStorage.load()
+    @State private var isMappingPanelPresented = false
 
     private var selection: AgentUsageSelection {
         let requestedSource = AgentSource(rawValue: selectedSourceRawValue) ?? .all
@@ -75,6 +76,14 @@ struct AgentUsageView: View {
         }
         .onChange(of: agentStore.availableSources) { _ in
             syncSelectedSourceIfNeeded()
+        }
+        .sheet(isPresented: $isMappingPanelPresented) {
+            AgentUsageMappingPanel(
+                selectedGroupBy: AgentModelGroupBy(rawValue: modelGroupBy) ?? .model,
+                providerCandidates: data.providerMappingCandidates,
+                modelCandidates: data.modelMappingCandidates,
+                mappingStore: agentStore.mappingStore
+            )
         }
     }
 
@@ -289,6 +298,17 @@ struct AgentUsageView: View {
                 .frame(width: 140)
 
                 Spacer()
+
+                if data.selection.source == .all {
+                    Button {
+                        isMappingPanelPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundColor(.appSecondaryText)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Map raw providers and models into shared display names")
+                }
             }
 
             if modelGroupBy == "provider" {

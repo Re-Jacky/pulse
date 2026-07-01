@@ -1,6 +1,6 @@
 import Foundation
 
-enum AgentSource: String, CaseIterable, Identifiable, Hashable {
+enum AgentSource: String, CaseIterable, Identifiable, Hashable, Codable {
     case all = "all"
     case openCode = "opencode"
     case codex = "codex"
@@ -262,6 +262,88 @@ struct AgentUsageSummary: Equatable {
     let sessionsCount: Int
     let cost: Double?
     let lastUpdated: Date?
+}
+
+struct AgentUsageProviderRawIdentity: Codable, Equatable, Hashable, Identifiable {
+    let source: AgentSource
+    let rawProviderID: String
+    let rawProviderName: String
+
+    var id: String {
+        [source.rawValue, rawProviderID, rawProviderName].joined(separator: "::")
+    }
+
+    var rawDisplayName: String {
+        rawProviderName.isEmpty ? rawProviderID : rawProviderName
+    }
+
+    var sourceQualifiedDisplayName: String {
+        "\(source.displayName) / \(rawDisplayName)"
+    }
+}
+
+struct AgentUsageModelRawIdentity: Codable, Equatable, Hashable, Identifiable {
+    let source: AgentSource
+    let rawProviderID: String
+    let rawProviderName: String
+    let rawModelID: String
+    let rawModelName: String
+    let rawModelVariant: String?
+
+    var id: String {
+        [
+            source.rawValue,
+            rawProviderID,
+            rawProviderName,
+            rawModelID,
+            rawModelName,
+            rawModelVariant ?? ""
+        ].joined(separator: "::")
+    }
+
+    var rawProviderDisplayName: String {
+        rawProviderName.isEmpty ? rawProviderID : rawProviderName
+    }
+
+    var rawModelDisplayName: String {
+        rawModelName.isEmpty ? rawModelID : rawModelName
+    }
+
+    var sourceQualifiedDisplayName: String {
+        let variantSuffix: String
+        if let rawModelVariant, rawModelVariant.isEmpty == false {
+            variantSuffix = " (\(rawModelVariant))"
+        } else {
+            variantSuffix = ""
+        }
+
+        return "\(source.displayName) / \(rawProviderDisplayName) / \(rawModelDisplayName)\(variantSuffix)"
+    }
+}
+
+struct AgentUsageProviderDisplayMapping: Codable, Equatable {
+    let identity: AgentUsageProviderRawIdentity
+    let displayProviderName: String
+}
+
+struct AgentUsageModelDisplayMapping: Codable, Equatable {
+    let identity: AgentUsageModelRawIdentity
+    let displayProviderName: String
+    let displayModelName: String
+}
+
+struct AgentUsageProviderMappingCandidate: Equatable, Identifiable {
+    let identity: AgentUsageProviderRawIdentity
+    let totalTokens: Int
+
+    var id: String { identity.id }
+}
+
+struct AgentUsageModelMappingCandidate: Equatable, Identifiable {
+    let identity: AgentUsageModelRawIdentity
+    let totalTokens: Int
+
+    var id: String { identity.id }
 }
 
 extension AgentUsageSummary {

@@ -124,6 +124,8 @@ struct AgentUsageDerivedViewData {
     let contextRows: [AgentUsageDetailRow]
     let providerBreakdown: [ProviderBreakdown]
     let modelBreakdownRows: [AgentUsageDetailRow]
+    let providerMappingCandidates: [AgentUsageProviderMappingCandidate]
+    let modelMappingCandidates: [AgentUsageModelMappingCandidate]
     let selectedOpenCodeSession: OpenCodeSessionRecord?
     let selectedCodexSession: CodexSessionRecord?
     let codexDetailThreadID: String?
