@@ -4,6 +4,34 @@ import Darwin
 @testable import Pulse
 
 final class AgentUsageStoreTests: XCTestCase {
+    func testAgentUsageDayIntervalForPresetTodayUsesOneLocalDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = Date(timeIntervalSince1970: 1_720_558_400)
+
+        let interval = agentUsageDayInterval(for: AgentDateSelection.preset(.today), now: now, calendar: calendar)
+
+        XCTAssertEqual(interval?.count, 1)
+    }
+
+    func testAgentUsageDayIntervalForSingleDayMatchesSelectedDay() {
+        let day = 19_900
+
+        let interval = agentUsageDayInterval(for: AgentDateSelection.singleDay(day), now: Date(), calendar: .gregorianUTCForTests)
+
+        XCTAssertEqual(interval, day..<(day + 1))
+    }
+
+    func testAgentUsageDayIntervalForRangeNormalizesReversedEndpoints() {
+        let interval = agentUsageDayInterval(for: AgentDateSelection.dayRange(startDay: 20, endDay: 18), now: Date(), calendar: .gregorianUTCForTests)
+
+        XCTAssertEqual(interval, 18..<21)
+    }
+
+    func testAgentUsageDayIntervalForAllTimeReturnsNil() {
+        XCTAssertNil(agentUsageDayInterval(for: AgentDateSelection.preset(.allTime), now: Date(), calendar: .gregorianUTCForTests))
+    }
+
     func testCodexResolveDatabaseURLPrefersNewestActivityAcrossDuplicateVersions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
@@ -1404,4 +1432,12 @@ private func withTimeZone(_ identifier: String, perform work: () throws -> Void)
     }
 
     try work()
+}
+
+private extension Calendar {
+    static var gregorianUTCForTests: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
 }

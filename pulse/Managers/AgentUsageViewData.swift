@@ -7,10 +7,40 @@ enum AgentModelGroupBy: String, Equatable, Hashable {
 
 struct AgentUsageSelection: Equatable, Hashable {
     let source: AgentSource
-    let timeRange: AgentTimeRange
+    let dateSelection: AgentDateSelection
     let projectDirectory: String?
     let sessionID: String?
     let modelGroupBy: AgentModelGroupBy
+
+    init(
+        source: AgentSource,
+        dateSelection: AgentDateSelection,
+        projectDirectory: String?,
+        sessionID: String?,
+        modelGroupBy: AgentModelGroupBy
+    ) {
+        self.source = source
+        self.dateSelection = dateSelection
+        self.projectDirectory = projectDirectory
+        self.sessionID = sessionID
+        self.modelGroupBy = modelGroupBy
+    }
+
+    init(
+        source: AgentSource,
+        timeRange: AgentTimeRange,
+        projectDirectory: String?,
+        sessionID: String?,
+        modelGroupBy: AgentModelGroupBy
+    ) {
+        self.init(
+            source: source,
+            dateSelection: .preset(timeRange),
+            projectDirectory: projectDirectory,
+            sessionID: sessionID,
+            modelGroupBy: modelGroupBy
+        )
+    }
 
     var scope: AgentScope {
         guard let projectDirectory else { return .allProjects }
@@ -25,6 +55,17 @@ struct AgentUsageSelection: Equatable, Hashable {
             return true
         }
         return false
+    }
+
+    var timeRange: AgentTimeRange {
+        switch dateSelection {
+        case let .preset(preset):
+            return preset
+        case .singleDay:
+            return .allTime
+        case .dayRange:
+            return .allTime
+        }
     }
 }
 

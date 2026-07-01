@@ -18,7 +18,7 @@ enum AgentSource: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-enum AgentTimeRange: String, CaseIterable, Identifiable, Hashable {
+enum AgentDatePreset: String, CaseIterable, Identifiable, Hashable {
     case allTime = "all_time"
     case today = "today"
     case last7Days = "last_7_days"
@@ -45,8 +45,42 @@ enum AgentTimeRange: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+typealias AgentTimeRange = AgentDatePreset
+
+enum AgentDateSelection: Equatable, Hashable {
+    case preset(AgentDatePreset)
+    case singleDay(Int)
+    case dayRange(startDay: Int, endDay: Int)
+}
+
 func agentUsageDayIdentifier(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> Int {
     Int(calendar.startOfDay(for: date).timeIntervalSince1970 * 1000) / 86_400_000
+}
+
+func agentUsageDayInterval(
+    for selection: AgentDateSelection,
+    now: Date = Date(),
+    calendar: Calendar = .autoupdatingCurrent
+) -> Range<Int>? {
+    switch selection {
+    case .preset(.allTime):
+        return nil
+    case .preset(.today):
+        let day = agentUsageDayIdentifier(for: now, calendar: calendar)
+        return day..<(day + 1)
+    case .preset(.last7Days):
+        let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
+        return (currentDay - 6)..<(currentDay + 1)
+    case .preset(.last30Days):
+        let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
+        return (currentDay - 29)..<(currentDay + 1)
+    case let .singleDay(day):
+        return day..<(day + 1)
+    case let .dayRange(startDay, endDay):
+        let lower = min(startDay, endDay)
+        let upper = max(startDay, endDay)
+        return lower..<(upper + 1)
+    }
 }
 
 func agentUsageDayRange(
@@ -54,19 +88,7 @@ func agentUsageDayRange(
     now: Date = Date(),
     calendar: Calendar = .autoupdatingCurrent
 ) -> Range<Int> {
-    switch range {
-    case .allTime:
-        return 0..<Int.max
-    case .today:
-        let day = agentUsageDayIdentifier(for: now, calendar: calendar)
-        return day..<(day + 1)
-    case .last7Days:
-        let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
-        return (currentDay - 6)..<(currentDay + 1)
-    case .last30Days:
-        let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
-        return (currentDay - 29)..<(currentDay + 1)
-    }
+    agentUsageDayInterval(for: .preset(range), now: now, calendar: calendar) ?? 0..<Int.max
 }
 
 enum AgentScope: Equatable {
