@@ -203,13 +203,44 @@ enum CodexUsageQuery {
             fileManager: fileManager
         )
 
+        var cache = CodexDailyBucketCache.load(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        var didUpdateCache = false
         var totalsBySessionAndDay: [String: CodexDailyBucket] = [:]
+        var cacheHitCount = 0
+        var cacheMissCount = 0
+        var parsedTranscriptCount = 0
 
         for url in transcriptURLs {
-            try accumulateDailyBuckets(
-                transcriptURL: url,
-                into: &totalsBySessionAndDay
+            guard let metadata = TranscriptCacheMetadata(url: url) else {
+                cacheMissCount += 1
+                parsedTranscriptCount += 1
+                try accumulateDailyBuckets(transcriptURL: url, into: &totalsBySessionAndDay)
+                continue
+            }
+
+            if let cached = cache.entry(for: metadata) {
+                cacheHitCount += 1
+                merge(cached.buckets, into: &totalsBySessionAndDay)
+                continue
+            }
+
+            cacheMissCount += 1
+            parsedTranscriptCount += 1
+            var transcriptBuckets: [String: CodexDailyBucket] = [:]
+            try accumulateDailyBuckets(transcriptURL: url, into: &transcriptBuckets)
+            merge(transcriptBuckets.values, into: &totalsBySessionAndDay)
+            cache.setEntry(
+                CodexDailyBucketCache.Entry(metadata: metadata, buckets: Array(transcriptBuckets.values)),
+                for: metadata.path
             )
+            didUpdateCache = true
+        }
+
+        if cache.removeEntries(excluding: Set(transcriptURLs.map(\.path))) {
+            didUpdateCache = true
+        }
+        if didUpdateCache {
+            cache.save(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
         }
 
         return totalsBySessionAndDay
@@ -499,6 +530,10 @@ private func accumulateDailyBuckets(
     var previousUsage: CodexUsageQuery.CumulativeUsage?
 
     for line in contents.split(whereSeparator: \.isNewline) {
+        guard line.contains("\"session_meta\"") || line.contains("\"token_count\"") else {
+            continue
+        }
+
         guard let data = line.data(using: .utf8),
               let rawObject = try? JSONSerialization.jsonObject(with: data),
               let object = rawObject as? [String: Any],
@@ -568,6 +603,103 @@ private func accumulateDailyBuckets(
     }
 }
 
+private func merge(
+    _ buckets: some Sequence<CodexDailyBucket>,
+    into totalsBySessionAndDay: inout [String: CodexDailyBucket]
+) {
+    for bucket in buckets {
+        let key = "\(bucket.sessionID)::\(bucket.day)"
+        let existing = totalsBySessionAndDay[key, default: .zero(sessionID: bucket.sessionID, day: bucket.day)]
+        totalsBySessionAndDay[key] = existing.merging(bucket)
+    }
+}
+
+private struct TranscriptCacheMetadata: Codable, Equatable {
+    let path: String
+    let size: Int
+    let modificationTime: TimeInterval
+
+    init?(url: URL) {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
+              let size = values.fileSize,
+              let modificationDate = values.contentModificationDate else {
+            return nil
+        }
+
+        self.path = url.path
+        self.size = size
+        self.modificationTime = modificationDate.timeIntervalSince1970
+    }
+}
+
+private struct CodexDailyBucketCache: Codable {
+    struct Entry: Codable {
+        let metadata: TranscriptCacheMetadata
+        let buckets: [CodexDailyBucket]
+    }
+
+    private static let version = 1
+    private var version: Int
+    private var entriesByPath: [String: Entry]
+
+    static func load(homeDirectoryURL: URL, fileManager: FileManager) -> CodexDailyBucketCache {
+        guard let data = try? Data(contentsOf: cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)),
+              let cache = try? JSONDecoder().decode(CodexDailyBucketCache.self, from: data),
+              cache.version == version else {
+            return CodexDailyBucketCache(version: version, entriesByPath: [:])
+        }
+
+        return cache
+    }
+
+    func entry(for metadata: TranscriptCacheMetadata) -> Entry? {
+        guard let entry = entriesByPath[metadata.path],
+              entry.metadata == metadata else {
+            return nil
+        }
+
+        return entry
+    }
+
+    mutating func setEntry(_ entry: Entry, for path: String) {
+        entriesByPath[path] = entry
+    }
+
+    mutating func removeEntries(excluding paths: Set<String>) -> Bool {
+        let originalCount = entriesByPath.count
+        entriesByPath = entriesByPath.filter { paths.contains($0.key) }
+        return entriesByPath.count != originalCount
+    }
+
+    func save(homeDirectoryURL: URL, fileManager: FileManager) {
+        let url = Self.cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        guard let data = try? JSONEncoder().encode(self) else { return }
+
+        try? fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? data.write(to: url, options: [.atomic])
+    }
+
+    private static func cacheURL(homeDirectoryURL: URL, fileManager: FileManager) -> URL {
+        let baseURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        return baseURL
+            .appendingPathComponent("Pulse", isDirectory: true)
+            .appendingPathComponent("codex-daily-buckets-\(stableHash(homeDirectoryURL.path))-v\(version).json")
+    }
+
+    private static func stableHash(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+}
+
 private struct TranscriptCandidate {
     let threadID: String?
     let turns: [TranscriptTurn]
@@ -625,6 +757,9 @@ private func loadTranscriptIfMatching(
                 ?? (payload["session_id"] as? String)
                 ?? (payload["sessionId"] as? String)
                 ?? (payload["id"] as? String)
+            if collectTurns == false, threadID.isEmpty, transcriptThreadID != nil {
+                break
+            }
             continue
         }
 

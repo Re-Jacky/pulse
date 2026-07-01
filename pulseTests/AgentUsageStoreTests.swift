@@ -303,6 +303,58 @@ final class AgentUsageStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
+    func testCodexLoadMergedSnapshotCanSkipTranscriptURLs() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let codexRoot = home.appendingPathComponent(".codex")
+        let sessionDir = codexRoot.appendingPathComponent("sessions/2026/07/01")
+        let databaseURL = codexRoot.appendingPathComponent("state_5.sqlite")
+        let transcriptURL = sessionDir.appendingPathComponent("thread-1.jsonl")
+
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let writer = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(writer) }
+
+        try execute(writer, sql: """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """)
+        try execute(writer, sql: """
+        insert into threads values
+        ('thread_1', 'Valid', '/tmp/project', 'gpt-5.4', 'openai', 100, '', 'user', null, null, 1000, 2000, 0);
+        """)
+
+        let transcript = """
+        {"timestamp":"2026-07-01T10:00:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/tmp/project"}}
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let snapshot = try CodexUsageQuery.loadMergedSnapshot(
+            includeTranscriptURLs: false,
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertNil(snapshot.sessions.first?.transcriptURL)
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
     func testCodexResolveDatabaseURLIgnoresHigherVersionWithoutThreadsTable() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
@@ -1247,6 +1299,33 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(buckets[0].outputTokens, 20)
         XCTAssertEqual(buckets[0].reasoningTokens, 5)
         XCTAssertEqual(buckets[0].cacheReadTokens, 40)
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testCodexLoadDailyBucketsIgnoresNonUsageTranscriptLines() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
+        let transcriptURL = sessionDir.appendingPathComponent("non-usage-lines-test.jsonl")
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let transcript = """
+        {"timestamp":"2026-06-16T23:55:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/Users/zyao/Desktop/pulse"}}
+        {"timestamp":"2026-06-16T23:55:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"token_count should not matter in user text only when quoted differently"}]}}
+        {"timestamp":"2026-06-16T23:55:02Z","type":"turn_context","payload":{"model":"gpt-5.4"}}
+        {"timestamp":"2026-06-16T23:56:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let buckets = try CodexUsageQuery.loadDailyBuckets(
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets[0].sessionID, "thread_1")
+        XCTAssertEqual(buckets[0].totalTokens, 120)
 
         try? FileManager.default.removeItem(at: root)
     }

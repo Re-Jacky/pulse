@@ -36,7 +36,7 @@ struct AgentUsageRepository: AgentUsageRepositorying {
     }
 
     func loadCodexSnapshot() throws -> CodexUsageSnapshot {
-        try CodexUsageQuery.loadMergedSnapshot()
+        try CodexUsageQuery.loadMergedSnapshot(includeTranscriptURLs: false)
     }
 
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {

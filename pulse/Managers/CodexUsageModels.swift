@@ -66,7 +66,7 @@ struct CodexSessionRecord: Identifiable, Equatable {
     }
 }
 
-struct CodexDailyBucket: Equatable {
+struct CodexDailyBucket: Codable, Equatable {
     let sessionID: String
     let day: Int
 

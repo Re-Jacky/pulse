@@ -120,6 +120,64 @@ final class CodexSessionTranscriptTests: XCTestCase {
         )
     }
 
+    func testLoadMergedSnapshotFindsTranscriptURLWithoutParsingMalformedTail() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let sqliteDir = home.appendingPathComponent(".codex/sqlite")
+        let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/29")
+        let databaseURL = sqliteDir.appendingPathComponent("state_1.sqlite")
+        let transcriptURL = sessionDir.appendingPathComponent("thread-1.jsonl")
+        try FileManager.default.createDirectory(at: sqliteDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let db = try openCodexWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+        try executeCodexSQL(db, sql: """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text,
+            model text,
+            model_provider text,
+            tokens_used integer,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer
+        );
+        """)
+        try executeCodexSQL(db, sql: """
+        insert into threads (
+            id, title, cwd, model, model_provider, tokens_used,
+            reasoning_effort, thread_source, agent_nickname, agent_role,
+            created_at_ms, updated_at_ms
+        ) values (
+            'thread_1', 'Transcript', '/tmp/project', 'gpt-5.4', 'openai', 120,
+            '', 'user', null, null, 1000, 2000
+        );
+        """)
+
+        let transcript = """
+        {"timestamp":"2026-06-29T10:00:00Z","type":"session_meta","payload":{"id":"thread_1","cwd":"/tmp/project"}}
+        {"timestamp":"2026-06-29T10:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Investigate the crash"}]}}
+        {"timestamp":"2026-06-29T10:00:02Z","type":"response_item","payload":
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let snapshot = try CodexUsageQuery.loadMergedSnapshot(
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(
+            snapshot.sessions.first?.transcriptURL?.standardizedFileURL,
+            transcriptURL.standardizedFileURL
+        )
+    }
+
     func testRepositoryUsesCachedCodexTranscriptURLWhenAvailable() throws {
         let expectedTranscriptURL = URL(fileURLWithPath: "/tmp/thread-1.jsonl")
         var capturedThreadID: String?
