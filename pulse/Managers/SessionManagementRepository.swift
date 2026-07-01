@@ -179,7 +179,17 @@ final class SessionManagementRepository: SessionManagementRepositorying {
     }
 
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {
-        try loadTranscript(for: session) { _ in }
+        switch session.source {
+        case .openCode:
+            let databaseURL = openCodeDatabaseURLByManagedSessionID[session.id]
+                ?? discoveredOpenCodeDatabaseURL
+                ?? resolveOpenCodeDatabaseURL()
+            return try loadOpenCodeTranscript(databaseURL, session.rawSessionID)
+        case .codex:
+            return try loadTranscript(for: session) { _ in }
+        case .all:
+            return []
+        }
     }
 
     func loadTranscript(

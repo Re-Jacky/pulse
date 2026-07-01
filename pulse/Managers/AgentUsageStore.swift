@@ -214,6 +214,7 @@ final class AgentUsageStore: ObservableObject {
         }
 
         let interval = dayInterval(for: selection.dateSelection)
+        let isTodayEquivalentSelection = selectionResolvesToToday(selection.dateSelection, interval: interval)
 
         let openCodeSnapshot: OpenCodeUsageSnapshot
         if state.openCodeDailyBuckets.isEmpty {
@@ -305,7 +306,7 @@ final class AgentUsageStore: ObservableObject {
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.source != .all && selection.isSessionScope == false,
-            showsTokenFlow: selection.source == .all && selection.dateSelection != .preset(.today)
+            showsTokenFlow: selection.source == .all && isTodayEquivalentSelection == false
         )
 
         derivedDataCache = (cacheKey, derivedData)
@@ -641,9 +642,8 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
-        guard selection.source == .all, selection.dateSelection != .preset(.today) else { return [] }
-
         let interval = dayInterval(for: selection.dateSelection)
+        guard selection.source == .all, selectionResolvesToToday(selection.dateSelection, interval: interval) == false else { return [] }
 
         let openCodeTotals = openCodeTokenFlowTotals(
             interval: interval,
@@ -689,6 +689,12 @@ final class AgentUsageStore: ObservableObject {
             cursor = bucketEnd
         }
         return buckets
+    }
+
+    private func selectionResolvesToToday(_ selection: AgentDateSelection, interval: Range<Int>?) -> Bool {
+        guard let interval, interval.count == 1 else { return false }
+        let today = agentUsageDayIdentifier(for: Date())
+        return interval.lowerBound == today
     }
 
     private func openCodeTokenFlowTotals(

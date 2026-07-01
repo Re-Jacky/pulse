@@ -57,6 +57,54 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(preset.summary.totalTokens, explicit.summary.totalTokens)
     }
 
+    func testTodayEquivalentExplicitSelectionHidesAllSourceTokenFlow() {
+        let today = agentUsageDayIdentifier(for: Date())
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [openCodeBucket(day: today, totalTokens: 42, sessionID: "oc-1")],
+            codexBuckets: [
+                CodexDailyBucket(
+                    sessionID: "cx-1",
+                    day: today,
+                    inputTokens: 10,
+                    outputTokens: 5,
+                    reasoningTokens: 2,
+                    cacheReadTokens: 1,
+                    totalTokens: 18,
+                    requestCount: 0
+                )
+            ]
+        )
+
+        let preset = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            dateSelection: .preset(.today),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let explicitSingleDay = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            dateSelection: .singleDay(today),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let explicitRange = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            dateSelection: .dayRange(startDay: today, endDay: today),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertFalse(preset.showsTokenFlow)
+        XCTAssertFalse(explicitSingleDay.showsTokenFlow)
+        XCTAssertFalse(explicitRange.showsTokenFlow)
+        XCTAssertTrue(preset.tokenFlowData.isEmpty)
+        XCTAssertTrue(explicitSingleDay.tokenFlowData.isEmpty)
+        XCTAssertTrue(explicitRange.tokenFlowData.isEmpty)
+    }
+
     func testAgentUsageSelectionInitializesDateSelectionWithoutLosingExplicitSelection() {
         let selection = AgentUsageSelection(
             source: .openCode,
