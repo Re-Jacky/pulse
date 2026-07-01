@@ -1072,7 +1072,7 @@ final class AgentUsageStore: ObservableObject {
         switch selection.source {
         case .all: return []
         case .openCode:
-            if selection.dateSelection == .preset(.allTime) {
+            if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
                 return openCodeSnapshot.providerBreakdown(for: scope)
             }
             return openCodeProviderBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
@@ -1086,7 +1086,7 @@ final class AgentUsageStore: ObservableObject {
         case .all: return []
         case .openCode:
             let rows: [OpenCodeModelBreakdown]
-            if selection.dateSelection == .preset(.allTime) {
+            if state.openCodeDailyBuckets.isEmpty || selection.dateSelection == .preset(.allTime) {
                 rows = openCodeSnapshot.modelBreakdown(for: scope)
             } else {
                 rows = openCodeModelBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))

@@ -394,6 +394,76 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.selectedOpenCodeSession?.updatedAt, activityAt)
     }
 
+    func testDerivedDataForOpenCodeExplicitDateWithoutBucketsUsesSnapshotBreakdowns() {
+        let selectedDate = Date(timeIntervalSince1970: 1_737_201_600)
+        let selectedDay = agentUsageDayIdentifier(for: selectedDate)
+        let outsideDate = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate.addingTimeInterval(-86_400)
+
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [
+                    OpenCodeSessionRecord(
+                        id: "oc_1",
+                        title: "OpenCode Selected",
+                        directory: "/Users/zyao/Desktop/pulse",
+                        agent: "build",
+                        modelProviderID: "anthropic",
+                        modelID: "claude-sonnet",
+                        modelVariant: nil,
+                        inputTokens: 70,
+                        outputTokens: 10,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 5,
+                        cacheWriteTokens: 0,
+                        requestCount: 1,
+                        cost: 0,
+                        createdAt: selectedDate,
+                        updatedAt: selectedDate
+                    ),
+                    OpenCodeSessionRecord(
+                        id: "oc_2",
+                        title: "OpenCode Outside",
+                        directory: "/Users/zyao/Desktop/pulse",
+                        agent: "build",
+                        modelProviderID: "openai",
+                        modelID: "gpt-5",
+                        modelVariant: nil,
+                        inputTokens: 30,
+                        outputTokens: 10,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        requestCount: 1,
+                        cost: 0,
+                        createdAt: outsideDate,
+                        updatedAt: outsideDate
+                    )
+                ]),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .singleDay(selectedDay),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.providerBreakdown.map(\.provider), ["anthropic"])
+        XCTAssertEqual(data.providerBreakdown.first?.summary.totalTokens, 85)
+        XCTAssertEqual(data.modelBreakdownRows.count, 1)
+        XCTAssertEqual(data.modelBreakdownRows.first?.id, "anthropic::claude-sonnet::")
+        XCTAssertEqual(data.modelBreakdownRows.first?.title, OpenCodeUsageSnapshot.modelDisplayName(providerID: "anthropic", modelID: "claude-sonnet", variant: nil))
+        XCTAssertEqual(data.modelBreakdownRows.first?.valueText, "85")
+    }
+
     func testBuildSummaryPillsIncludesHitRateWhenCacheReadAndInputAvailable() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(

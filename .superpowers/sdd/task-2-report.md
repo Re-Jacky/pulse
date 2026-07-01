@@ -39,3 +39,13 @@ Self-review findings
 Any issues or concerns
 - Full-suite verification is not fully green because two `SessionManagementStoreTests` fail outside this task’s ownership and outside the changed files.
 - Because those failures are unrelated, I committed the scoped Task 2 work but am reporting the suite status as done with concerns.
+
+Review follow-up fix
+- Fixed the OpenCode explicit-date no-buckets fallback so provider and model breakdowns use the already-filtered in-memory `OpenCodeUsageSnapshot` when `state.openCodeDailyBuckets.isEmpty`.
+- Added a regression test covering explicit single-day OpenCode breakdowns without daily buckets.
+
+Follow-up verification
+- Ran: `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageStoreTests -only-testing:pulseTests/AgentUsageViewDataTests`
+- Result: PASS
+- New regression covered:
+  - `AgentUsageViewDataTests.testDerivedDataForOpenCodeExplicitDateWithoutBucketsUsesSnapshotBreakdowns()`
