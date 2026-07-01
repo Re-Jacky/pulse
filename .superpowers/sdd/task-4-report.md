@@ -44,3 +44,15 @@
 
 - The repository-wide test suite is not fully green at head because two unrelated `SessionManagementStoreTests` fail outside this task’s scope.
 - The `pulse.xcodeproj/project.pbxproj` change includes some ordering churn from `ruby add_files.rb`, in addition to the required new file reference.
+
+## Follow-up fix
+
+- Fixed the stored-day reconstruction bug in `/Users/zyao/Desktop/pulse/pulse/Views/AgentDateSelectionPicker.swift`.
+- `AgentDateSelectionTriggerLabel.date(for:calendar:)` now reconstructs a candidate local start-of-day date using the target calendar and verifies it round-trips through `agentUsageDayIdentifier(for:calendar:)`, instead of assuming the stored day id is a UTC epoch-day.
+- Added non-UTC coverage in `/Users/zyao/Desktop/pulse/pulseTests/AgentUsageViewDataTests.swift` for both custom single-day and custom range label reconstruction using an `America/Los_Angeles` test calendar.
+
+## Follow-up test results
+
+- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageViewDataTests`
+  - First run failed in the new non-UTC label tests, confirming the regression.
+  - Final run passed with the new non-UTC tests green.
