@@ -62,6 +62,15 @@ enum AgentDateSelection: Equatable, Hashable {
         guard case let .preset(preset) = self else { return nil }
         return preset
     }
+
+    var displayLabel: String {
+        switch self {
+        case let .preset(preset):
+            return preset.label
+        case .singleDay, .dayRange:
+            return "Custom Range"
+        }
+    }
 }
 
 enum AgentDateSelectionStorage {
@@ -79,15 +88,17 @@ enum AgentDateSelectionStorage {
         if let kind = userDefaults.string(forKey: kindKey) {
             switch kind {
             case "preset":
-                let rawValue = userDefaults.string(forKey: presetKey) ?? AgentDatePreset.today.rawValue
-                return .preset(AgentDatePreset(rawValue: rawValue) ?? .today)
+                if let preset = loadPresetSelection(from: userDefaults) {
+                    return .preset(preset)
+                }
             case "single":
-                return .singleDay(userDefaults.integer(forKey: startDayKey))
+                if let singleDay = loadSingleDaySelection(from: userDefaults) {
+                    return .singleDay(singleDay)
+                }
             case "range":
-                return .dayRange(
-                    startDay: userDefaults.integer(forKey: startDayKey),
-                    endDay: userDefaults.integer(forKey: endDayKey)
-                )
+                if let range = loadRangeSelection(from: userDefaults) {
+                    return .dayRange(startDay: range.startDay, endDay: range.endDay)
+                }
             default:
                 break
             }
@@ -119,6 +130,37 @@ enum AgentDateSelectionStorage {
             userDefaults.set(endDay, forKey: endDayKey)
             userDefaults.removeObject(forKey: presetKey)
         }
+    }
+
+    private static func loadPresetSelection(from userDefaults: UserDefaults) -> AgentDatePreset? {
+        guard let rawValue = userDefaults.string(forKey: presetKey),
+              let preset = AgentDatePreset(rawValue: rawValue) else {
+            return nil
+        }
+
+        return preset
+    }
+
+    private static func loadSingleDaySelection(from userDefaults: UserDefaults) -> Int? {
+        guard userDefaults.object(forKey: startDayKey) != nil else {
+            return nil
+        }
+
+        return userDefaults.object(forKey: startDayKey) as? Int
+    }
+
+    private static func loadRangeSelection(from userDefaults: UserDefaults) -> (startDay: Int, endDay: Int)? {
+        guard userDefaults.object(forKey: startDayKey) != nil,
+              userDefaults.object(forKey: endDayKey) != nil else {
+            return nil
+        }
+
+        guard let startDay = userDefaults.object(forKey: startDayKey) as? Int,
+              let endDay = userDefaults.object(forKey: endDayKey) as? Int else {
+            return nil
+        }
+
+        return (startDay: startDay, endDay: endDay)
     }
 }
 

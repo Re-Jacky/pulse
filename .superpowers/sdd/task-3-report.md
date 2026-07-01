@@ -6,6 +6,11 @@ I added persisted agent-usage date selection state backed by a small `AgentDateS
 
 `pulse/Views/AgentUsageView.swift` now loads and saves the date selection through that helper via local `@State`, while keeping the existing range picker behavior intact. I did not change refresh/fetch behavior or add the new picker UI.
 
+Follow-up hardening:
+
+- Explicit persisted `.singleDay` / `.dayRange` selections now render a neutral `Custom Range` label instead of implying `Today`.
+- `AgentDateSelectionStorage.load()` now validates partial new-format state before trusting it, and falls back to a valid legacy preset when the new-format payload is incomplete or malformed.
+
 ## What I tested and test results
 
 Focused tests:
@@ -20,6 +25,11 @@ Full suite:
   - `SessionManagementStoreTests.testLoadTranscriptUsesDiscoveredOpenCodeDatabaseInstance()`
   - `SessionManagementStoreTests.testProjectFilterOptionsDeduplicateProjectsWithinCurrentSource()`
 
+Follow-up focused tests:
+
+- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageViewDataTests`
+- Result: passed after the hardening fixes
+
 I also verified the red-green cycle for the new tests:
 
 - Added the new tests first
@@ -31,10 +41,12 @@ I also verified the red-green cycle for the new tests:
 Red:
 
 - `AgentUsageViewDataTests` failed with missing `AgentDateSelectionStorage` and related symbols before implementation.
+- The follow-up tests would have failed before the hardening pass because explicit selections rendered as a preset label and invalid new-format state could override legacy migration.
 
 Green:
 
 - The focused `AgentUsageViewDataTests` target passed after the storage helper and view wiring were added.
+- The same focused target passed again after the follow-up hardening changes.
 
 ## Files changed
 

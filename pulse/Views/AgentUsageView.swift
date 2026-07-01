@@ -90,6 +90,12 @@ struct AgentUsageView: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            if persistedDateSelection.preset == nil {
+                Text(persistedDateSelection.displayLabel)
+                    .font(.system(size: 10))
+                    .foregroundColor(.appSecondaryText)
+            }
         }
     }
 

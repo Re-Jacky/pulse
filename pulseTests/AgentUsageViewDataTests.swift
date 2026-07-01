@@ -2,6 +2,11 @@ import XCTest
 @testable import Pulse
 
 final class AgentUsageViewDataTests: XCTestCase {
+    func testExplicitDateSelectionUsesCustomDisplayLabel() {
+        XCTAssertEqual(AgentDateSelection.singleDay(123).displayLabel, "Custom Range")
+        XCTAssertEqual(AgentDateSelection.dayRange(startDay: 100, endDay: 104).displayLabel, "Custom Range")
+    }
+
     func testLegacyPresetRawValueMigratesToPresetSelection() {
         let defaults = UserDefaults(suiteName: #function)!
         defaults.set("last_7_days", forKey: "agentUsageSelectedTimeRange")
@@ -29,6 +34,21 @@ final class AgentUsageViewDataTests: XCTestCase {
             ),
             selection
         )
+    }
+
+    func testInvalidNewFormatStateFallsBackToLegacyPreset() {
+        let defaults = UserDefaults(suiteName: #function)!
+        defaults.set("last_30_days", forKey: "agentUsageSelectedTimeRange")
+        defaults.set("range", forKey: "agentUsageDateSelectionKind")
+        defaults.set(12, forKey: "agentUsageDateStartDay")
+
+        let selection = AgentDateSelectionStorage.load(
+            userDefaults: defaults,
+            calendar: .gregorianUTCForTests,
+            now: Date(timeIntervalSince1970: 1_720_558_400)
+        )
+
+        XCTAssertEqual(selection, .preset(.last30Days))
     }
 
     func testSelectionScopeUsesSessionOnlyWhenProjectAndSessionExistAndSourceIsNotAll() {
