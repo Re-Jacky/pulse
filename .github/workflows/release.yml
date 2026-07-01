@@ -57,11 +57,14 @@ jobs:
           set -euo pipefail
 
           ZERO_SHA="0000000000000000000000000000000000000000"
+          PROJECT_FILE="pulse.xcodeproj/project.pbxproj"
 
           if [ "$BEFORE_SHA" = "$ZERO_SHA" ]; then
             RANGE_COMMITS=$(git rev-list --reverse "$CURRENT_SHA")
+            PREVIOUS_VERSION=""
           else
             RANGE_COMMITS=$(git rev-list --reverse "${BEFORE_SHA}..${CURRENT_SHA}")
+            PREVIOUS_VERSION=$(git show "${BEFORE_SHA}:${PROJECT_FILE}" | grep -m1 'MARKETING_VERSION' | sed 's/.*= *//;s/;//' || true)
           fi
 
           if [ -z "$RANGE_COMMITS" ]; then
@@ -70,42 +73,44 @@ jobs:
             exit 0
           fi
 
-          versions=()
+          transitions=()
+          last_seen_version="$PREVIOUS_VERSION"
           while IFS= read -r commit; do
             [ -n "$commit" ] || continue
 
-            if ! git diff-tree --no-commit-id --name-only -r "$commit" | grep -qx 'pulse.xcodeproj/project.pbxproj'; then
+            if ! git diff-tree --no-commit-id --name-only -r "$commit" | grep -qx "$PROJECT_FILE"; then
               continue
             fi
 
-            version=$(git show "${commit}:pulse.xcodeproj/project.pbxproj" | grep -m1 'MARKETING_VERSION' | sed 's/.*= *//;s/;//')
+            version=$(git show "${commit}:${PROJECT_FILE}" | grep -m1 'MARKETING_VERSION' | sed 's/.*= *//;s/;//')
             [ -n "$version" ] || continue
 
-            if [ ${#versions[@]} -eq 0 ] || [ "${versions[${#versions[@]}-1]}" != "$version" ]; then
-              versions+=("$version")
+            if [ "$version" != "$last_seen_version" ]; then
+              transitions+=("$version")
+              last_seen_version="$version"
             fi
           done <<< "$RANGE_COMMITS"
 
-          if [ ${#versions[@]} -eq 0 ]; then
+          if [ ${#transitions[@]} -eq 0 ]; then
             echo "MARKETING_VERSION did not change in this push; skipping release."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if [ ${#versions[@]} -gt 1 ]; then
-            printf 'Multiple MARKETING_VERSION values detected in one push: %s\n' "${versions[*]}" >&2
-            echo "Push version changes must be released one at a time." >&2
+          if [ ${#transitions[@]} -gt 1 ]; then
+            printf 'Multiple MARKETING_VERSION transitions detected in one push: %s\n' "${transitions[*]}" >&2
+            echo "Push version changes must include only one actual version bump." >&2
             exit 1
           fi
 
-          if [ "${versions[0]}" != "$CURRENT_VERSION" ]; then
-            echo "Push changed MARKETING_VERSION to ${versions[0]}, but HEAD is ${CURRENT_VERSION}." >&2
+          if [ "${transitions[0]}" != "$CURRENT_VERSION" ]; then
+            echo "Push changed MARKETING_VERSION to ${transitions[0]}, but HEAD is ${CURRENT_VERSION}." >&2
             echo "Keep release pushes linear so the final version matches the released version." >&2
             exit 1
           fi
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
-          echo "pushed_version=${versions[0]}" >> "$GITHUB_OUTPUT"
+          echo "pushed_version=${transitions[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Show resolved release values
         shell: bash
