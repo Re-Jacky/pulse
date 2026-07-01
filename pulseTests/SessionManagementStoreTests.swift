@@ -27,6 +27,34 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testVisibleSessionsRemainSortedByNewestUpdatedAtFirst() async {
+        let older = makeManagedSession(
+            id: "codex::1",
+            source: .codex,
+            title: "Older",
+            projectPath: "/tmp/a",
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let newer = makeManagedSession(
+            id: "codex::2",
+            source: .codex,
+            title: "Newer",
+            projectPath: "/tmp/a",
+            updatedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let repository = StubSessionManagementRepository(
+            sessions: [older, newer],
+            sortManagedSessionsByUpdatedAt: true
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
+
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["codex::2", "codex::1"])
+    }
+
+    @MainActor
     func testRefreshPublishesPartialSessionListBeforeCompletion() async {
         let partialSessions = [
             makeManagedSession(id: "opencode::1", source: .openCode, title: "Build fix", projectPath: "/tmp/a")
@@ -215,7 +243,7 @@ final class SessionManagementStoreTests: XCTestCase {
 
         store.refreshIfNeeded()
         await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
-        store.selectedSourceFilter = .codex
+        store.setSelectedSourceFilter(.codex)
 
         XCTAssertEqual(store.projectOptions.map(\.id), ["/tmp/shared"])
     }
@@ -859,6 +887,7 @@ private final class StubSessionManagementRepository: SessionManagementRepository
     var onPartialTranscript: (([TranscriptTurn]) -> Void)?
     var loadManagedSessionsError: Error?
     var loadTranscriptError: Error?
+    var sortManagedSessionsByUpdatedAt = false
     private(set) var loadManagedSessionsCallCount = 0
     private(set) var loadManagedSessionsExpectation = XCTestExpectation(description: "loadManagedSessions")
     private(set) var loadTranscriptExpectation = XCTestExpectation(description: "loadTranscript")
@@ -870,7 +899,8 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         transcripts: [String: [TranscriptTurn]] = [:],
         partialTranscriptBatches: [String: [[TranscriptTurn]]] = [:],
         loadManagedSessionsError: Error? = nil,
-        loadTranscriptError: Error? = nil
+        loadTranscriptError: Error? = nil,
+        sortManagedSessionsByUpdatedAt: Bool = false
     ) {
         self.sessions = sessions
         self.partialManagedSessionUpdates = partialManagedSessionUpdates.isEmpty
@@ -885,6 +915,7 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         self.partialTranscriptBatches = partialTranscriptBatches
         self.loadManagedSessionsError = loadManagedSessionsError
         self.loadTranscriptError = loadTranscriptError
+        self.sortManagedSessionsByUpdatedAt = sortManagedSessionsByUpdatedAt
         loadManagedSessionsExpectation.expectedFulfillmentCount = 1
         loadTranscriptExpectation.expectedFulfillmentCount = 1
     }
@@ -906,7 +937,16 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         if let loadManagedSessionsError {
             throw loadManagedSessionsError
         }
-        return sessions
+        guard sortManagedSessionsByUpdatedAt else {
+            return sessions
+        }
+
+        return sessions.sorted { lhs, rhs in
+            if lhs.updatedAt == rhs.updatedAt {
+                return lhs.id < rhs.id
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }
     }
 
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {
@@ -960,7 +1000,8 @@ private func makeManagedSession(
     id: String,
     source: AgentSource,
     title: String,
-    projectPath: String
+    projectPath: String,
+    updatedAt: Date = Date(timeIntervalSince1970: 2_000)
 ) -> ManagedSessionSummary {
     ManagedSessionSummary(
         id: id,
@@ -970,7 +1011,7 @@ private func makeManagedSession(
         projectPath: projectPath,
         projectName: URL(fileURLWithPath: projectPath).lastPathComponent,
         subtitle: source.rawValue,
-        updatedAt: Date(timeIntervalSince1970: 2_000),
+        updatedAt: updatedAt,
         transcriptURL: nil
     )
 }
