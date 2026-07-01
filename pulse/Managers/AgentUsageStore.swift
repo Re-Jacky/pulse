@@ -154,7 +154,7 @@ final class AgentUsageStore: ObservableObject {
         if selection.source == .all {
             return AgentUsageSelection(
                 source: selection.source,
-                timeRange: selection.timeRange,
+                dateSelection: selection.dateSelection,
                 projectDirectory: selection.projectDirectory,
                 sessionID: nil,
                 modelGroupBy: selection.modelGroupBy
@@ -164,7 +164,7 @@ final class AgentUsageStore: ObservableObject {
         guard let projectDirectory = selection.projectDirectory else {
             return AgentUsageSelection(
                 source: selection.source,
-                timeRange: selection.timeRange,
+                dateSelection: selection.dateSelection,
                 projectDirectory: nil,
                 sessionID: nil,
                 modelGroupBy: selection.modelGroupBy
@@ -173,7 +173,7 @@ final class AgentUsageStore: ObservableObject {
 
         return AgentUsageSelection(
             source: selection.source,
-            timeRange: selection.timeRange,
+            dateSelection: selection.dateSelection,
             projectDirectory: projectDirectory,
             sessionID: selection.sessionID,
             modelGroupBy: selection.modelGroupBy
@@ -198,6 +198,10 @@ final class AgentUsageStore: ObservableObject {
         cxCSessionsByDirectory = Dictionary(grouping: state.codexSnapshot.sessions.filter { $0.isSubagent == false }) { $0.cwd }
             .mapValues { $0.map(\.id) }
     }
+
+    var debugRefreshGenerationForTests: Int {
+        state.refreshGeneration
+    }
     #endif
 
     // MARK: - Derivation
@@ -209,24 +213,28 @@ final class AgentUsageStore: ObservableObject {
             return derivedDataCache.value
         }
 
+        let interval = dayInterval(for: selection.dateSelection)
+
         let openCodeSnapshot: OpenCodeUsageSnapshot
-        if selection.timeRange == .allTime {
-            openCodeSnapshot = state.openCodeCumulativeSnapshot.filtered(to: selection.timeRange)
+        if state.openCodeDailyBuckets.isEmpty {
+            openCodeSnapshot = filteredOpenCodeSnapshot(for: selection.dateSelection, interval: interval)
+        } else if interval == nil, let preset = selection.dateSelection.preset {
+            openCodeSnapshot = state.openCodeCumulativeSnapshot.filtered(to: preset)
         } else {
-            openCodeSnapshot = aggregatedSnapshot(for: selection.timeRange)
+            openCodeSnapshot = aggregatedSnapshot(for: selection.dateSelection, interval: interval)
         }
         let codexSnapshot: CodexUsageSnapshot
         if state.codexDailyBuckets.isEmpty {
-            codexSnapshot = state.codexSnapshot.filtered(to: selection.timeRange)
+            codexSnapshot = filteredCodexSnapshot(for: selection.dateSelection, interval: interval)
         } else {
-            codexSnapshot = aggregatedCodexSnapshot(for: selection.timeRange)
+            codexSnapshot = aggregatedCodexSnapshot(for: selection.dateSelection, interval: interval)
         }
         let scope = selection.scope
         let openCodeSessionsByID = Dictionary(uniqueKeysWithValues: openCodeSnapshot.sessions.map { ($0.id, $0) })
         let codexSessionsByID = Dictionary(uniqueKeysWithValues: codexSnapshot.sessions.map { ($0.id, $0) })
 
-        let ocLatestBySession = openCodeLatestActivityBySession(range: selection.timeRange, snapshot: openCodeSnapshot)
-        let cxLatestBySession = codexLatestActivityBySession(range: selection.timeRange, snapshot: codexSnapshot)
+        let ocLatestBySession = openCodeLatestActivityBySession(interval: interval, snapshot: openCodeSnapshot)
+        let cxLatestBySession = codexLatestActivityBySession(interval: interval, snapshot: codexSnapshot)
 
         let ocScopeSummary = openCodeSnapshot.summary(for: scope)
         let cxScopeSummary = codexSnapshot.summary(for: scope)
@@ -271,7 +279,7 @@ final class AgentUsageStore: ObservableObject {
                 with: latestActivityDate(
                     for: selection.source,
                     scope: scope,
-                    range: selection.timeRange,
+                    interval: interval,
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
                     ocLatestBySession: ocLatestBySession,
@@ -297,7 +305,7 @@ final class AgentUsageStore: ObservableObject {
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.source != .all && selection.isSessionScope == false,
-            showsTokenFlow: selection.source == .all && selection.timeRange != .today
+            showsTokenFlow: selection.source == .all && selection.dateSelection != .preset(.today)
         )
 
         derivedDataCache = (cacheKey, derivedData)
@@ -416,8 +424,13 @@ final class AgentUsageStore: ObservableObject {
         isRefreshing = false
     }
 
-    private func aggregatedSnapshot(for range: AgentTimeRange) -> OpenCodeUsageSnapshot {
-        let dayRange = agentUsageDayRange(for: range)
+    private func aggregatedSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> OpenCodeUsageSnapshot {
+        guard let interval else {
+            if let preset = selection.preset {
+                return state.openCodeCumulativeSnapshot.filtered(to: preset)
+            }
+            return state.openCodeCumulativeSnapshot
+        }
 
         let records: [OpenCodeSessionRecord] = openCodeBucketsByModelKey.compactMap { key, buckets in
             guard let m = ocMetadataByRawID[key.sessionID] else { return nil }
@@ -427,7 +440,7 @@ final class AgentUsageStore: ObservableObject {
             var updatedAt: Date?
             var hasInRangeBuckets = false
             for b in buckets {
-                guard b.day >= dayRange.lowerBound && b.day < dayRange.upperBound else { continue }
+                guard interval.contains(b.day) else { continue }
                 hasInRangeBuckets = true
                 input += b.inputTokens; output += b.outputTokens; reasoning += b.reasoningTokens
                 cacheRead += b.cacheReadTokens; cacheWrite += b.cacheWriteTokens; requests += b.requestCount
@@ -463,8 +476,13 @@ final class AgentUsageStore: ObservableObject {
         return OpenCodeUsageSnapshot(sessions: records)
     }
 
-    private func aggregatedCodexSnapshot(for range: AgentTimeRange) -> CodexUsageSnapshot {
-        let dayRange = agentUsageDayRange(for: range)
+    private func aggregatedCodexSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> CodexUsageSnapshot {
+        guard let interval else {
+            if let preset = selection.preset {
+                return state.codexSnapshot.filtered(to: preset)
+            }
+            return state.codexSnapshot
+        }
 
         let records: [CodexSessionRecord] = codexBucketsBySession.compactMap { sessionID, buckets in
             guard let session = cxMetadataBySession[sessionID] else { return nil }
@@ -473,7 +491,7 @@ final class AgentUsageStore: ObservableObject {
             var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0
             var hasInRangeBuckets = false
             for b in buckets {
-                guard b.day >= dayRange.lowerBound && b.day < dayRange.upperBound else { continue }
+                guard interval.contains(b.day) else { continue }
                 hasInRangeBuckets = true
                 totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
                 reasoning += b.reasoningTokens; cacheRead += b.cacheReadTokens
@@ -508,8 +526,30 @@ final class AgentUsageStore: ObservableObject {
         return CodexUsageSnapshot(sessions: records)
     }
 
-    private func dayRange(for range: AgentTimeRange) -> Range<Int> {
-        agentUsageDayRange(for: range)
+    private func dayInterval(for selection: AgentDateSelection) -> Range<Int>? {
+        agentUsageDayInterval(for: selection)
+    }
+
+    private func filteredOpenCodeSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> OpenCodeUsageSnapshot {
+        if let preset = selection.preset, interval == nil {
+            return state.openCodeCumulativeSnapshot.filtered(to: preset)
+        }
+        guard let interval else { return state.openCodeCumulativeSnapshot }
+        let sessions = state.openCodeCumulativeSnapshot.sessions.filter {
+            interval.contains(agentUsageDayIdentifier(for: $0.updatedAt))
+        }
+        return OpenCodeUsageSnapshot(sessions: sessions)
+    }
+
+    private func filteredCodexSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> CodexUsageSnapshot {
+        if let preset = selection.preset, interval == nil {
+            return state.codexSnapshot.filtered(to: preset)
+        }
+        guard let interval else { return state.codexSnapshot }
+        let sessions = state.codexSnapshot.sessions.filter {
+            interval.contains(agentUsageDayIdentifier(for: $0.updatedAt))
+        }
+        return CodexUsageSnapshot(sessions: sessions)
     }
 
     private func approximateOpenCodeActivityDate(for day: Int, relativeTo reference: Date) -> Date {
@@ -601,14 +641,16 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
-        guard selection.source == .all, selection.timeRange != .today else { return [] }
+        guard selection.source == .all, selection.dateSelection != .preset(.today) else { return [] }
+
+        let interval = dayInterval(for: selection.dateSelection)
 
         let openCodeTotals = openCodeTokenFlowTotals(
-            range: selection.timeRange,
+            interval: interval,
             snapshot: openCodeSnapshot
         )
         let codexTotals = codexTokenFlowTotals(
-            range: selection.timeRange,
+            interval: interval,
             snapshot: codexSnapshot
         )
 
@@ -623,9 +665,10 @@ final class AgentUsageStore: ObservableObject {
 
         let totalDays = max(1, latestDay - earliestDay + 1)
         let bucketSize: Int
-        switch selection.timeRange {
-        case .allTime: bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
-        default: bucketSize = 1
+        if selection.dateSelection == .preset(.allTime) {
+            bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
+        } else {
+            bucketSize = 1
         }
 
         let sortedDays = totalsByDay.keys.sorted()
@@ -649,15 +692,14 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func openCodeTokenFlowTotals(
-        range: AgentTimeRange,
+        interval: Range<Int>?,
         snapshot: OpenCodeUsageSnapshot
     ) -> [Int: Int] {
-        if state.openCodeDailyBuckets.isEmpty == false {
-            let dayRange = dayRange(for: range)
+        if state.openCodeDailyBuckets.isEmpty == false && snapshot.sessions.isEmpty == false {
             var totals: [Int: Int] = [:]
             for (_, buckets) in openCodeBucketsByModelKey {
                 for bucket in buckets {
-                    guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { continue }
+                    guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                     let value = bucket.inputTokens + bucket.outputTokens + bucket.reasoningTokens + bucket.cacheReadTokens + bucket.cacheWriteTokens
                     totals[bucket.day, default: 0] += value
                 }
@@ -672,15 +714,14 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func codexTokenFlowTotals(
-        range: AgentTimeRange,
+        interval: Range<Int>?,
         snapshot: CodexUsageSnapshot
     ) -> [Int: Int] {
-        if state.codexDailyBuckets.isEmpty == false {
-            let dayRange = dayRange(for: range)
+        if state.codexDailyBuckets.isEmpty == false && snapshot.sessions.isEmpty == false {
             var totals: [Int: Int] = [:]
             for (_, buckets) in codexBucketsBySession {
                 for bucket in buckets {
-                    guard bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound else { continue }
+                    guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                     totals[bucket.day, default: 0] += bucket.totalTokens
                 }
             }
@@ -749,7 +790,7 @@ final class AgentUsageStore: ObservableObject {
                 with: latestActivityDate(
                     for: .openCode,
                     scope: scope,
-                    range: selection.timeRange,
+                    interval: dayInterval(for: selection.dateSelection),
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
                     ocLatestBySession: ocLatestBySession,
@@ -783,7 +824,7 @@ final class AgentUsageStore: ObservableObject {
                 with: latestActivityDate(
                     for: .codex,
                     scope: scope,
-                    range: selection.timeRange,
+                    interval: dayInterval(for: selection.dateSelection),
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
                     ocLatestBySession: ocLatestBySession,
@@ -836,14 +877,14 @@ final class AgentUsageStore: ObservableObject {
         scope: AgentScope
     ) -> Int {
         guard selection.source == .codex || selection.source == .all else { return 0 }
-        let dayRange = agentUsageDayRange(for: selection.timeRange)
+        let interval = dayInterval(for: selection.dateSelection)
 
         switch scope {
         case .allProjects:
             return codexBucketsBySession.reduce(0) { total, entry in
                 guard cxMetadataBySession[entry.key]?.isSubagent == false else { return total }
                 var requestCount = 0
-                for bucket in entry.value where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+                for bucket in entry.value where interval.map({ $0.contains(bucket.day) }) ?? true {
                     requestCount += bucket.requestCount
                 }
                 return total + requestCount
@@ -853,7 +894,7 @@ final class AgentUsageStore: ObservableObject {
             return codexBucketsBySession.reduce(0) { total, entry in
                 guard sessionIDs.contains(entry.key) else { return total }
                 var requestCount = 0
-                for bucket in entry.value where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+                for bucket in entry.value where interval.map({ $0.contains(bucket.day) }) ?? true {
                     requestCount += bucket.requestCount
                 }
                 return total + requestCount
@@ -861,7 +902,7 @@ final class AgentUsageStore: ObservableObject {
         case .session(_, let sessionID):
             guard let buckets = codexBucketsBySession[sessionID] else { return 0 }
             var requestCount = 0
-            for bucket in buckets where bucket.day >= dayRange.lowerBound && bucket.day < dayRange.upperBound {
+            for bucket in buckets where interval.map({ $0.contains(bucket.day) }) ?? true {
                 requestCount += bucket.requestCount
             }
             return requestCount
@@ -890,7 +931,7 @@ final class AgentUsageStore: ObservableObject {
     private func latestActivityDate(
         for source: AgentSource,
         scope: AgentScope,
-        range: AgentTimeRange,
+        interval: Range<Int>?,
         openCodeSnapshot: OpenCodeUsageSnapshot,
         codexSnapshot: CodexUsageSnapshot,
         ocLatestBySession: [String: Date],
@@ -899,8 +940,8 @@ final class AgentUsageStore: ObservableObject {
         switch source {
         case .all:
             return [
-                latestActivityDate(for: .openCode, scope: scope, range: range, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
-                latestActivityDate(for: .codex, scope: scope, range: range, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession)
+                latestActivityDate(for: .openCode, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
+                latestActivityDate(for: .codex, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession)
             ].compactMap { $0 }.max()
         case .openCode:
             switch scope {
@@ -939,16 +980,14 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func openCodeLatestActivityBySession(
-        range: AgentTimeRange,
+        interval: Range<Int>?,
         snapshot: OpenCodeUsageSnapshot
     ) -> [String: Date] {
-        let dayRange = dayRange(for: range)
-
         var result: [String: Date] = [:]
         for (key, buckets) in openCodeBucketsByModelKey {
             guard let metadata = ocMetadataByRawID[key.sessionID] else { continue }
             for bucket in buckets {
-                guard dayRange.contains(bucket.day) else { continue }
+                guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                 let activityAt = bucket.latestActivityAt ?? approximateOpenCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
                 result[key.sessionID] = max(result[key.sessionID] ?? .distantPast, activityAt)
             }
@@ -957,16 +996,14 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func codexLatestActivityBySession(
-        range: AgentTimeRange,
+        interval: Range<Int>?,
         snapshot: CodexUsageSnapshot
     ) -> [String: Date] {
-        let dayRange = dayRange(for: range)
-
         var result: [String: Date] = [:]
         for (sessionID, buckets) in codexBucketsBySession {
             guard let metadata = cxMetadataBySession[sessionID] else { continue }
             for bucket in buckets {
-                guard dayRange.contains(bucket.day) else { continue }
+                guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                 let activityAt = bucket.latestActivityAt ?? approximateCodexActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
                 result[sessionID] = max(result[sessionID] ?? .distantPast, activityAt)
             }
@@ -1035,10 +1072,10 @@ final class AgentUsageStore: ObservableObject {
         switch selection.source {
         case .all: return []
         case .openCode:
-            if selection.timeRange == .allTime {
+            if selection.dateSelection == .preset(.allTime) {
                 return openCodeSnapshot.providerBreakdown(for: scope)
             }
-            return openCodeProviderBreakdown(for: scope, range: selection.timeRange)
+            return openCodeProviderBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
         case .codex: return codexSnapshot.providerBreakdown(for: scope)
         }
     }
@@ -1049,10 +1086,10 @@ final class AgentUsageStore: ObservableObject {
         case .all: return []
         case .openCode:
             let rows: [OpenCodeModelBreakdown]
-            if selection.timeRange == .allTime {
+            if selection.dateSelection == .preset(.allTime) {
                 rows = openCodeSnapshot.modelBreakdown(for: scope)
             } else {
-                rows = openCodeModelBreakdown(for: scope, range: selection.timeRange)
+                rows = openCodeModelBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
             }
             return rows.map {
                 AgentUsageDetailRow(
@@ -1087,9 +1124,7 @@ final class AgentUsageStore: ObservableObject {
         return formatter.string(from: date)
     }
 
-    private func openCodeBuckets(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeDailyBucket] {
-        let dayRange = agentUsageDayRange(for: range)
-
+    private func openCodeBuckets(for scope: AgentScope, interval: Range<Int>?) -> [OpenCodeDailyBucket] {
         var result: [OpenCodeDailyBucket] = []
         for (key, buckets) in openCodeBucketsByModelKey {
             switch scope {
@@ -1101,15 +1136,15 @@ final class AgentUsageStore: ObservableObject {
                 guard key.sessionID == rawSessionID(from: sessionID) else { continue }
             }
             for bucket in buckets {
-                guard dayRange.contains(bucket.day) else { continue }
+                guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                 result.append(bucket)
             }
         }
         return result
     }
 
-    private func openCodeProviderBreakdown(for scope: AgentScope, range: AgentTimeRange) -> [ProviderBreakdown] {
-        Dictionary(grouping: openCodeBuckets(for: scope, range: range)) { $0.modelProviderID }
+    private func openCodeProviderBreakdown(for scope: AgentScope, interval: Range<Int>?) -> [ProviderBreakdown] {
+        Dictionary(grouping: openCodeBuckets(for: scope, interval: interval)) { $0.modelProviderID }
             .map { provider, buckets in
                 ProviderBreakdown(
                     provider: provider,
@@ -1119,8 +1154,8 @@ final class AgentUsageStore: ObservableObject {
             .sorted { $0.summary.totalTokens > $1.summary.totalTokens }
     }
 
-    private func openCodeModelBreakdown(for scope: AgentScope, range: AgentTimeRange) -> [OpenCodeModelBreakdown] {
-        Dictionary(grouping: openCodeBuckets(for: scope, range: range)) {
+    private func openCodeModelBreakdown(for scope: AgentScope, interval: Range<Int>?) -> [OpenCodeModelBreakdown] {
+        Dictionary(grouping: openCodeBuckets(for: scope, interval: interval)) {
             [$0.modelProviderID, $0.modelID, $0.modelVariant ?? ""].joined(separator: "::")
         }
         .compactMap { _, buckets in

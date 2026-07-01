@@ -57,6 +57,11 @@ enum AgentDateSelection: Equatable, Hashable {
     case preset(AgentDatePreset)
     case singleDay(Int)
     case dayRange(startDay: Int, endDay: Int)
+
+    var preset: AgentDatePreset? {
+        guard case let .preset(preset) = self else { return nil }
+        return preset
+    }
 }
 
 func agentUsageDayIdentifier(for date: Date, calendar: Calendar = .autoupdatingCurrent) -> Int {

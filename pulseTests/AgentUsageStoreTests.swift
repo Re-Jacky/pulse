@@ -44,6 +44,72 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(selection.dateSelection, .singleDay(19_900))
     }
 
+    func testDerivedDataForSingleDayUsesOnlyBucketsInThatDay() {
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [
+                openCodeBucket(day: 100, totalTokens: 50, sessionID: "oc-1"),
+                openCodeBucket(day: 101, totalTokens: 75, sessionID: "oc-1")
+            ],
+            codexBuckets: []
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .singleDay(101),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 75)
+    }
+
+    func testDerivedDataForRangeUsesInclusiveEndpoints() {
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [
+                openCodeBucket(day: 100, totalTokens: 10, sessionID: "oc-1"),
+                openCodeBucket(day: 101, totalTokens: 20, sessionID: "oc-1"),
+                openCodeBucket(day: 102, totalTokens: 30, sessionID: "oc-1")
+            ],
+            codexBuckets: []
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .dayRange(startDay: 100, endDay: 102),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 60)
+    }
+
+    func testDateSelectionDoesNotChangeRefreshGeneration() {
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [openCodeBucket(day: 100, totalTokens: 10, sessionID: "oc-1")],
+            codexBuckets: []
+        )
+        let initialGeneration = store.debugRefreshGenerationForTests
+
+        _ = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .singleDay(100),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        _ = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .dayRange(startDay: 100, endDay: 100),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(store.debugRefreshGenerationForTests, initialGeneration)
+    }
+
     func testCodexResolveDatabaseURLPrefersNewestActivityAcrossDuplicateVersions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
@@ -1264,6 +1330,48 @@ private func execute(_ db: OpaquePointer?, sql: String) throws {
     guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
         throw NSError(domain: "AgentUsageStoreTests", code: 2)
     }
+}
+
+private func makeStoreWithLoadedState(
+    openCodeBuckets: [OpenCodeDailyBucket],
+    codexBuckets: [CodexDailyBucket]
+) -> AgentUsageStore {
+    let store = AgentUsageStore(repository: StubAgentUsageRepository())
+    let openCodeSessions = Set(openCodeBuckets.map(\.sessionID)).map { sessionID in
+        makeOpenCodeSession(id: sessionID, tokens: 999)
+    }
+    let codexSessions = Set(codexBuckets.map(\.sessionID)).map { sessionID in
+        makeCodexSession(id: sessionID, tokens: 999)
+    }
+    store.replaceStateForTesting(
+        AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: openCodeSessions),
+            openCodeDailyBuckets: openCodeBuckets,
+            codexSnapshot: CodexUsageSnapshot(sessions: codexSessions),
+            codexDailyBuckets: codexBuckets,
+            refreshGeneration: 1,
+            codexDetailCache: [:]
+        )
+    )
+    return store
+}
+
+private func openCodeBucket(day: Int, totalTokens: Int, sessionID: String) -> OpenCodeDailyBucket {
+    OpenCodeDailyBucket(
+        sessionID: sessionID,
+        day: day,
+        modelProviderID: "opencode",
+        modelID: "model-a",
+        modelVariant: nil,
+        inputTokens: totalTokens,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        requestCount: 0,
+        cost: 0,
+        latestActivityAt: nil
+    )
 }
 
 private func makeOpenCodeSession(id: String, tokens: Int = 100) -> OpenCodeSessionRecord {
