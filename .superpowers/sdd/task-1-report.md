@@ -33,3 +33,14 @@
 ## Issues or concerns
 - The broader migration from `timeRange` to `dateSelection` is not complete outside the owned files.
 - Full-suite failures appear pre-existing and unrelated to this change.
+
+
+## Review Fix Follow-up
+- Replaced the unsafe `timeRange` bridge behavior so explicit selections no longer map to `allTime`.
+- Updated the legacy preset containment path to use local-calendar day identifiers instead of elapsed-second math.
+
+## Follow-up Test Results
+- Focused `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageStoreTests`: passed.
+- Full `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'`: still failed on the same unrelated `SessionManagementStoreTests` cases:
+  - `testLoadTranscriptUsesDiscoveredOpenCodeDatabaseInstance()`
+  - `testProjectFilterOptionsDeduplicateProjectsWithinCurrentSource()`

@@ -61,10 +61,8 @@ struct AgentUsageSelection: Equatable, Hashable {
         switch dateSelection {
         case let .preset(preset):
             return preset
-        case .singleDay:
-            return .allTime
-        case .dayRange:
-            return .allTime
+        case .singleDay, .dayRange:
+            preconditionFailure("timeRange is unavailable for explicit date selections")
         }
     }
 }

@@ -36,11 +36,17 @@ enum AgentDatePreset: String, CaseIterable, Identifiable, Hashable {
     }
 
     func contains(_ date: Date, now: Date = Date()) -> Bool {
+        let calendar = Calendar.autoupdatingCurrent
         switch self {
         case .allTime: return true
-        case .today: return Calendar.current.isDate(date, inSameDayAs: now)
-        case .last7Days: return date >= now.addingTimeInterval(-7 * 24 * 60 * 60)
-        case .last30Days: return date >= now.addingTimeInterval(-30 * 24 * 60 * 60)
+        case .today:
+            return agentUsageDayIdentifier(for: date, calendar: calendar) == agentUsageDayIdentifier(for: now, calendar: calendar)
+        case .last7Days:
+            let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
+            return agentUsageDayIdentifier(for: date, calendar: calendar) >= currentDay - 6
+        case .last30Days:
+            let currentDay = agentUsageDayIdentifier(for: now, calendar: calendar)
+            return agentUsageDayIdentifier(for: date, calendar: calendar) >= currentDay - 29
         }
     }
 }

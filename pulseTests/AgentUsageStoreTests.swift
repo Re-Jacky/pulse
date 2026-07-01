@@ -32,6 +32,18 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertNil(agentUsageDayInterval(for: AgentDateSelection.preset(.allTime), now: Date(), calendar: .gregorianUTCForTests))
     }
 
+    func testAgentUsageSelectionInitializesDateSelectionWithoutLosingExplicitSelection() {
+        let selection = AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .singleDay(19_900),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        )
+
+        XCTAssertEqual(selection.dateSelection, .singleDay(19_900))
+    }
+
     func testCodexResolveDatabaseURLPrefersNewestActivityAcrossDuplicateVersions() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
