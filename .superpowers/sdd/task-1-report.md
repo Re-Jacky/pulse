@@ -24,3 +24,29 @@ Self-review:
 Concern:
 - The task brief’s sample epoch (`1_783_047_120`) does not correspond to its annotated/expected timestamp. It formats to `Jul 3, 02:52 UTC`, not `Jul 1, 06:32 UTC`.
 - I corrected the test fixture to use `1_782_887_520`, which does match the required expected output.
+
+## Task 1 Fix Update
+
+Status: DONE
+
+What changed:
+- Replaced the sidebar row timestamp formatter’s `.medium`/`.short` configuration with the app’s established shared short timestamp style, matching `AgentUsageStore.shortDateTime(_:)`.
+- Kept the change local to `SessionListRowFormatting` and the focused sidebar test.
+- Updated the test expectation to assert the shared `yyyy-MM-dd HH:mm` output.
+
+Verification:
+- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/SessionListSidebarViewTests`
+- Result: PASS
+
+## Task 1 Recency Visibility Fix
+
+Status: DONE
+
+What changed:
+- Kept the metadata on the existing line, but split subtitle and timestamp into separate `Text` views inside one `HStack` so the timestamp retains dedicated space while the subtitle truncates first.
+- Preserved the established short timestamp format by keeping `SessionListRowFormatting.shortDateTimeFormatter` aligned with `AgentUsageStore.shortDateTime(_:)`.
+- Replaced the combined-string test with focused helper coverage for the subtitle separator and timestamp text so the row-local formatting seam stays verified.
+
+Verification:
+- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/SessionListSidebarViewTests`
+- Result: PASS

@@ -56,15 +56,19 @@ struct SessionListSidebarView: View {
                                         .foregroundColor(.appSecondaryText)
                                         .lineLimit(1)
 
-                                    Text(
-                                        SessionListRowFormatting.metadataText(
-                                            subtitle: session.subtitle,
-                                            updatedAt: session.updatedAt
-                                        )
-                                    )
+                                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                        Text(SessionListRowFormatting.metadataSubtitleText(session.subtitle))
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                            .layoutPriority(0)
+
+                                        Text(SessionListRowFormatting.timestampText(updatedAt: session.updatedAt))
+                                            .lineLimit(1)
+                                            .fixedSize(horizontal: true, vertical: false)
+                                            .layoutPriority(1)
+                                    }
                                         .font(.system(size: 11))
                                         .foregroundColor(.appTertiaryText)
-                                        .lineLimit(1)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 10)
@@ -192,18 +196,20 @@ struct SessionListSidebarView: View {
 }
 
 enum SessionListRowFormatting {
-    static func metadataText(
-        subtitle: String,
+    static func metadataSubtitleText(_ subtitle: String) -> String {
+        "\(subtitle) •"
+    }
+
+    static func timestampText(
         updatedAt: Date,
         formatter: DateFormatter = shortDateTimeFormatter
     ) -> String {
-        "\(subtitle) • \(formatter.string(from: updatedAt))"
+        formatter.string(from: updatedAt)
     }
 
     static let shortDateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
     }()
 }
