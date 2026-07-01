@@ -56,7 +56,12 @@ struct SessionListSidebarView: View {
                                         .foregroundColor(.appSecondaryText)
                                         .lineLimit(1)
 
-                                    Text(session.subtitle)
+                                    Text(
+                                        SessionListRowFormatting.metadataText(
+                                            subtitle: session.subtitle,
+                                            updatedAt: session.updatedAt
+                                        )
+                                    )
                                         .font(.system(size: 11))
                                         .foregroundColor(.appTertiaryText)
                                         .lineLimit(1)
@@ -184,4 +189,21 @@ struct SessionListSidebarView: View {
 
         return Color.accentColor.opacity(0.28)
     }
+}
+
+enum SessionListRowFormatting {
+    static func metadataText(
+        subtitle: String,
+        updatedAt: Date,
+        formatter: DateFormatter = shortDateTimeFormatter
+    ) -> String {
+        "\(subtitle) • \(formatter.string(from: updatedAt))"
+    }
+
+    static let shortDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
