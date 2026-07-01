@@ -169,6 +169,105 @@ final class CodexSessionTranscriptTests: XCTestCase {
         XCTAssertEqual(capturedTranscriptURL, expectedTranscriptURL)
     }
 
+    func testRepositoryManagedSessionsRetainCodexTranscriptURL() throws {
+        let expectedTranscriptURL = URL(fileURLWithPath: "/tmp/thread-1.jsonl")
+
+        let repository = SessionManagementRepository(
+            resolveOpenCodeDatabaseURL: { URL(fileURLWithPath: "/tmp/missing-opencode.sqlite") },
+            loadOpenCodeSnapshot: { _ in
+                throw OpenCodeUsageQuery.QueryError.databaseNotFound(path: "/tmp/missing-opencode.sqlite")
+            },
+            loadCodexSnapshot: {
+                CodexUsageSnapshot(sessions: [
+                    CodexSessionRecord(
+                        id: "thread_1",
+                        title: "Codex Session",
+                        cwd: "/tmp/project",
+                        model: "gpt-5.4",
+                        modelProvider: "openai",
+                        tokensUsed: 100,
+                        inputTokens: nil,
+                        outputTokens: nil,
+                        reasoningTokens: nil,
+                        cacheReadTokens: nil,
+                        reasoningEffort: "",
+                        threadSource: "user",
+                        agentNickname: nil,
+                        agentRole: nil,
+                        createdAt: Date(timeIntervalSince1970: 1_000),
+                        updatedAt: Date(timeIntervalSince1970: 2_000),
+                        transcriptURL: expectedTranscriptURL
+                    )
+                ])
+            },
+            loadCodexTranscriptProgressively: { _, _, _ in [] }
+        )
+
+        let sessions = try repository.loadManagedSessions()
+
+        XCTAssertEqual(sessions.map(\.id), ["codex::thread_1"])
+        XCTAssertEqual(sessions.first?.transcriptURL, expectedTranscriptURL)
+    }
+
+    func testRepositoryLoadManagedSessionsReturnsNewestUpdatedAtFirstAcrossSources() throws {
+        let openCodeSession = OpenCodeSessionRecord(
+            id: "oc_1",
+            title: "Older OpenCode Session",
+            directory: "/tmp/project-a",
+            agent: "build",
+            modelProviderID: "anthropic",
+            modelID: "sonnet",
+            modelVariant: nil,
+            inputTokens: 0,
+            outputTokens: 0,
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            requestCount: 0,
+            cost: 0,
+            createdAt: Date(timeIntervalSince1970: 500),
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let codexSession = CodexSessionRecord(
+            id: "thread_2",
+            title: "Newer Codex Session",
+            cwd: "/tmp/project-b",
+            model: "gpt-5.4",
+            modelProvider: "openai",
+            tokensUsed: 0,
+            inputTokens: nil,
+            outputTokens: nil,
+            reasoningTokens: nil,
+            cacheReadTokens: nil,
+            reasoningEffort: "",
+            threadSource: "user",
+            agentNickname: nil,
+            agentRole: nil,
+            createdAt: Date(timeIntervalSince1970: 1_500),
+            updatedAt: Date(timeIntervalSince1970: 2_000),
+            transcriptURL: nil
+        )
+
+        let repository = SessionManagementRepository(
+            resolveOpenCodeDatabaseURL: { URL(fileURLWithPath: "/tmp/opencode.sqlite") },
+            loadOpenCodeSnapshot: { _ in
+                OpenCodeUsageSnapshot(sessions: [openCodeSession])
+            },
+            loadCodexSnapshot: {
+                CodexUsageSnapshot(sessions: [codexSession])
+            },
+            loadCodexTranscriptProgressively: { _, _, _ in [] }
+        )
+
+        let sessions = try repository.loadManagedSessions()
+
+        XCTAssertEqual(sessions.map(\.id), ["codex::thread_2", "opencode::oc_1"])
+        XCTAssertEqual(sessions.map(\.updatedAt), [
+            Date(timeIntervalSince1970: 2_000),
+            Date(timeIntervalSince1970: 1_000)
+        ])
+    }
+
     private func loadCodexTranscriptFixture() throws -> [TranscriptTurn] {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")

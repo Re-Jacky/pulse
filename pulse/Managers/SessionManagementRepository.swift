@@ -33,7 +33,7 @@ final class SessionManagementRepository: SessionManagementRepositorying {
             try OpenCodeUsageQuery.loadTranscript(databaseURL: $0, sessionID: $1, onPartialUpdate: $2)
         },
         loadCodexSnapshot: @escaping () throws -> CodexUsageSnapshot = {
-            try CodexUsageQuery.loadMergedSnapshot(includeTranscriptURLs: false)
+            try CodexUsageQuery.loadMergedSnapshot()
         },
         loadCodexTranscript: @escaping (String, URL?) throws -> [TranscriptTurn] = {
             try CodexUsageQuery.loadTranscript(threadID: $0, transcriptURL: $1)

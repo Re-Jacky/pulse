@@ -10,12 +10,7 @@ struct SessionProjectOption: Identifiable, Equatable {
 final class SessionManagementStore: ObservableObject {
     @Published private(set) var sessions: [ManagedSessionSummary] = []
     @Published private(set) var selectedSessionID: String?
-    @Published var selectedSourceFilter: SessionManagerSourceFilter = .all {
-        didSet {
-            guard selectedSourceFilter != oldValue else { return }
-            applyFilterStateChange()
-        }
-    }
+    @Published private(set) var selectedSourceFilter: SessionManagerSourceFilter = .all
     @Published var selectedProjectPath: String?
     @Published var searchQuery: String = ""
     @Published private(set) var projectOptions: [SessionProjectOption] = []
@@ -37,7 +32,9 @@ final class SessionManagementStore: ObservableObject {
     }
 
     func setSelectedSourceFilter(_ sourceFilter: SessionManagerSourceFilter) {
+        guard selectedSourceFilter != sourceFilter else { return }
         selectedSourceFilter = sourceFilter
+        applyFilterStateChange()
     }
 
     func setSelectedProjectPath(_ projectPath: String?) {
