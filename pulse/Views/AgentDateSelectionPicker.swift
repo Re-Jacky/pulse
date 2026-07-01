@@ -9,8 +9,8 @@ struct AgentDateSelectionPicker: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            shortcutButton(title: "Today", selectionValue: .preset(.today))
             shortcutButton(title: "All Time", selectionValue: .preset(.allTime))
+            shortcutButton(title: "Today", selectionValue: .preset(.today))
 
             customButton
         }
