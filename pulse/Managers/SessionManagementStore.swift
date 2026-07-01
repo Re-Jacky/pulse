@@ -25,7 +25,6 @@ final class SessionManagementStore: ObservableObject {
     @Published private(set) var loadingSources: Set<AgentSource> = []
 
     private let repository: SessionManagementRepositorying
-    private var hasLoaded = false
     private var isLoadingSessions = false
     private var transcriptLoadGeneration = 0
 
@@ -34,7 +33,6 @@ final class SessionManagementStore: ObservableObject {
     }
 
     func refreshIfNeeded() {
-        guard hasLoaded == false else { return }
         refresh()
     }
 
@@ -58,6 +56,7 @@ final class SessionManagementStore: ObservableObject {
     func refresh() {
         guard isLoadingSessions == false else { return }
 
+        selectSession(id: nil)
         isLoadingSessions = true
         sessionListState = .loading
         loadingSources = Set(AgentSource.selectableCases)
@@ -86,7 +85,6 @@ final class SessionManagementStore: ObservableObject {
                     self.reconcileSelectionWithVisibleSessions()
                     self.sessionListState = .loaded
                     self.loadingSources = []
-                    self.hasLoaded = true
                 case .failure(let error):
                     self.sessions = []
                     self.projectOptions = []

@@ -32,6 +32,7 @@ extension Notification.Name {
     static let pulsePanelTabDidChange = Notification.Name("pulsePanelTabDidChange")
     static let pulsePanelDidOpen = Notification.Name("pulsePanelDidOpen")
     static let pulseShowSessionManagementWindow = Notification.Name("pulseShowSessionManagementWindow")
+    static let pulseSessionManagementWindowDidOpen = Notification.Name("pulseSessionManagementWindowDidOpen")
 }
 
 private final class InputPanel: NSPanel {
@@ -631,6 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         NSApp.arrangeInFront(nil)
+        NotificationCenter.default.post(name: .pulseSessionManagementWindowDidOpen, object: nil)
     }
 
     private func makeSettingsWindow() -> NSWindow {

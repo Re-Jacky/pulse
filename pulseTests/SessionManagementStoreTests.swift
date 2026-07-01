@@ -154,7 +154,7 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testSessionManagementStoreRefreshesOnlyOncePerWindowLifecycleSeed() async {
+    func testSessionManagementStoreRefreshIfNeededReloadsOnEveryCall() async {
         let repository = StubSessionManagementRepository(
             sessions: [makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")]
         )
@@ -162,9 +162,11 @@ final class SessionManagementStoreTests: XCTestCase {
 
         store.refreshIfNeeded()
         await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
+        repository.resetLoadManagedSessionsExpectation()
         store.refreshIfNeeded()
+        await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
 
-        XCTAssertEqual(repository.loadManagedSessionsCallCount, 1)
+        XCTAssertEqual(repository.loadManagedSessionsCallCount, 2)
     }
 
     @MainActor
@@ -349,6 +351,33 @@ final class SessionManagementStoreTests: XCTestCase {
         XCTAssertEqual(store.sessionListState, .loaded)
         XCTAssertEqual(store.visibleSessions().map(\.id), ["codex::3"])
         XCTAssertEqual(repository.loadManagedSessionsCallCount, 2)
+    }
+
+    @MainActor
+    func testRefreshClearsSelectedSessionBeforeReloadingSessions() async {
+        let initialSession = makeManagedSession(id: "codex::2", source: .codex, title: "Crash audit", projectPath: "/tmp/b")
+        let refreshedSession = makeManagedSession(id: "codex::3", source: .codex, title: "New audit", projectPath: "/tmp/c")
+        let repository = StubSessionManagementRepository(
+            sessions: [initialSession],
+            transcripts: ["codex::2": [TranscriptTurn(id: "t1", role: .user, text: "Investigate", timestamp: nil)]]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
+        store.selectSession(id: "codex::2")
+        await fulfillment(of: [repository.loadTranscriptExpectation], timeout: 1.0)
+
+        repository.sessions = [refreshedSession]
+        repository.resetLoadManagedSessionsExpectation()
+
+        store.refresh()
+
+        XCTAssertNil(store.selectedSessionID)
+        XCTAssertEqual(store.transcriptState, .idle)
+
+        await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
+        XCTAssertEqual(store.sessions.map(\.id), ["codex::3"])
     }
 
     @MainActor

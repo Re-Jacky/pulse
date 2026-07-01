@@ -57,8 +57,11 @@ struct SessionManagementWindowView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             DispatchQueue.main.async {
-                store.refreshIfNeeded()
+                store.refresh()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pulseSessionManagementWindowDidOpen)) { _ in
+            store.refresh()
         }
     }
 
@@ -69,6 +72,40 @@ struct SessionManagementWindowView: View {
                 .foregroundColor(.appPrimaryText)
 
             Spacer(minLength: 12)
+
+            Button {
+                store.refresh()
+            } label: {
+                if store.sessionListState == .loading {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing")
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(height: 30)
+                    .padding(.horizontal, 10)
+                } else {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(height: 30)
+                        .padding(.horizontal, 10)
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.appSecondaryText)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.75))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.appDivider.opacity(0.6), lineWidth: 1)
+            )
+            .focusable(false)
+            .disabled(store.sessionListState == .loading)
+            .accessibilityLabel("Refresh Sessions")
 
             Button {
                 sessionManagerThemeManager.toggleTheme()
@@ -88,6 +125,7 @@ struct SessionManagementWindowView: View {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .stroke(Color.appDivider.opacity(0.6), lineWidth: 1)
             )
+            .focusable(false)
             .accessibilityLabel("Toggle Session Manager Theme")
         }
         .padding(.horizontal, 18)
