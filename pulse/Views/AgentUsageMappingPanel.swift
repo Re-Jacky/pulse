@@ -4,183 +4,218 @@ struct AgentUsageMappingPanel: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var mappingStore: AgentUsageMappingStore
 
-    @State private var selectedGroupBy: AgentModelGroupBy
-    @State private var providerDrafts: [String: String]
-    @State private var modelProviderDrafts: [String: String]
-    @State private var modelNameDrafts: [String: String]
+    @State private var rowDrafts: [String: MappingDraft]
+    @State private var isShowingNewProviderPrompt = false
+    @State private var isShowingNewModelPrompt = false
+    @State private var newProviderName = ""
+    @State private var newModelName = ""
 
-    let providerCandidates: [AgentUsageProviderMappingCandidate]
-    let modelCandidates: [AgentUsageModelMappingCandidate]
+    private let rows: [AgentUsageMappingRow]
 
     init(
-        selectedGroupBy: AgentModelGroupBy,
         providerCandidates: [AgentUsageProviderMappingCandidate],
         modelCandidates: [AgentUsageModelMappingCandidate],
         mappingStore: AgentUsageMappingStore
     ) {
-        self._selectedGroupBy = State(initialValue: selectedGroupBy)
-        self.providerCandidates = providerCandidates
-        self.modelCandidates = modelCandidates
         self.mappingStore = mappingStore
 
-        var providerDrafts: [String: String] = [:]
+        var providerCandidatesByIdentity: [AgentUsageProviderRawIdentity: AgentUsageProviderMappingCandidate] = [:]
         for candidate in providerCandidates {
-            providerDrafts[candidate.id] = mappingStore.displayProviderName(for: candidate.identity) ?? ""
+            providerCandidatesByIdentity[candidate.identity] = candidate
         }
-        _providerDrafts = State(initialValue: providerDrafts)
 
-        var modelProviderDrafts: [String: String] = [:]
-        var modelNameDrafts: [String: String] = [:]
-        for candidate in modelCandidates {
-            let mapping = mappingStore.displayModelMapping(for: candidate.identity)
-            modelProviderDrafts[candidate.id] = mapping?.displayProviderName ?? ""
-            modelNameDrafts[candidate.id] = mapping?.displayModelName ?? ""
+        rows = modelCandidates.compactMap { model in
+            let providerIdentity = AgentUsageProviderRawIdentity(
+                source: model.identity.source,
+                rawProviderID: model.identity.rawProviderID,
+                rawProviderName: model.identity.rawProviderName
+            )
+            guard let provider = providerCandidatesByIdentity[providerIdentity] else { return nil }
+            return AgentUsageMappingRow(providerCandidate: provider, modelCandidate: model)
         }
-        _modelProviderDrafts = State(initialValue: modelProviderDrafts)
-        _modelNameDrafts = State(initialValue: modelNameDrafts)
+
+        var initialDrafts: [String: MappingDraft] = [:]
+        for row in rows {
+            let existingProvider = mappingStore.displayProviderName(for: row.providerCandidate.identity) ?? ""
+            let existingModel = mappingStore.displayModelMapping(for: row.modelCandidate.identity)?.displayModelName ?? ""
+            initialDrafts[row.id] = MappingDraft(
+                providerDisplayName: existingProvider,
+                modelDisplayName: existingModel
+            )
+        }
+        _rowDrafts = State(initialValue: initialDrafts)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("All View Mapping")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.appPrimaryText)
-
-                    Text("Create shared display names for raw provider and model identities in the combined Agent view.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.appSecondaryText)
-                }
-
-                Spacer()
-
-                Button("Done") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-            }
-
-            Picker(selection: $selectedGroupBy, label: EmptyView()) {
-                Text("Provider").tag(AgentModelGroupBy.provider)
-                Text("Model").tag(AgentModelGroupBy.model)
-            }
-            .pickerStyle(.segmented)
+            header
+            actionBar
 
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 12) {
-                    if selectedGroupBy == .provider {
-                        providerSection
+                    tableHeader
+
+                    if rows.isEmpty {
+                        emptyState("No combined provider/model rows are available for the current selection.")
                     } else {
-                        modelSection
+                        ForEach(rows) { row in
+                            mappingRow(row)
+                        }
                     }
                 }
             }
         }
         .padding(18)
-        .frame(minWidth: 760, minHeight: 460)
+        .frame(minWidth: 980, minHeight: 520)
         .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var providerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if providerCandidates.isEmpty {
-                emptyState("No provider rows are available for the current combined view.")
-            } else {
-                ForEach(providerCandidates) { candidate in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(candidate.identity.sourceQualifiedDisplayName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.appPrimaryText)
-
-                            Spacer()
-
-                            Text(compact(candidate.totalTokens))
-                                .font(.system(size: 11))
-                                .foregroundColor(.appSecondaryText)
-                        }
-
-                        HStack(spacing: 8) {
-                            TextField("Display provider name", text: providerBinding(for: candidate))
-                                .textFieldStyle(.roundedBorder)
-
-                            Button("Save") {
-                                mappingStore.upsertProviderMapping(
-                                    AgentUsageProviderDisplayMapping(
-                                        identity: candidate.identity,
-                                        displayProviderName: providerDrafts[candidate.id, default: ""]
-                                    )
-                                )
-                            }
-                            .buttonStyle(.borderedProminent)
-
-                            Button("Reset") {
-                                providerDrafts[candidate.id] = ""
-                                mappingStore.resetProviderMapping(for: candidate.identity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(12)
-                    .background(Color.appFieldBackground.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
+        .alert("New Provider Name", isPresented: $isShowingNewProviderPrompt) {
+            TextField("Provider name", text: $newProviderName)
+            Button("Cancel", role: .cancel) {
+                newProviderName = ""
             }
+            Button("Save") {
+                let normalized = newProviderName.trimmingCharacters(in: .whitespacesAndNewlines)
+                mappingStore.addProviderDisplayName(normalized)
+                if normalized.isEmpty == false {
+                    applyProviderNameToEmptyDrafts(normalized)
+                }
+                newProviderName = ""
+            }
+        } message: {
+            Text("Create a reusable provider display name for the mapping rows.")
+        }
+        .alert("New Model Name", isPresented: $isShowingNewModelPrompt) {
+            TextField("Model name", text: $newModelName)
+            Button("Cancel", role: .cancel) {
+                newModelName = ""
+            }
+            Button("Save") {
+                let normalized = newModelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                mappingStore.addModelDisplayName(normalized)
+                if normalized.isEmpty == false {
+                    applyModelNameToEmptyDrafts(normalized)
+                }
+                newModelName = ""
+            }
+        } message: {
+            Text("Create a reusable model display name for the mapping rows.")
         }
     }
 
-    private var modelSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if modelCandidates.isEmpty {
-                emptyState("No model rows are available for the current combined view.")
-            } else {
-                ForEach(modelCandidates) { candidate in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(candidate.identity.sourceQualifiedDisplayName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.appPrimaryText)
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("All View Mapping")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
 
-                            Spacer()
+                Text("Map each raw source row to one saved provider name and one saved model name.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            }
 
-                            Text(compact(candidate.totalTokens))
-                                .font(.system(size: 11))
-                                .foregroundColor(.appSecondaryText)
-                        }
+            Spacer()
 
-                        HStack(spacing: 8) {
-                            TextField("Display provider", text: modelProviderBinding(for: candidate))
-                                .textFieldStyle(.roundedBorder)
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
+        }
+    }
 
-                            TextField("Display model", text: modelNameBinding(for: candidate))
-                                .textFieldStyle(.roundedBorder)
+    private var actionBar: some View {
+        HStack(spacing: 10) {
+            Button("New Provider Name") {
+                newProviderName = ""
+                isShowingNewProviderPrompt = true
+            }
+            .buttonStyle(.borderedProminent)
 
-                            Button("Save") {
-                                mappingStore.upsertModelMapping(
-                                    AgentUsageModelDisplayMapping(
-                                        identity: candidate.identity,
-                                        displayProviderName: modelProviderDrafts[candidate.id, default: ""],
-                                        displayModelName: modelNameDrafts[candidate.id, default: ""]
-                                    )
-                                )
-                            }
-                            .buttonStyle(.borderedProminent)
+            Button("New Model Name") {
+                newModelName = ""
+                isShowingNewModelPrompt = true
+            }
+            .buttonStyle(.borderedProminent)
 
-                            Button("Reset") {
-                                modelProviderDrafts[candidate.id] = ""
-                                modelNameDrafts[candidate.id] = ""
-                                mappingStore.resetModelMapping(for: candidate.identity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(12)
-                    .background(Color.appFieldBackground.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
+            Spacer()
+
+            Text("\(rows.count) rows")
+                .font(.system(size: 11))
+                .foregroundColor(.appSecondaryText)
+        }
+    }
+
+    private var tableHeader: some View {
+        HStack(spacing: 12) {
+            headerLabel("Raw Source", width: 320)
+            headerLabel("Provider Mapping", width: 240)
+            headerLabel("Model Mapping", width: 240)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func headerLabel(_ text: String, width: CGFloat) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.appSecondaryText)
+            .frame(width: width, alignment: .leading)
+    }
+
+    private func mappingRow(_ row: AgentUsageMappingRow) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.rawDisplayName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.appPrimaryText)
+                Text(compact(row.totalTokens))
+                    .font(.system(size: 11))
+                    .foregroundColor(.appSecondaryText)
+            }
+            .frame(width: 320, alignment: .leading)
+
+            providerPicker(for: row)
+                .frame(width: 240)
+
+            modelPicker(for: row)
+                .frame(width: 240)
+
+            Spacer(minLength: 0)
+
+            Button("Save") {
+                save(row: row)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button("Reset") {
+                reset(row: row)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(12)
+        .background(Color.appFieldBackground.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func providerPicker(for row: AgentUsageMappingRow) -> some View {
+        Picker("", selection: providerBinding(for: row)) {
+            Text("Unmapped").tag("")
+            ForEach(mappingStore.providerDisplayNames, id: \.self) { name in
+                Text(name).tag(name)
             }
         }
+        .labelsHidden()
+        .pickerStyle(.menu)
+    }
+
+    private func modelPicker(for row: AgentUsageMappingRow) -> some View {
+        Picker("", selection: modelBinding(for: row)) {
+            Text("Unmapped").tag("")
+            ForEach(mappingStore.modelDisplayNames, id: \.self) { name in
+                Text(name).tag(name)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -193,25 +228,74 @@ struct AgentUsageMappingPanel: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func providerBinding(for candidate: AgentUsageProviderMappingCandidate) -> Binding<String> {
+    private func providerBinding(for row: AgentUsageMappingRow) -> Binding<String> {
         Binding(
-            get: { providerDrafts[candidate.id, default: ""] },
-            set: { providerDrafts[candidate.id] = $0 }
+            get: { rowDrafts[row.id]?.providerDisplayName ?? "" },
+            set: { value in
+                var draft = rowDrafts[row.id] ?? MappingDraft(providerDisplayName: "", modelDisplayName: "")
+                draft.providerDisplayName = value
+                rowDrafts[row.id] = draft
+            }
         )
     }
 
-    private func modelProviderBinding(for candidate: AgentUsageModelMappingCandidate) -> Binding<String> {
+    private func modelBinding(for row: AgentUsageMappingRow) -> Binding<String> {
         Binding(
-            get: { modelProviderDrafts[candidate.id, default: ""] },
-            set: { modelProviderDrafts[candidate.id] = $0 }
+            get: { rowDrafts[row.id]?.modelDisplayName ?? "" },
+            set: { value in
+                var draft = rowDrafts[row.id] ?? MappingDraft(providerDisplayName: "", modelDisplayName: "")
+                draft.modelDisplayName = value
+                rowDrafts[row.id] = draft
+            }
         )
     }
 
-    private func modelNameBinding(for candidate: AgentUsageModelMappingCandidate) -> Binding<String> {
-        Binding(
-            get: { modelNameDrafts[candidate.id, default: ""] },
-            set: { modelNameDrafts[candidate.id] = $0 }
-        )
+    private func save(row: AgentUsageMappingRow) {
+        let draft = rowDrafts[row.id] ?? MappingDraft(providerDisplayName: "", modelDisplayName: "")
+        if draft.providerDisplayName.isEmpty {
+            mappingStore.resetProviderMapping(for: row.providerCandidate.identity)
+        } else {
+            mappingStore.upsertProviderMapping(
+                AgentUsageProviderDisplayMapping(
+                    identity: row.providerCandidate.identity,
+                    displayProviderName: draft.providerDisplayName
+                )
+            )
+        }
+
+        if draft.providerDisplayName.isEmpty || draft.modelDisplayName.isEmpty {
+            mappingStore.resetModelMapping(for: row.modelCandidate.identity)
+        } else {
+            mappingStore.upsertModelMapping(
+                AgentUsageModelDisplayMapping(
+                    identity: row.modelCandidate.identity,
+                    displayProviderName: draft.providerDisplayName,
+                    displayModelName: draft.modelDisplayName
+                )
+            )
+        }
+    }
+
+    private func reset(row: AgentUsageMappingRow) {
+        rowDrafts[row.id] = MappingDraft(providerDisplayName: "", modelDisplayName: "")
+        mappingStore.resetProviderMapping(for: row.providerCandidate.identity)
+        mappingStore.resetModelMapping(for: row.modelCandidate.identity)
+    }
+
+    private func applyProviderNameToEmptyDrafts(_ displayName: String) {
+        for row in rows {
+            guard var draft = rowDrafts[row.id], draft.providerDisplayName.isEmpty else { continue }
+            draft.providerDisplayName = displayName
+            rowDrafts[row.id] = draft
+        }
+    }
+
+    private func applyModelNameToEmptyDrafts(_ displayName: String) {
+        for row in rows {
+            guard var draft = rowDrafts[row.id], draft.modelDisplayName.isEmpty else { continue }
+            draft.modelDisplayName = displayName
+            rowDrafts[row.id] = draft
+        }
     }
 
     private func compact(_ value: Int) -> String {
@@ -220,4 +304,26 @@ struct AgentUsageMappingPanel: View {
         if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
         return "\(value)"
     }
+}
+
+private struct AgentUsageMappingRow: Identifiable {
+    let providerCandidate: AgentUsageProviderMappingCandidate
+    let modelCandidate: AgentUsageModelMappingCandidate
+
+    var id: String {
+        providerCandidate.id + "::" + modelCandidate.id
+    }
+
+    var rawDisplayName: String {
+        modelCandidate.identity.sourceQualifiedDisplayName
+    }
+
+    var totalTokens: Int {
+        modelCandidate.totalTokens
+    }
+}
+
+private struct MappingDraft {
+    var providerDisplayName: String
+    var modelDisplayName: String
 }

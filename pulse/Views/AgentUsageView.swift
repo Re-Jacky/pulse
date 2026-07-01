@@ -79,7 +79,6 @@ struct AgentUsageView: View {
         }
         .sheet(isPresented: $isMappingPanelPresented) {
             AgentUsageMappingPanel(
-                selectedGroupBy: AgentModelGroupBy(rawValue: modelGroupBy) ?? .model,
                 providerCandidates: data.providerMappingCandidates,
                 modelCandidates: data.modelMappingCandidates,
                 mappingStore: agentStore.mappingStore

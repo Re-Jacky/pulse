@@ -46,10 +46,14 @@ final class UserDefaultsAgentUsageMappingPersistence: AgentUsageMappingPersisten
 struct PersistedAgentUsageMappings: Codable, Equatable {
     var providerMappings: [AgentUsageProviderDisplayMapping]
     var modelMappings: [AgentUsageModelDisplayMapping]
+    var providerDisplayNames: [String]
+    var modelDisplayNames: [String]
 
     static let empty = PersistedAgentUsageMappings(
         providerMappings: [],
-        modelMappings: []
+        modelMappings: [],
+        providerDisplayNames: [],
+        modelDisplayNames: []
     )
 }
 
@@ -117,6 +121,32 @@ final class AgentUsageMappingStore: ObservableObject {
     func resetModelMapping(for identity: AgentUsageModelRawIdentity) {
         persistedMappings.modelMappings.removeAll { $0.identity == identity }
         persist()
+    }
+
+    func addProviderDisplayName(_ displayName: String) {
+        let normalized = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else { return }
+        guard persistedMappings.providerDisplayNames.contains(normalized) == false else { return }
+        persistedMappings.providerDisplayNames.append(normalized)
+        persistedMappings.providerDisplayNames.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        persist()
+    }
+
+    func addModelDisplayName(_ displayName: String) {
+        let normalized = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else { return }
+        guard persistedMappings.modelDisplayNames.contains(normalized) == false else { return }
+        persistedMappings.modelDisplayNames.append(normalized)
+        persistedMappings.modelDisplayNames.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        persist()
+    }
+
+    var providerDisplayNames: [String] {
+        persistedMappings.providerDisplayNames
+    }
+
+    var modelDisplayNames: [String] {
+        persistedMappings.modelDisplayNames
     }
 
     private func persist() {
