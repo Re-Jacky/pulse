@@ -27,14 +27,7 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
-    func testVisibleSessionsRemainSortedByNewestUpdatedAtFirst() async {
-        let older = makeManagedSession(
-            id: "codex::1",
-            source: .codex,
-            title: "Older",
-            projectPath: "/tmp/a",
-            updatedAt: Date(timeIntervalSince1970: 1_000)
-        )
+    func testVisibleSessionsPreserveRepositoryOrder() async {
         let newer = makeManagedSession(
             id: "codex::2",
             source: .codex,
@@ -42,9 +35,15 @@ final class SessionManagementStoreTests: XCTestCase {
             projectPath: "/tmp/a",
             updatedAt: Date(timeIntervalSince1970: 2_000)
         )
+        let older = makeManagedSession(
+            id: "codex::1",
+            source: .codex,
+            title: "Older",
+            projectPath: "/tmp/a",
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
         let repository = StubSessionManagementRepository(
-            sessions: [older, newer],
-            sortManagedSessionsByUpdatedAt: true
+            sessions: [newer, older]
         )
         let store = SessionManagementStore(repository: repository)
 
@@ -887,7 +886,6 @@ private final class StubSessionManagementRepository: SessionManagementRepository
     var onPartialTranscript: (([TranscriptTurn]) -> Void)?
     var loadManagedSessionsError: Error?
     var loadTranscriptError: Error?
-    var sortManagedSessionsByUpdatedAt = false
     private(set) var loadManagedSessionsCallCount = 0
     private(set) var loadManagedSessionsExpectation = XCTestExpectation(description: "loadManagedSessions")
     private(set) var loadTranscriptExpectation = XCTestExpectation(description: "loadTranscript")
@@ -899,8 +897,7 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         transcripts: [String: [TranscriptTurn]] = [:],
         partialTranscriptBatches: [String: [[TranscriptTurn]]] = [:],
         loadManagedSessionsError: Error? = nil,
-        loadTranscriptError: Error? = nil,
-        sortManagedSessionsByUpdatedAt: Bool = false
+        loadTranscriptError: Error? = nil
     ) {
         self.sessions = sessions
         self.partialManagedSessionUpdates = partialManagedSessionUpdates.isEmpty
@@ -915,7 +912,6 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         self.partialTranscriptBatches = partialTranscriptBatches
         self.loadManagedSessionsError = loadManagedSessionsError
         self.loadTranscriptError = loadTranscriptError
-        self.sortManagedSessionsByUpdatedAt = sortManagedSessionsByUpdatedAt
         loadManagedSessionsExpectation.expectedFulfillmentCount = 1
         loadTranscriptExpectation.expectedFulfillmentCount = 1
     }
@@ -937,16 +933,7 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         if let loadManagedSessionsError {
             throw loadManagedSessionsError
         }
-        guard sortManagedSessionsByUpdatedAt else {
-            return sessions
-        }
-
-        return sessions.sorted { lhs, rhs in
-            if lhs.updatedAt == rhs.updatedAt {
-                return lhs.id < rhs.id
-            }
-            return lhs.updatedAt > rhs.updatedAt
-        }
+        return sessions
     }
 
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn] {
