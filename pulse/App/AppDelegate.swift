@@ -33,6 +33,7 @@ extension Notification.Name {
     static let pulsePanelDidOpen = Notification.Name("pulsePanelDidOpen")
     static let pulseShowSessionManagementWindow = Notification.Name("pulseShowSessionManagementWindow")
     static let pulseSessionManagementWindowDidOpen = Notification.Name("pulseSessionManagementWindowDidOpen")
+    static let pulseShowAgentUsageMappingWindow = Notification.Name("pulseShowAgentUsageMappingWindow")
 }
 
 private final class InputPanel: NSPanel {
@@ -80,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var agentStatusEventMonitor: Any?
     private var settingsWindow: NSWindow?
     private var sessionManagementWindow: NSWindow?
+    private var agentUsageMappingWindow: NSWindow?
     private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
     private var menuBarStatusView: MenuBarStatusItemView?
@@ -418,6 +420,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.showSessionManagementWindow()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .pulseShowAgentUsageMappingWindow)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                self?.showAgentUsageMappingWindow(notification)
+            }
+            .store(in: &cancellables)
     }
 
     private func applyCurrentTheme() {
@@ -431,6 +440,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow?.appearance = appearance
         settingsWindow?.contentViewController?.view.appearance = appearance
         settingsWindow?.contentView?.needsDisplay = true
+        agentUsageMappingWindow?.appearance = appearance
+        agentUsageMappingWindow?.contentViewController?.view.appearance = appearance
+        agentUsageMappingWindow?.contentView?.needsDisplay = true
     }
 
     private func applySessionManagementTheme() {
@@ -635,6 +647,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.post(name: .pulseSessionManagementWindowDidOpen, object: nil)
     }
 
+    private func showAgentUsageMappingWindow(_ notification: Notification) {
+        guard let providerCandidates = notification.userInfo?[AgentUsageMappingWindowNotificationKey.providerCandidates] as? [AgentUsageProviderMappingCandidate],
+              let modelCandidates = notification.userInfo?[AgentUsageMappingWindowNotificationKey.modelCandidates] as? [AgentUsageModelMappingCandidate] else {
+            return
+        }
+
+        closePanel()
+        closeAgentStatusPanel()
+
+        let window = agentUsageMappingWindow ?? makeAgentUsageMappingWindow()
+        agentUsageMappingWindow = window
+        window.appearance = themeManager.currentTheme.nsAppearance
+        window.contentViewController = makeAgentUsageMappingController(
+            providerCandidates: providerCandidates,
+            modelCandidates: modelCandidates
+        )
+        window.contentViewController?.view.appearance = themeManager.currentTheme.nsAppearance
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        if window.isVisible == false {
+            window.center()
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.arrangeInFront(nil)
+    }
+
     private func makeSettingsWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: SettingsWindowMetrics.defaultWidth, height: SettingsWindowMetrics.defaultHeight),
@@ -688,8 +730,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return window
     }
 
+    private func makeAgentUsageMappingWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1120, height: 960),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "All View Mapping"
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 900, height: 640)
+        window.appearance = themeManager.currentTheme.nsAppearance
+        window.isExcludedFromWindowsMenu = false
+        window.delegate = self
+        return window
+    }
+
+    private func makeAgentUsageMappingController(
+        providerCandidates: [AgentUsageProviderMappingCandidate],
+        modelCandidates: [AgentUsageModelMappingCandidate]
+    ) -> NSHostingController<AgentUsageMappingPanel> {
+        let controller = NSHostingController(
+            rootView: AgentUsageMappingPanel(
+                providerCandidates: providerCandidates,
+                modelCandidates: modelCandidates,
+                mappingStore: agentUsageStore.mappingStore
+            )
+        )
+        controller.view.appearance = themeManager.currentTheme.nsAppearance
+        return controller
+    }
+
     private func hasVisibleOwnedRegularWindow(excluding excludedWindow: NSWindow? = nil) -> Bool {
-        let ownedWindows: [NSWindow?] = [settingsWindow, sessionManagementWindow]
+        let ownedWindows: [NSWindow?] = [settingsWindow, sessionManagementWindow, agentUsageMappingWindow]
         return ownedWindows.contains { window in
             guard let window else { return false }
             return window !== excludedWindow && window.isVisible
@@ -698,7 +772,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              window === settingsWindow || window === sessionManagementWindow else { return }
+              window === settingsWindow || window === sessionManagementWindow || window === agentUsageMappingWindow else { return }
         if hasVisibleOwnedRegularWindow(excluding: window) == false {
             NSApp.setActivationPolicy(.accessory)
         }

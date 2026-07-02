@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct AgentUsageMappingPanel: View {
-    @Environment(\.dismiss) private var dismiss
     @ObservedObject var mappingStore: AgentUsageMappingStore
 
     @State private var rowDrafts: [String: MappingDraft]
@@ -9,8 +8,22 @@ struct AgentUsageMappingPanel: View {
     @State private var isShowingNewModelPrompt = false
     @State private var newProviderName = ""
     @State private var newModelName = ""
+    @State private var rowFilter = AgentUsageMappingRowFilter.all
 
     private let rows: [AgentUsageMappingRow]
+
+    private var filteredRows: [AgentUsageMappingRow] {
+        rows.filter { row in
+            switch rowFilter {
+            case .all:
+                return true
+            case .mapped:
+                return isRowMapped(row)
+            case .unmapped:
+                return isRowMapped(row) == false
+            }
+        }
+    }
 
     init(
         providerCandidates: [AgentUsageProviderMappingCandidate],
@@ -57,8 +70,10 @@ struct AgentUsageMappingPanel: View {
 
                     if rows.isEmpty {
                         emptyState("No combined provider/model rows are available for the current selection.")
+                    } else if filteredRows.isEmpty {
+                        emptyState("No \(rowFilter.title.lowercased()) rows match the current filter.")
                     } else {
-                        ForEach(rows) { row in
+                        ForEach(filteredRows) { row in
                             mappingRow(row)
                         }
                     }
@@ -76,9 +91,6 @@ struct AgentUsageMappingPanel: View {
             Button("Save") {
                 let normalized = newProviderName.trimmingCharacters(in: .whitespacesAndNewlines)
                 mappingStore.addProviderDisplayName(normalized)
-                if normalized.isEmpty == false {
-                    applyProviderNameToEmptyDrafts(normalized)
-                }
                 newProviderName = ""
             }
         } message: {
@@ -92,9 +104,6 @@ struct AgentUsageMappingPanel: View {
             Button("Save") {
                 let normalized = newModelName.trimmingCharacters(in: .whitespacesAndNewlines)
                 mappingStore.addModelDisplayName(normalized)
-                if normalized.isEmpty == false {
-                    applyModelNameToEmptyDrafts(normalized)
-                }
                 newModelName = ""
             }
         } message: {
@@ -115,50 +124,74 @@ struct AgentUsageMappingPanel: View {
             }
 
             Spacer()
-
-            Button("Done") {
-                dismiss()
-            }
-            .buttonStyle(.bordered)
         }
     }
 
     private var actionBar: some View {
-        HStack(spacing: 10) {
-            Button("New Provider Name") {
-                newProviderName = ""
-                isShowingNewProviderPrompt = true
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Button("New Provider Name") {
+                    newProviderName = ""
+                    isShowingNewProviderPrompt = true
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("New Model Name") {
+                    newModelName = ""
+                    isShowingNewModelPrompt = true
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Picker("Filter", selection: $rowFilter) {
+                    ForEach(AgentUsageMappingRowFilter.allCases) { filter in
+                        Text(filter.title).tag(filter)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+
+                Text("\(filteredRows.count) of \(rows.count) rows")
+                    .font(.system(size: 11))
+                    .foregroundColor(.appSecondaryText)
             }
-            .buttonStyle(.borderedProminent)
 
-            Button("New Model Name") {
-                newModelName = ""
-                isShowingNewModelPrompt = true
-            }
-            .buttonStyle(.borderedProminent)
+            savedNamesSection(
+                title: "Saved Provider Names",
+                names: mappingStore.providerDisplayNames,
+                emptyMessage: "No saved provider names yet.",
+                remove: removeProviderDisplayName
+            )
 
-            Spacer()
-
-            Text("\(rows.count) rows")
-                .font(.system(size: 11))
-                .foregroundColor(.appSecondaryText)
+            savedNamesSection(
+                title: "Saved Model Names",
+                names: mappingStore.modelDisplayNames,
+                emptyMessage: "No saved model names yet.",
+                remove: removeModelDisplayName
+            )
         }
     }
 
     private var tableHeader: some View {
         HStack(spacing: 12) {
-            headerLabel("Raw Source", width: 320)
-            headerLabel("Provider Mapping", width: 240)
-            headerLabel("Model Mapping", width: 240)
-            Spacer(minLength: 0)
+            headerLabel("Raw Source")
+                .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+            headerLabel("Provider Mapping")
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            headerLabel("Model Mapping")
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            headerLabel("Actions")
+                .frame(width: 150, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private func headerLabel(_ text: String, width: CGFloat) -> some View {
+    private func headerLabel(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(.appSecondaryText)
-            .frame(width: width, alignment: .leading)
     }
 
     private func mappingRow(_ row: AgentUsageMappingRow) -> some View {
@@ -167,55 +200,61 @@ struct AgentUsageMappingPanel: View {
                 Text(row.rawDisplayName)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.appPrimaryText)
+                    .lineLimit(2)
                 Text(compact(row.totalTokens))
                     .font(.system(size: 11))
                     .foregroundColor(.appSecondaryText)
             }
-            .frame(width: 320, alignment: .leading)
+            .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(2)
 
             providerPicker(for: row)
-                .frame(width: 240)
+                .frame(minWidth: 180, maxWidth: .infinity)
+                .layoutPriority(1)
 
             modelPicker(for: row)
-                .frame(width: 240)
+                .frame(minWidth: 180, maxWidth: .infinity)
+                .layoutPriority(1)
 
-            Spacer(minLength: 0)
-
-            Button("Save") {
-                save(row: row)
-            }
-            .buttonStyle(.borderedProminent)
-
-            Button("Reset") {
-                reset(row: row)
-            }
-            .buttonStyle(.bordered)
+            actionButtons(for: row)
+                .frame(width: 150, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
         .padding(12)
         .background(Color.appFieldBackground.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func providerPicker(for row: AgentUsageMappingRow) -> some View {
-        Picker("", selection: providerBinding(for: row)) {
-            Text("Unmapped").tag("")
-            ForEach(mappingStore.providerDisplayNames, id: \.self) { name in
-                Text(name).tag(name)
+    private func actionButtons(for row: AgentUsageMappingRow) -> some View {
+        HStack(spacing: 8) {
+            Button(isRowMapped(row) ? "Update" : "Save") {
+                save(row: row)
             }
+            .buttonStyle(.borderedProminent)
+            .frame(minWidth: 74)
+
+            Button("Reset") {
+                reset(row: row)
+            }
+            .buttonStyle(.bordered)
+            .frame(minWidth: 68)
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
+    }
+
+    private func providerPicker(for row: AgentUsageMappingRow) -> some View {
+        SearchableDropdown(
+            options: mappingStore.providerDisplayNames,
+            selection: providerBinding(for: row),
+            placeholder: "Unmapped"
+        )
     }
 
     private func modelPicker(for row: AgentUsageMappingRow) -> some View {
-        Picker("", selection: modelBinding(for: row)) {
-            Text("Unmapped").tag("")
-            ForEach(mappingStore.modelDisplayNames, id: \.self) { name in
-                Text(name).tag(name)
-            }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
+        SearchableDropdown(
+            options: mappingStore.modelDisplayNames,
+            selection: modelBinding(for: row),
+            placeholder: "Unmapped"
+        )
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -226,6 +265,56 @@ struct AgentUsageMappingPanel: View {
             .padding(12)
             .background(Color.appFieldBackground.opacity(0.6))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func savedNamesSection(
+        title: String,
+        names: [String],
+        emptyMessage: String,
+        remove: @escaping (String) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.appSecondaryText)
+
+            if names.isEmpty {
+                Text(emptyMessage)
+                    .font(.system(size: 11))
+                    .foregroundColor(.appTertiaryText)
+            } else {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 180), spacing: 8, alignment: .leading)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(names, id: \.self) { name in
+                        savedNameChip(name: name) {
+                            remove(name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func savedNameChip(name: String, remove: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.appPrimaryText)
+
+            Button(role: .destructive, action: remove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .help("Delete \(name)")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.appFieldBackground)
+        .clipShape(Capsule())
     }
 
     private func providerBinding(for row: AgentUsageMappingRow) -> Binding<String> {
@@ -282,18 +371,25 @@ struct AgentUsageMappingPanel: View {
         mappingStore.resetModelMapping(for: row.modelCandidate.identity)
     }
 
-    private func applyProviderNameToEmptyDrafts(_ displayName: String) {
+    private func removeProviderDisplayName(_ displayName: String) {
+        mappingStore.removeProviderDisplayName(displayName)
         for row in rows {
-            guard var draft = rowDrafts[row.id], draft.providerDisplayName.isEmpty else { continue }
-            draft.providerDisplayName = displayName
+            guard var draft = rowDrafts[row.id], draft.providerDisplayName == displayName else { continue }
+            draft.providerDisplayName = ""
             rowDrafts[row.id] = draft
         }
     }
 
-    private func applyModelNameToEmptyDrafts(_ displayName: String) {
+    private func isRowMapped(_ row: AgentUsageMappingRow) -> Bool {
+        mappingStore.displayProviderName(for: row.providerCandidate.identity)?.isEmpty == false
+            && mappingStore.displayModelMapping(for: row.modelCandidate.identity)?.displayModelName.isEmpty == false
+    }
+
+    private func removeModelDisplayName(_ displayName: String) {
+        mappingStore.removeModelDisplayName(displayName)
         for row in rows {
-            guard var draft = rowDrafts[row.id], draft.modelDisplayName.isEmpty else { continue }
-            draft.modelDisplayName = displayName
+            guard var draft = rowDrafts[row.id], draft.modelDisplayName == displayName else { continue }
+            draft.modelDisplayName = ""
             rowDrafts[row.id] = draft
         }
     }
@@ -326,4 +422,115 @@ private struct AgentUsageMappingRow: Identifiable {
 private struct MappingDraft {
     var providerDisplayName: String
     var modelDisplayName: String
+}
+
+private struct SearchableDropdown: View {
+    let options: [String]
+    @Binding var selection: String
+    var placeholder: String = "Unmapped"
+
+    @State private var isExpanded = false
+    @State private var searchText = ""
+
+    private var filteredOptions: [String] {
+        if searchText.isEmpty { return options }
+        return options.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(selection.isEmpty ? placeholder : selection)
+                    .font(.system(size: 12))
+                    .foregroundColor(selection.isEmpty ? .appTertiaryText : .appPrimaryText)
+                    .lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10))
+                    .foregroundColor(.appSecondaryText)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                searchText = selection
+                isExpanded.toggle()
+            }
+
+            if isExpanded {
+                Divider()
+
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundColor(.appTertiaryText)
+                    TextField("Search...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+
+                Divider()
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(filteredOptions, id: \.self) { option in
+                            Text(option)
+                                .font(.system(size: 12))
+                                .foregroundColor(.appPrimaryText)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .background(option == selection ? Color.accentColor.opacity(0.12) : Color.clear)
+                                .onTapGesture {
+                                    selection = option
+                                    isExpanded = false
+                                }
+                            if option != filteredOptions.last {
+                                Divider()
+                                    .padding(.leading, 8)
+                            }
+                        }
+
+                        if filteredOptions.isEmpty {
+                            Text("No matches")
+                                .font(.system(size: 11))
+                                .foregroundColor(.appTertiaryText)
+                                .padding(8)
+                        }
+                    }
+                }
+                .frame(maxHeight: 150)
+            }
+        }
+        .background(Color.appFieldBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isExpanded ? Color.accentColor : Color.appSecondaryText.opacity(0.25), lineWidth: 1)
+        )
+        .onChange(of: isExpanded) { expanded in
+            if !expanded {
+                searchText = ""
+            }
+        }
+    }
+}
+
+private enum AgentUsageMappingRowFilter: String, CaseIterable, Identifiable {
+    case all
+    case mapped
+    case unmapped
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "All"
+        case .mapped: return "Mapped"
+        case .unmapped: return "Unmapped"
+        }
+    }
 }

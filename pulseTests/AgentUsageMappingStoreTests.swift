@@ -104,4 +104,66 @@ final class AgentUsageMappingStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.modelDisplayNames, ["claude-4", "gpt-5.4"])
         defaults.removePersistentDomain(forName: suiteName)
     }
+
+    func testRemovingProviderDisplayNameDropsCatalogEntryAndDependentMappings() {
+        let store = AgentUsageMappingStore(persistence: InMemoryAgentUsageMappingPersistence())
+        let provider = AgentUsageProviderRawIdentity(
+            source: .codex,
+            rawProviderID: "codex-gpt",
+            rawProviderName: "codex-gpt"
+        )
+        let model = AgentUsageModelRawIdentity(
+            source: .codex,
+            rawProviderID: "codex-gpt",
+            rawProviderName: "codex-gpt",
+            rawModelID: "gpt-5.4",
+            rawModelName: "gpt-5.4",
+            rawModelVariant: nil
+        )
+
+        store.addProviderDisplayName("OpenAI")
+        store.upsertProviderMapping(
+            AgentUsageProviderDisplayMapping(identity: provider, displayProviderName: "OpenAI")
+        )
+        store.upsertModelMapping(
+            AgentUsageModelDisplayMapping(
+                identity: model,
+                displayProviderName: "OpenAI",
+                displayModelName: "gpt-5.4"
+            )
+        )
+
+        store.removeProviderDisplayName("OpenAI")
+
+        XCTAssertFalse(store.providerDisplayNames.contains("OpenAI"))
+        XCTAssertNil(store.displayProviderName(for: provider))
+        XCTAssertNil(store.displayModelMapping(for: model))
+    }
+
+    func testRemovingModelDisplayNameDropsCatalogEntryAndDependentModelMappings() {
+        let store = AgentUsageMappingStore(persistence: InMemoryAgentUsageMappingPersistence())
+        let model = AgentUsageModelRawIdentity(
+            source: .openCode,
+            rawProviderID: "custom",
+            rawProviderName: "custom",
+            rawModelID: "gpt-5.4",
+            rawModelName: "gpt-5.4",
+            rawModelVariant: nil
+        )
+
+        store.addProviderDisplayName("OpenAI")
+        store.addModelDisplayName("gpt-5.4")
+        store.upsertModelMapping(
+            AgentUsageModelDisplayMapping(
+                identity: model,
+                displayProviderName: "OpenAI",
+                displayModelName: "gpt-5.4"
+            )
+        )
+
+        store.removeModelDisplayName("gpt-5.4")
+
+        XCTAssertFalse(store.modelDisplayNames.contains("gpt-5.4"))
+        XCTAssertNil(store.displayModelMapping(for: model))
+    }
 }

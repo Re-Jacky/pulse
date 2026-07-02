@@ -141,6 +141,25 @@ final class AgentUsageMappingStore: ObservableObject {
         persist()
     }
 
+    func removeProviderDisplayName(_ displayName: String) {
+        let normalized = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else { return }
+
+        persistedMappings.providerDisplayNames.removeAll { $0 == normalized }
+        persistedMappings.providerMappings.removeAll { $0.displayProviderName == normalized }
+        persistedMappings.modelMappings.removeAll { $0.displayProviderName == normalized }
+        persist()
+    }
+
+    func removeModelDisplayName(_ displayName: String) {
+        let normalized = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else { return }
+
+        persistedMappings.modelDisplayNames.removeAll { $0 == normalized }
+        persistedMappings.modelMappings.removeAll { $0.displayModelName == normalized }
+        persist()
+    }
+
     var providerDisplayNames: [String] {
         persistedMappings.providerDisplayNames
     }

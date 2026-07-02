@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum AgentUsageMappingWindowNotificationKey {
+    static let providerCandidates = "providerCandidates"
+    static let modelCandidates = "modelCandidates"
+}
+
 struct AgentUsageView: View {
     @EnvironmentObject private var agentStore: AgentUsageStore
 
@@ -9,7 +14,6 @@ struct AgentUsageView: View {
     @AppStorage("agentUsageModelGroupBy") private var modelGroupBy = "model"
     @State private var persistedDateSelection = AgentDateSelectionStorage.load()
     @State private var persistedCustomDraftSelection = AgentDateSelectionDraftStorage.load()
-    @State private var isMappingPanelPresented = false
 
     private var selection: AgentUsageSelection {
         let requestedSource = AgentSource(rawValue: selectedSourceRawValue) ?? .all
@@ -76,13 +80,6 @@ struct AgentUsageView: View {
         }
         .onChange(of: agentStore.availableSources) { _ in
             syncSelectedSourceIfNeeded()
-        }
-        .sheet(isPresented: $isMappingPanelPresented) {
-            AgentUsageMappingPanel(
-                providerCandidates: data.providerMappingCandidates,
-                modelCandidates: data.modelMappingCandidates,
-                mappingStore: agentStore.mappingStore
-            )
         }
     }
 
@@ -300,7 +297,14 @@ struct AgentUsageView: View {
 
                 if data.selection.source == .all {
                     Button {
-                        isMappingPanelPresented = true
+                        NotificationCenter.default.post(
+                            name: .pulseShowAgentUsageMappingWindow,
+                            object: nil,
+                            userInfo: [
+                                AgentUsageMappingWindowNotificationKey.providerCandidates: data.providerMappingCandidates,
+                                AgentUsageMappingWindowNotificationKey.modelCandidates: data.modelMappingCandidates
+                            ]
+                        )
                     } label: {
                         Image(systemName: "gearshape")
                             .foregroundColor(.appSecondaryText)
