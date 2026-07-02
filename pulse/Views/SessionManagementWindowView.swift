@@ -13,6 +13,7 @@ private enum SessionManagementWindowLayout {
 struct SessionManagementWindowView: View {
     @EnvironmentObject private var store: SessionManagementStore
     @EnvironmentObject private var sessionManagerThemeManager: SessionManagerThemeManager
+    @EnvironmentObject private var agentUsageSettings: AgentUsageSettings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,11 +58,11 @@ struct SessionManagementWindowView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             DispatchQueue.main.async {
-                store.refresh()
+                store.refresh(enabledSources: agentUsageSettings.enabledSources)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .pulseSessionManagementWindowDidOpen)) { _ in
-            store.refresh()
+            store.refresh(enabledSources: agentUsageSettings.enabledSources)
         }
     }
 
@@ -74,7 +75,7 @@ struct SessionManagementWindowView: View {
             Spacer(minLength: 12)
 
             Button {
-                store.refresh()
+                store.refresh(enabledSources: agentUsageSettings.enabledSources)
             } label: {
                 if store.sessionListState == .loading {
                     HStack(spacing: 6) {
@@ -155,7 +156,7 @@ struct SessionManagementWindowView: View {
                 .multilineTextAlignment(.center)
 
             Button("Retry") {
-                store.refresh()
+                store.refresh(enabledSources: agentUsageSettings.enabledSources)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

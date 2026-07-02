@@ -1,8 +1,9 @@
 import Foundation
 
 protocol SessionManagementRepositorying {
-    func loadManagedSessions() throws -> [ManagedSessionSummary]
+    func loadManagedSessions(enabledSources: Set<AgentSource>) throws -> [ManagedSessionSummary]
     func loadManagedSessions(
+        enabledSources: Set<AgentSource>,
         onPartialUpdate: @escaping @Sendable (ManagedSessionsPartialUpdate) -> Void
     ) throws -> [ManagedSessionSummary]
     func loadTranscript(for session: ManagedSessionSummary) throws -> [TranscriptTurn]
@@ -72,11 +73,12 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         )
     }
 
-    func loadManagedSessions() throws -> [ManagedSessionSummary] {
-        try loadManagedSessions(onPartialUpdate: { _ in })
+    func loadManagedSessions(enabledSources: Set<AgentSource>) throws -> [ManagedSessionSummary] {
+        try loadManagedSessions(enabledSources: enabledSources, onPartialUpdate: { _ in })
     }
 
     func loadManagedSessions(
+        enabledSources: Set<AgentSource>,
         onPartialUpdate: @escaping @Sendable (ManagedSessionsPartialUpdate) -> Void
     ) throws -> [ManagedSessionSummary] {
         var openCodeSessions: [ManagedSessionSummary] = []
@@ -86,80 +88,84 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         var openCodeError: Error?
         var codexError: Error?
 
-        do {
-            let openCodeDatabaseURL = resolveOpenCodeDatabaseURL()
-            let snapshot = try loadOpenCodeSnapshot(openCodeDatabaseURL)
-            openCodeLoaded = true
-            discoveredOpenCodeDatabaseURL = openCodeDatabaseURL
+        if enabledSources.contains(.openCode) {
+            do {
+                let openCodeDatabaseURL = resolveOpenCodeDatabaseURL()
+                let snapshot = try loadOpenCodeSnapshot(openCodeDatabaseURL)
+                openCodeLoaded = true
+                discoveredOpenCodeDatabaseURL = openCodeDatabaseURL
 
-            var databaseURLBySessionID: [String: URL] = [:]
-            openCodeSessions = snapshot.sessions.map { session in
-                let managedSessionID = "opencode::\(session.id)"
-                databaseURLBySessionID[managedSessionID] = openCodeDatabaseURL
+                var databaseURLBySessionID: [String: URL] = [:]
+                openCodeSessions = snapshot.sessions.map { session in
+                    let managedSessionID = "opencode::\(session.id)"
+                    databaseURLBySessionID[managedSessionID] = openCodeDatabaseURL
 
-                return ManagedSessionSummary(
-                    id: managedSessionID,
-                    source: .openCode,
-                    rawSessionID: openCodeRawSessionID(from: session.id),
-                    title: session.title,
-                    projectPath: session.directory,
-                    projectName: session.shortProjectName,
-                    subtitle: OpenCodeUsageSnapshot.modelDisplayName(
-                        providerID: session.modelProviderID,
-                        modelID: session.modelID,
-                        variant: session.modelVariant
-                    ),
-                    updatedAt: session.updatedAt,
-                    transcriptURL: nil
+                    return ManagedSessionSummary(
+                        id: managedSessionID,
+                        source: .openCode,
+                        rawSessionID: openCodeRawSessionID(from: session.id),
+                        title: session.title,
+                        projectPath: session.directory,
+                        projectName: session.shortProjectName,
+                        subtitle: OpenCodeUsageSnapshot.modelDisplayName(
+                            providerID: session.modelProviderID,
+                            modelID: session.modelID,
+                            variant: session.modelVariant
+                        ),
+                        updatedAt: session.updatedAt,
+                        transcriptURL: nil
+                    )
+                }
+                openCodeDatabaseURLByManagedSessionID = databaseURLBySessionID
+                onPartialUpdate(
+                    ManagedSessionsPartialUpdate(
+                        sessions: openCodeSessions,
+                        loadedSources: [.openCode]
+                    )
                 )
+            } catch {
+                openCodeError = error
+                discoveredOpenCodeDatabaseURL = nil
+                openCodeDatabaseURLByManagedSessionID = [:]
             }
-            openCodeDatabaseURLByManagedSessionID = databaseURLBySessionID
-            onPartialUpdate(
-                ManagedSessionsPartialUpdate(
-                    sessions: openCodeSessions,
-                    loadedSources: [.openCode]
-                )
-            )
-        } catch {
-            openCodeError = error
-            discoveredOpenCodeDatabaseURL = nil
-            openCodeDatabaseURLByManagedSessionID = [:]
         }
 
-        do {
-            codexSessions = try loadCodexSnapshot()
-                .sessions
-                .filter { $0.isSubagent == false }
-                .map { session in
-                ManagedSessionSummary(
-                    id: "codex::\(session.id)",
-                    source: .codex,
-                    rawSessionID: session.id,
-                    title: session.title,
-                    projectPath: session.cwd,
-                    projectName: session.shortProjectName,
-                    subtitle: "\(session.modelProvider) / \(session.model)",
-                    updatedAt: session.updatedAt,
-                    transcriptURL: session.transcriptURL
+        if enabledSources.contains(.codex) {
+            do {
+                codexSessions = try loadCodexSnapshot()
+                    .sessions
+                    .filter { $0.isSubagent == false }
+                    .map { session in
+                    ManagedSessionSummary(
+                        id: "codex::\(session.id)",
+                        source: .codex,
+                        rawSessionID: session.id,
+                        title: session.title,
+                        projectPath: session.cwd,
+                        projectName: session.shortProjectName,
+                        subtitle: "\(session.modelProvider) / \(session.model)",
+                        updatedAt: session.updatedAt,
+                        transcriptURL: session.transcriptURL
+                    )
+                    }
+                codexLoaded = true
+                onPartialUpdate(
+                    ManagedSessionsPartialUpdate(
+                        sessions: (openCodeSessions + codexSessions).sorted { lhs, rhs in
+                            if lhs.updatedAt == rhs.updatedAt {
+                                return lhs.id < rhs.id
+                            }
+                            return lhs.updatedAt > rhs.updatedAt
+                        },
+                        loadedSources: Set([
+                            openCodeLoaded ? AgentSource.openCode : nil,
+                            .codex
+                        ].compactMap { $0 })
+                    )
                 )
-                }
-            codexLoaded = true
-            onPartialUpdate(
-                ManagedSessionsPartialUpdate(
-                    sessions: (openCodeSessions + codexSessions).sorted { lhs, rhs in
-                        if lhs.updatedAt == rhs.updatedAt {
-                            return lhs.id < rhs.id
-                        }
-                        return lhs.updatedAt > rhs.updatedAt
-                    },
-                    loadedSources: Set([
-                        openCodeLoaded ? AgentSource.openCode : nil,
-                        .codex
-                    ].compactMap { $0 })
-                )
-            )
-        } catch {
-            codexError = error
+            } catch {
+                codexError = error
+            }
         }
 
         guard openCodeLoaded || codexLoaded else {

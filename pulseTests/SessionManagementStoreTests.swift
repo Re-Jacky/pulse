@@ -645,7 +645,7 @@ final class SessionManagementStoreTests: XCTestCase {
             }
         )
 
-        let sessions = try repository.loadManagedSessions()
+        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
 
         XCTAssertEqual(sessions.map(\.id), ["codex::thread_1"])
     }
@@ -678,7 +678,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexSnapshot: { throw CodexUsageQuery.QueryError.databaseNotFound(path: "/tmp/.codex") }
         )
 
-        let sessions = try repository.loadManagedSessions()
+        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
 
         XCTAssertEqual(sessions.map(\.id), ["opencode::ses_1::openai::gpt-5.4::default"])
         XCTAssertEqual(sessions.first?.rawSessionID, "ses_1")
@@ -727,7 +727,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexSnapshot: { CodexUsageSnapshot(sessions: []) }
         )
 
-        let sessions = try repository.loadManagedSessions()
+        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
         _ = try repository.loadTranscript(for: sessions[0])
 
         XCTAssertEqual(transcriptDatabasePaths, [expectedDatabaseURL.path])
@@ -776,7 +776,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexTranscriptProgressively: { _, _, _ in [] }
         )
 
-        let sessions = try repository.loadManagedSessions()
+        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
         var publishedBatches: [[TranscriptTurn]] = []
         let transcript = try repository.loadTranscript(for: sessions[0]) { turns in
             publishedBatches.append(turns)
@@ -916,11 +916,12 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         loadTranscriptExpectation.expectedFulfillmentCount = 1
     }
 
-    func loadManagedSessions() throws -> [ManagedSessionSummary] {
-        try loadManagedSessions { _ in }
+    func loadManagedSessions(enabledSources: Set<AgentSource>) throws -> [ManagedSessionSummary] {
+        try loadManagedSessions(enabledSources: enabledSources, onPartialUpdate: { _ in })
     }
 
     func loadManagedSessions(
+        enabledSources: Set<AgentSource>,
         onPartialUpdate: @escaping @Sendable (ManagedSessionsPartialUpdate) -> Void
     ) throws -> [ManagedSessionSummary] {
         loadManagedSessionsCallCount += 1

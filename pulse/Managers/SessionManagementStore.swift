@@ -27,8 +27,8 @@ final class SessionManagementStore: ObservableObject {
         self.repository = repository
     }
 
-    func refreshIfNeeded() {
-        refresh()
+    func refreshIfNeeded(enabledSources: Set<AgentSource> = Set(AgentSource.selectableCases)) {
+        refresh(enabledSources: enabledSources)
     }
 
     func setSelectedSourceFilter(_ sourceFilter: SessionManagerSourceFilter) {
@@ -50,24 +50,24 @@ final class SessionManagementStore: ObservableObject {
         reconcileSelectionWithVisibleSessions()
     }
 
-    func refresh() {
+    func refresh(enabledSources: Set<AgentSource> = Set(AgentSource.selectableCases)) {
         guard isLoadingSessions == false else { return }
 
         selectSession(id: nil)
         isLoadingSessions = true
         sessionListState = .loading
-        loadingSources = Set(AgentSource.selectableCases)
+        loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
 
         let repository = self.repository
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result {
-                try repository.loadManagedSessions { update in
+                try repository.loadManagedSessions(enabledSources: enabledSources) { update in
                     DispatchQueue.main.async {
                         self.sessions = update.sessions
                         self.refreshProjectOptionsForCurrentSource()
                         self.reconcileSelectionWithVisibleSessions()
                         self.sessionListState = .loading
-                        self.loadingSources = Set(AgentSource.selectableCases)
+                        self.loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
                             .subtracting(update.loadedSources)
                     }
                 }

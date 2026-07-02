@@ -724,6 +724,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             rootView: SessionManagementWindowView()
                 .environmentObject(sessionManagementStore)
                 .environmentObject(sessionManagerThemeManager)
+                .environmentObject(agentUsageSettings)
         )
         controller.view.appearance = sessionManagerThemeManager.currentTheme.nsAppearance
         window.contentViewController = controller

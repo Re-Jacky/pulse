@@ -103,12 +103,15 @@ throw QueryError.databaseOpenFailed(message: message)
 }
 defer { sqlite3_close(db) }
 
+let hasAgentColumn = tableHasColumn(db: db, table: "session", column: "agent")
+let agentExpr = hasAgentColumn ? "coalesce(s.agent, '')" : "''"
+
 let sql = """
 select
 s.id,
 s.title,
 s.directory,
-coalesce(s.agent, ''),
+\(agentExpr),
 coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
 coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
 nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
@@ -431,6 +434,20 @@ return String(cString: value)
 private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> String? {
 let value = stringColumn(statement, index: index)
 return value.isEmpty ? nil : value
+}
+
+private func tableHasColumn(db: OpaquePointer?, table: String, column: String) -> Bool {
+    let pragma = "PRAGMA table_info(\(table))"
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, pragma, -1, &stmt, nil) == SQLITE_OK else { return false }
+    defer { sqlite3_finalize(stmt) }
+    while sqlite3_step(stmt) == SQLITE_ROW {
+        if let namePtr = sqlite3_column_text(stmt, 1) {
+            let name = String(cString: namePtr)
+            if name == column { return true }
+        }
+    }
+    return false
 }
 
 private func transcriptTurnFromOpenCodeMessage(

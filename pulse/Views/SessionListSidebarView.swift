@@ -2,15 +2,27 @@ import SwiftUI
 
 struct SessionListSidebarView: View {
     @EnvironmentObject private var store: SessionManagementStore
+    @EnvironmentObject private var agentUsageSettings: AgentUsageSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Source", selection: sourceFilterBinding) {
-                ForEach(SessionManagerSourceFilter.allCases) { source in
-                    Text(sourceLabel(for: source)).tag(source)
+            let enabledSources = agentUsageSettings.enabledSources
+            let availableFilters = SessionManagerSourceFilter.allCases.filter { filter in
+                switch filter {
+                case .all: return enabledSources.count >= 2
+                case .openCode: return enabledSources.contains(.openCode)
+                case .codex: return enabledSources.contains(.codex)
                 }
             }
-            .pickerStyle(.segmented)
+
+            if availableFilters.count >= 2 {
+                Picker("Source", selection: sourceFilterBinding) {
+                    ForEach(availableFilters) { source in
+                        Text(sourceLabel(for: source)).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
 
             SearchableSelectorView(
                 label: "Project",
