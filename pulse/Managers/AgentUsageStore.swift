@@ -329,7 +329,7 @@ final class AgentUsageStore: ObservableObject {
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.isSessionScope == false,
-            showsTokenFlow: selection.source == .all && isTodayEquivalentSelection == false
+            showsTokenFlow: selection.isSessionScope == false && isTodayEquivalentSelection == false
         )
 
         derivedDataCache = (cacheKey, derivedData)
@@ -666,16 +666,14 @@ final class AgentUsageStore: ObservableObject {
 
     private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
         let interval = dayInterval(for: selection.dateSelection)
-        guard selection.source == .all, selectionResolvesToToday(selection.dateSelection, interval: interval) == false else { return [] }
+        guard selectionResolvesToToday(selection.dateSelection, interval: interval) == false else { return [] }
 
-        let openCodeTotals = openCodeTokenFlowTotals(
-            interval: interval,
-            snapshot: openCodeSnapshot
-        )
-        let codexTotals = codexTokenFlowTotals(
-            interval: interval,
-            snapshot: codexSnapshot
-        )
+        let openCodeTotals = selection.source != .codex
+            ? openCodeTokenFlowTotals(interval: interval, snapshot: openCodeSnapshot)
+            : [:]
+        let codexTotals = selection.source != .openCode
+            ? codexTokenFlowTotals(interval: interval, snapshot: codexSnapshot)
+            : [:]
 
         guard openCodeTotals.isEmpty == false || codexTotals.isEmpty == false else { return [] }
 
