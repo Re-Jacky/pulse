@@ -153,7 +153,7 @@ struct AgentStatusManagementView: View {
                     .foregroundColor(.appPrimaryText)
                     .lineLimit(1)
 
-                ForEach(detailLines(for: slot)) { detail in
+                ForEach(Self.detailLines(for: slot)) { detail in
                     if let tooltip = detail.tooltip {
                         TooltipTextLine(text: detail.text, tooltip: tooltip)
                     } else {
@@ -182,11 +182,15 @@ struct AgentStatusManagementView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func detailLines(for slot: AgentSessionSlot) -> [SlotDetailLine] {
+    private static func detailLines(for slot: AgentSessionSlot) -> [SlotDetailLine] {
         var details: [SlotDetailLine] = []
 
         if let sessionTitle = slot.sessionTitle, sessionTitle.isEmpty == false {
             details.append(SlotDetailLine(text: sessionTitle, tooltip: nil))
+        }
+
+        if let sessionID = slot.sessionID, sessionID.isEmpty == false {
+            details.append(SlotDetailLine(text: "Session ID: \(sessionID)", tooltip: sessionID))
         }
 
         if let projectPath = slot.projectPath, projectPath.isEmpty == false {
@@ -214,6 +218,10 @@ struct AgentStatusManagementView: View {
 extension AgentStatusManagementView {
     static func color(for state: AgentSessionLightState) -> Color {
         AgentSessionLightColor.swiftUIColor(for: state)
+    }
+
+    static func detailLineTexts(for slot: AgentSessionSlot) -> [String] {
+        detailLines(for: slot).map(\.text)
     }
 }
 #endif

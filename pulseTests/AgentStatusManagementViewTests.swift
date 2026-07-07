@@ -70,17 +70,37 @@ final class AgentStatusManagementViewTests: XCTestCase {
         XCTAssertTrue(TooltipPresentation.shouldShowTooltip(isHovering: true, tooltip: "/tmp/project"))
     }
 
+    func testSessionRowsIncludeSessionIDDetailLine() {
+        let slot = makeSlot(
+            agent: .codex,
+            state: .working,
+            sessionID: "session-123",
+            projectPath: "/tmp/project",
+            projectName: "project",
+            sessionTitle: "Session"
+        )
+
+        XCTAssertEqual(
+            AgentStatusManagementView.detailLineTexts(for: slot),
+            ["Session", "Session ID: session-123", "/tmp/project"]
+        )
+    }
+
     private func makeSlot(
         agent: AgentStatusAgent,
-        state: AgentSessionLightState
+        state: AgentSessionLightState,
+        sessionID: String = UUID().uuidString,
+        projectPath: String = "/tmp/project",
+        projectName: String = "project",
+        sessionTitle: String = "Session"
     ) -> AgentSessionSlot {
         AgentSessionSlot(
             id: UUID(),
             agent: agent,
-            sessionID: UUID().uuidString,
-            projectPath: "/tmp/project",
-            projectName: "project",
-            sessionTitle: "Session",
+            sessionID: sessionID,
+            projectPath: projectPath,
+            projectName: projectName,
+            sessionTitle: sessionTitle,
             state: state,
             lastTransitionAt: nil,
             lastSeenAt: nil
