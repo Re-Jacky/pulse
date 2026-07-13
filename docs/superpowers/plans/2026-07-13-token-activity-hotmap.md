@@ -1,3 +1,49 @@
+# Token Activity Hotmap Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+**Goal:** Add a persisted Activity/Trend switcher to the Agent tab token chart, defaulting to a GitHub-style token activity hotmap.
+
+**Architecture:** Keep `AgentUsageStore` and `TokenUsageDataPoint` unchanged. Refactor `AgentUsageFlowChartView` into a small container with an `@AppStorage` mode picker, a new activity hotmap renderer, and the existing chart logic moved into a trend renderer.
+
+**Tech Stack:** Swift 5.9+, SwiftUI, Charts, AppKit menu bar app, no external dependencies.
+
+## Global Constraints
+
+- Keep semantic colors from `pulse/Views/Colors.swift`; avoid hard-coded light/dark values.
+- Do not introduce new database queries or refresh behavior.
+- Keep `TokenUsageDataPoint` unchanged.
+- Preserve the existing `AgentUsageView` call site contract: pass `[TokenUsageDataPoint]` only.
+- Empty or hidden chart behavior stays unchanged.
+- `Activity` is the default selected mode and persists with `@AppStorage`.
+
+---
+
+### Task 1: Refactor Token Chart Into Activity/Trend Modes
+
+**Files:**
+- Modify: `pulse/Views/AgentUsageFlowChartView.swift`
+- Verify: `pulse/Views/AgentUsageView.swift`
+
+**Interfaces:**
+- Consumes: `TokenUsageDataPoint` with `date: Date`, `totalTokens: Int`, `bucketSizeDays: Int`
+- Produces: `AgentUsageFlowChartView(dataPoints: [TokenUsageDataPoint])` with unchanged initializer
+
+- [x] **Step 1: Inspect the current chart call site**
+
+Run:
+
+```bash
+codegraph explore "AgentUsageFlowChartView AgentUsageView tokenFlowData TokenUsageDataPoint"
+```
+
+Expected: `AgentUsageView` only passes `data.tokenFlowData` to `AgentUsageFlowChartView`, so no call site changes are required.
+
+- [x] **Step 2: Replace `AgentUsageFlowChartView.swift` with mode-aware implementation**
+
+Use this structure:
+
+```swift
 import SwiftUI
 import Charts
 
@@ -17,7 +63,6 @@ private enum AgentUsageChartMode: String, CaseIterable, Identifiable {
 
 struct AgentUsageFlowChartView: View {
     let dataPoints: [TokenUsageDataPoint]
-
     @AppStorage("agentUsageTokenChartMode") private var selectedModeRawValue = AgentUsageChartMode.activity.rawValue
 
     private var selectedMode: AgentUsageChartMode {
@@ -65,7 +110,13 @@ struct AgentUsageFlowChartView: View {
         return sizes.count == 1 ? sizes.first : nil
     }
 }
+```
 
+- [x] **Step 3: Add `AgentUsageActivityHotmapView` below the container**
+
+Use daily calendar columns when `bucketSizeDays == 1`, and compact sequential cells otherwise:
+
+```swift
 private struct AgentUsageActivityHotmapView: View {
     let dataPoints: [TokenUsageDataPoint]
 
@@ -75,24 +126,21 @@ private struct AgentUsageActivityHotmapView: View {
 
     var body: some View {
         if bucketSizeDays == 1 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: rows, alignment: .top, spacing: cellSpacing) {
-                    ForEach(calendarCells) { cell in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(color(for: cell.totalTokens, isInRange: cell.isInRange))
-                            .frame(width: cellSize, height: cellSize)
-                            .help(helpText(for: cell))
-                    }
+            LazyHGrid(rows: rows, alignment: .top, spacing: cellSpacing) {
+                ForEach(calendarCells) { cell in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(color(for: cell.totalTokens))
+                        .frame(width: cellSize, height: cellSize)
+                        .help(helpText(for: cell))
                 }
-                .padding(.vertical, 1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: (cellSize * 7) + (cellSpacing * 6) + 2)
+            .frame(height: (cellSize * 7) + (cellSpacing * 6))
         } else {
             LazyVGrid(columns: sequentialColumns, alignment: .leading, spacing: cellSpacing) {
                 ForEach(dataPoints) { point in
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(color(for: point.totalTokens, isInRange: true))
+                        .fill(color(for: point.totalTokens))
                         .frame(width: cellSize, height: cellSize)
                         .help("\(compact(point.totalTokens)) tokens starting \(shortDate(point.date))")
                 }
@@ -128,7 +176,8 @@ private struct AgentUsageActivityHotmapView: View {
               let lastDate = dataPoints.last?.date else { return [] }
         let firstDay = agentUsageDayIdentifier(for: firstDate, calendar: calendar)
         let lastDay = agentUsageDayIdentifier(for: lastDate, calendar: calendar)
-        let startDay = firstDay - weekdayIndex(for: firstDate)
+        let firstWeekdayIndex = weekdayIndex(for: firstDate)
+        let startDay = firstDay - firstWeekdayIndex
         let dayCount = lastDay - startDay + 1
         let paddedCount = Int(ceil(Double(max(dayCount, 1)) / 7.0)) * 7
 
@@ -136,19 +185,12 @@ private struct AgentUsageActivityHotmapView: View {
             let day = startDay + offset
             let date = date(forDayIdentifier: day)
             let isInRange = day >= firstDay && day <= lastDay
-            return ActivityCell(
-                day: day,
-                date: date,
-                totalTokens: isInRange ? tokenByDay[day, default: 0] : 0,
-                isInRange: isInRange
-            )
+            return ActivityCell(day: day, date: date, totalTokens: isInRange ? tokenByDay[day, default: 0] : 0, isInRange: isInRange)
         }
     }
 
-    private func color(for tokens: Int, isInRange: Bool) -> Color {
-        guard isInRange else { return Color.clear }
+    private func color(for tokens: Int) -> Color {
         guard tokens > 0 else { return Color.appFieldBorder.opacity(0.35) }
-
         let ratio = Double(tokens) / Double(maxTokens)
         switch ratio {
         case ..<0.25: return Color.accentColor.opacity(0.28)
@@ -194,7 +236,13 @@ private struct AgentUsageActivityHotmapView: View {
         var id: Int { day }
     }
 }
+```
 
+- [x] **Step 4: Move the existing Chart code into `AgentUsageTrendChartView`**
+
+Keep the existing visual behavior, title removed because the container title is now shared:
+
+```swift
 private struct AgentUsageTrendChartView: View {
     let dataPoints: [TokenUsageDataPoint]
 
@@ -249,3 +297,35 @@ private struct AgentUsageTrendChartView: View {
         return "\(value)"
     }
 }
+```
+
+- [x] **Step 5: Run the build**
+
+Run:
+
+```bash
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
+```
+
+Expected: Build succeeds without Swift compiler errors.
+
+- [x] **Step 6: Run the test suite**
+
+Run:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'
+```
+
+Expected: Test suite passes.
+
+- [x] **Step 7: Commit implementation**
+
+Run:
+
+```bash
+git add pulse/Views/AgentUsageFlowChartView.swift docs/superpowers/plans/2026-07-13-token-activity-hotmap.md
+git commit -m "feat: add token activity hotmap"
+```
+
+Expected: Commit succeeds with only the chart implementation and plan document staged.
