@@ -119,6 +119,7 @@ struct AgentUsageDerivedViewData {
     let projectOptions: [SearchableSelectorOption]
     let sessionOptions: [SearchableSelectorOption]
     let tokenFlowData: [TokenUsageDataPoint]
+    let activityCalendarData: [TokenUsageDataPoint]
     let usageMetrics: [AgentUsageMetricCard]
     let summaryPills: [AgentUsageSummaryPill]
     let contextRows: [AgentUsageDetailRow]

@@ -105,6 +105,62 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertTrue(explicitRange.tokenFlowData.isEmpty)
     }
 
+    func testNonAllTimeSelectionsHideTokenActivity() {
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [openCodeBucket(day: 100, totalTokens: 42, sessionID: "oc-1")],
+            codexBuckets: []
+        )
+
+        let last30Days = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .preset(.last30Days),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let explicitRange = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .dayRange(startDay: 100, endDay: 100),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertFalse(last30Days.showsTokenFlow)
+        XCTAssertFalse(explicitRange.showsTokenFlow)
+        XCTAssertTrue(last30Days.tokenFlowData.isEmpty)
+        XCTAssertTrue(explicitRange.tokenFlowData.isEmpty)
+        XCTAssertTrue(last30Days.activityCalendarData.isEmpty)
+        XCTAssertTrue(explicitRange.activityCalendarData.isEmpty)
+    }
+
+    func testAllTimeActivityCalendarDataUsesDailyUncompressedBuckets() {
+        let store = makeStoreWithLoadedState(
+            openCodeBuckets: [
+                openCodeBucket(day: 100, totalTokens: 10, sessionID: "oc-1"),
+                openCodeBucket(day: 160, totalTokens: 20, sessionID: "oc-1")
+            ],
+            codexBuckets: []
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .openCode,
+            dateSelection: .preset(.allTime),
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertTrue(data.showsTokenFlow)
+        XCTAssertTrue(data.tokenFlowData.contains { $0.bucketSizeDays > 1 })
+        XCTAssertEqual(data.activityCalendarData.map(\.bucketSizeDays), [1, 1])
+        XCTAssertEqual(data.activityCalendarData.map(\.totalTokens), [10, 20])
+        XCTAssertEqual(
+            data.activityCalendarData.map { agentUsageDayIdentifier(for: $0.date, calendar: .autoupdatingCurrent) },
+            [100, 160]
+        )
+    }
+
     func testAgentUsageSelectionInitializesDateSelectionWithoutLosingExplicitSelection() {
         let selection = AgentUsageSelection(
             source: .openCode,

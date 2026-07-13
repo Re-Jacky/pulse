@@ -47,8 +47,11 @@ struct AgentUsageView: View {
                     selectorsBlock(selection: selection, data: data)
                     detailBlock(selection: selection, data: data)
 
-                    if data.showsTokenFlow && data.tokenFlowData.isEmpty == false {
-                        AgentUsageFlowChartView(dataPoints: data.tokenFlowData)
+                    if data.showsTokenFlow {
+                        AgentUsageFlowChartView(
+                            trendDataPoints: data.tokenFlowData,
+                            activityDataPoints: data.activityCalendarData
+                        )
                     }
 
                     if data.showsByModel {

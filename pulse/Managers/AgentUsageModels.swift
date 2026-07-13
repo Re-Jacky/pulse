@@ -211,6 +211,17 @@ func agentUsageDayIdentifier(for date: Date, calendar: Calendar = .autoupdatingC
     Int(calendar.startOfDay(for: date).timeIntervalSince1970 * 1000) / 86_400_000
 }
 
+func dateForAgentUsageDayIdentifier(_ day: Int, calendar: Calendar = .autoupdatingCurrent) -> Date {
+    var date = Date(timeIntervalSince1970: Double(day * 86_400_000) / 1000)
+    while agentUsageDayIdentifier(for: date, calendar: calendar) < day {
+        date = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+    }
+    while agentUsageDayIdentifier(for: date, calendar: calendar) > day {
+        date = calendar.date(byAdding: .day, value: -1, to: date) ?? date.addingTimeInterval(-86_400)
+    }
+    return calendar.startOfDay(for: date)
+}
+
 func agentUsageDayInterval(
     for selection: AgentDateSelection,
     now: Date = Date(),

@@ -2,6 +2,103 @@ import XCTest
 @testable import Pulse
 
 final class AgentUsageViewDataTests: XCTestCase {
+    func testTokenActivityDefaultMonthUsesCurrentMonthWhenItHasActivity() {
+        let calendar = Calendar.gregorianUTCForTests
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 13))!
+        let currentMonthDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 2))!
+        let olderDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30))!
+
+        let month = AgentUsageActivityCalendarLayout.displayMonth(
+            for: [
+                TokenUsageDataPoint(date: olderDate, totalTokens: 10, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: currentMonthDate, totalTokens: 20, bucketSizeDays: 1)
+            ],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(month.year, 2026)
+        XCTAssertEqual(month.month, 7)
+    }
+
+    func testTokenActivityDefaultMonthUsesCurrentMonthWhenActivityIsOlder() {
+        let calendar = Calendar.gregorianUTCForTests
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 13))!
+        let latestDate = calendar.date(from: DateComponents(year: 2026, month: 5, day: 18))!
+        let olderDate = calendar.date(from: DateComponents(year: 2025, month: 12, day: 20))!
+
+        let month = AgentUsageActivityCalendarLayout.displayMonth(
+            for: [
+                TokenUsageDataPoint(date: olderDate, totalTokens: 10, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: latestDate, totalTokens: 20, bucketSizeDays: 1)
+            ],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(month.year, 2026)
+        XCTAssertEqual(month.month, 7)
+    }
+
+    func testTokenActivityDefaultYearUsesCurrentYearWhenActivityIsOlder() {
+        let calendar = Calendar.gregorianUTCForTests
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 13))!
+        let olderDate = calendar.date(from: DateComponents(year: 2025, month: 12, day: 20))!
+
+        let year = AgentUsageActivityCalendarLayout.displayYear(
+            for: [TokenUsageDataPoint(date: olderDate, totalTokens: 10, bucketSizeDays: 1)],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(year, 2026)
+    }
+
+    func testTokenActivityMonthCellsUseNaturalCalendarPadding() {
+        let calendar = Calendar.gregorianUTCForTests
+        let month = AgentUsageActivityDisplayMonth(year: 2026, month: 7)
+        let cells = AgentUsageActivityCalendarLayout.monthCells(for: month, calendar: calendar)
+
+        XCTAssertEqual(cells.count, 35)
+        XCTAssertFalse(cells[0].isInDisplayedMonth)
+        XCTAssertEqual(calendar.component(.day, from: cells[0].date), 28)
+        XCTAssertTrue(cells[3].isInDisplayedMonth)
+        XCTAssertEqual(calendar.component(.day, from: cells[3].date), 1)
+        XCTAssertTrue(cells[33].isInDisplayedMonth)
+        XCTAssertEqual(calendar.component(.day, from: cells[33].date), 31)
+        XCTAssertFalse(cells[34].isInDisplayedMonth)
+    }
+
+    func testTokenActivityWeekdayLabelsUseThreeLetterNames() {
+        var calendar = Calendar.gregorianUTCForTests
+        calendar.firstWeekday = 2
+
+        XCTAssertEqual(
+            AgentUsageActivityCalendarLayout.weekdayLabels(calendar: calendar),
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        )
+    }
+
+    func testTokenActivityDisplayMonthCanMoveForwardAndBackward() {
+        XCTAssertEqual(
+            AgentUsageActivityCalendarLayout.month(byAdding: -1, to: AgentUsageActivityDisplayMonth(year: 2026, month: 1)),
+            AgentUsageActivityDisplayMonth(year: 2025, month: 12)
+        )
+        XCTAssertEqual(
+            AgentUsageActivityCalendarLayout.month(byAdding: 1, to: AgentUsageActivityDisplayMonth(year: 2026, month: 12)),
+            AgentUsageActivityDisplayMonth(year: 2027, month: 1)
+        )
+    }
+
+    func testTokenActivityYearSummaryUsesTwelveMonthlyBuckets() {
+        let calendar = Calendar.gregorianUTCForTests
+        let months = AgentUsageActivityCalendarLayout.yearMonths(for: 2026, calendar: calendar)
+
+        XCTAssertEqual(months.count, 12)
+        XCTAssertEqual(months.first, AgentUsageActivityDisplayMonth(year: 2026, month: 1))
+        XCTAssertEqual(months.last, AgentUsageActivityDisplayMonth(year: 2026, month: 12))
+    }
+
     func testDateSelectionSummaryLabelForPresetToday() {
         XCTAssertEqual(
             AgentDateSelectionTriggerLabel.text(for: .preset(.today), calendar: .gregorianUTCForTests),
@@ -431,7 +528,7 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.tokenFlowData.first?.bucketSizeDays, 2)
     }
 
-    func testDerivedDataForAllSourceTokenFlowFallsBackPerSourceWhenOnlyOneHasBuckets() {
+    func testDerivedDataForRangedAllSourceHidesTokenActivityWhenOnlyOneSourceHasBuckets() {
         let now = Date()
         let today = Calendar.current.startOfDay(for: now)
         let todayDay = agentUsageDayIdentifier(for: today)
@@ -477,7 +574,9 @@ final class AgentUsageViewDataTests: XCTestCase {
         ))
 
         XCTAssertEqual(data.summary.totalTokens, 95)
-        XCTAssertEqual(data.tokenFlowData.reduce(0) { $0 + $1.totalTokens }, 95)
+        XCTAssertFalse(data.showsTokenFlow)
+        XCTAssertTrue(data.tokenFlowData.isEmpty)
+        XCTAssertTrue(data.activityCalendarData.isEmpty)
     }
 
     func testDataSourceDescriptionForCodexMentionsDatabaseAndTranscripts() {
