@@ -16,7 +16,8 @@ private enum AgentUsageChartMode: String, CaseIterable, Identifiable {
 }
 
 struct AgentUsageFlowChartView: View {
-    let dataPoints: [TokenUsageDataPoint]
+    let trendDataPoints: [TokenUsageDataPoint]
+    let activityDataPoints: [TokenUsageDataPoint]
 
     @AppStorage("agentUsageTokenChartMode") private var selectedModeRawValue = AgentUsageChartMode.activity.rawValue
 
@@ -27,9 +28,17 @@ struct AgentUsageFlowChartView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text("Token Activity")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.appPrimaryText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Token Activity")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.appPrimaryText)
+
+                    if selectedMode == .activity {
+                        Text("Calendar year \(displayYear)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.appSecondaryText)
+                    }
+                }
 
                 Spacer()
 
@@ -42,7 +51,7 @@ struct AgentUsageFlowChartView: View {
                 .frame(width: 150)
             }
 
-            if let bucketSizeDays = bucketSizeDays, bucketSizeDays > 1 {
+            if selectedMode == .trend, let bucketSizeDays = trendBucketSizeDays, bucketSizeDays > 1 {
                 Text("Each point combines \(bucketSizeDays) days.")
                     .font(.system(size: 10))
                     .foregroundColor(.appSecondaryText)
@@ -50,9 +59,9 @@ struct AgentUsageFlowChartView: View {
 
             switch selectedMode {
             case .activity:
-                AgentUsageActivityHotmapView(dataPoints: dataPoints)
+                AgentUsageActivityHotmapView(dataPoints: activityDataPoints)
             case .trend:
-                AgentUsageTrendChartView(dataPoints: dataPoints)
+                AgentUsageTrendChartView(dataPoints: trendDataPoints)
             }
         }
         .padding(12)
@@ -60,8 +69,12 @@ struct AgentUsageFlowChartView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var bucketSizeDays: Int? {
-        let sizes = Set(dataPoints.map(\.bucketSizeDays))
+    private var displayYear: Int {
+        AgentUsageActivityHotmapView.displayYear(for: activityDataPoints)
+    }
+
+    private var trendBucketSizeDays: Int? {
+        let sizes = Set(trendDataPoints.map(\.bucketSizeDays))
         return sizes.count == 1 ? sizes.first : nil
     }
 }
@@ -69,48 +82,65 @@ struct AgentUsageFlowChartView: View {
 private struct AgentUsageActivityHotmapView: View {
     let dataPoints: [TokenUsageDataPoint]
 
+    private static let displayCalendar = Calendar.autoupdatingCurrent
     private let calendar = Calendar.autoupdatingCurrent
-    private let cellSize: CGFloat = 10
+    private let cellSize: CGFloat = 18
     private let cellSpacing: CGFloat = 4
 
     var body: some View {
-        if bucketSizeDays == 1 {
-            ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: cellSpacing) {
+                    ForEach(weekColumns, id: \.self) { week in
+                        Text(monthLabel(forWeek: week))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.appTertiaryText)
+                            .lineLimit(1)
+                            .frame(width: cellSize, alignment: .leading)
+                    }
+                }
+
                 LazyHGrid(rows: rows, alignment: .top, spacing: cellSpacing) {
                     ForEach(calendarCells) { cell in
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(color(for: cell.totalTokens, isInRange: cell.isInRange))
+                        Text(cell.dayText)
+                            .font(.system(size: 7, weight: cell.totalTokens > 0 ? .semibold : .regular))
+                            .foregroundColor(textColor(for: cell))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
                             .frame(width: cellSize, height: cellSize)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(color(for: cell.totalTokens, isInRange: cell.isInRange))
+                            )
                             .help(helpText(for: cell))
                     }
                 }
-                .padding(.vertical, 1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: (cellSize * 7) + (cellSpacing * 6) + 2)
-        } else {
-            LazyVGrid(columns: sequentialColumns, alignment: .leading, spacing: cellSpacing) {
-                ForEach(dataPoints) { point in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(color(for: point.totalTokens, isInRange: true))
-                        .frame(width: cellSize, height: cellSize)
-                        .help("\(compact(point.totalTokens)) tokens starting \(shortDate(point.date))")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: (cellSize * 7) + (cellSpacing * 7) + 14)
+    }
+
+    static func displayYear(for dataPoints: [TokenUsageDataPoint], now: Date = Date()) -> Int {
+        let currentYear = displayCalendar.component(.year, from: now)
+        let activeYears = Set(dataPoints.map { displayCalendar.component(.year, from: $0.date) })
+        if activeYears.contains(currentYear) || activeYears.isEmpty {
+            return currentYear
+        }
+        return activeYears.max() ?? currentYear
     }
 
     private var rows: [GridItem] {
         Array(repeating: GridItem(.fixed(cellSize), spacing: cellSpacing), count: 7)
     }
 
-    private var sequentialColumns: [GridItem] {
-        Array(repeating: GridItem(.fixed(cellSize), spacing: cellSpacing), count: 24)
+    private var weekColumns: [Int] {
+        Array(0..<(calendarCells.count / 7))
     }
 
-    private var bucketSizeDays: Int {
-        dataPoints.first?.bucketSizeDays ?? 1
+    private var displayYear: Int {
+        Self.displayYear(for: dataPoints)
     }
 
     private var maxTokens: Int {
@@ -123,12 +153,18 @@ private struct AgentUsageActivityHotmapView: View {
         })
     }
 
+    private var yearStartDate: Date {
+        calendar.date(from: DateComponents(year: displayYear, month: 1, day: 1)) ?? Date()
+    }
+
+    private var yearEndDate: Date {
+        calendar.date(from: DateComponents(year: displayYear, month: 12, day: 31)) ?? yearStartDate
+    }
+
     private var calendarCells: [ActivityCell] {
-        guard let firstDate = dataPoints.first?.date,
-              let lastDate = dataPoints.last?.date else { return [] }
-        let firstDay = agentUsageDayIdentifier(for: firstDate, calendar: calendar)
-        let lastDay = agentUsageDayIdentifier(for: lastDate, calendar: calendar)
-        let startDay = firstDay - weekdayIndex(for: firstDate)
+        let firstDay = agentUsageDayIdentifier(for: yearStartDate, calendar: calendar)
+        let lastDay = agentUsageDayIdentifier(for: yearEndDate, calendar: calendar)
+        let startDay = firstDay - weekdayIndex(for: yearStartDate)
         let dayCount = lastDay - startDay + 1
         let paddedCount = Int(ceil(Double(max(dayCount, 1)) / 7.0)) * 7
 
@@ -145,6 +181,21 @@ private struct AgentUsageActivityHotmapView: View {
         }
     }
 
+    private func monthLabel(forWeek week: Int) -> String {
+        let startIndex = week * 7
+        let endIndex = min(startIndex + 7, calendarCells.count)
+        guard startIndex < endIndex else { return "" }
+        let weekCells = calendarCells[startIndex..<endIndex]
+        guard let firstInRange = weekCells.first(where: { $0.isInRange }) else { return "" }
+        if week == 0 {
+            return firstInRange.date.formatted(.dateTime.month(.abbreviated))
+        }
+        guard let firstDayOfMonth = weekCells.first(where: { cell in
+            cell.isInRange && calendar.component(.day, from: cell.date) == 1
+        }) else { return "" }
+        return firstDayOfMonth.date.formatted(.dateTime.month(.abbreviated))
+    }
+
     private func color(for tokens: Int, isInRange: Bool) -> Color {
         guard isInRange else { return Color.clear }
         guard tokens > 0 else { return Color.appFieldBorder.opacity(0.35) }
@@ -158,24 +209,29 @@ private struct AgentUsageActivityHotmapView: View {
         }
     }
 
+    private func textColor(for cell: ActivityCell) -> Color {
+        guard cell.isInRange else { return Color.clear }
+        return cell.totalTokens > 0 ? .appPrimaryText : .appTertiaryText
+    }
+
     private func weekdayIndex(for date: Date) -> Int {
         let weekday = calendar.component(.weekday, from: date)
         return (weekday - calendar.firstWeekday + 7) % 7
     }
 
     private func date(forDayIdentifier day: Int) -> Date {
-        Date(timeIntervalSince1970: Double(day * 86_400_000) / 1000)
+        dateForAgentUsageDayIdentifier(day)
     }
 
     private func helpText(for cell: ActivityCell) -> String {
         if cell.isInRange == false {
-            return "Outside selected range"
+            return "Outside \(displayYear)"
         }
         return "\(compact(cell.totalTokens)) tokens on \(shortDate(cell.date))"
     }
 
     private func shortDate(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).day())
+        date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
     private func compact(_ value: Int) -> String {
@@ -192,6 +248,11 @@ private struct AgentUsageActivityHotmapView: View {
         let isInRange: Bool
 
         var id: Int { day }
+
+        var dayText: String {
+            guard isInRange else { return "" }
+            return "\(Calendar.autoupdatingCurrent.component(.day, from: date))"
+        }
     }
 }
 

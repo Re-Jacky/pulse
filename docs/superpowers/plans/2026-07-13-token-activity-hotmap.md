@@ -329,3 +329,69 @@ git commit -m "feat: add token activity hotmap"
 ```
 
 Expected: Commit succeeds with only the chart implementation and plan document staged.
+
+### Task 2: Make Token Activity All-Time Calendar Only
+
+**Files:**
+- Modify: `pulse/Managers/AgentUsageViewData.swift`
+- Modify: `pulse/Managers/AgentUsageStore.swift`
+- Modify: `pulse/Views/AgentUsageView.swift`
+- Modify: `pulse/Views/AgentUsageFlowChartView.swift`
+- Test: `pulseTests/AgentUsageStoreTests.swift`
+
+**Interfaces:**
+- Consumes: `AgentUsageSelection.dateSelection`
+- Produces: `AgentUsageDerivedViewData.activityCalendarData: [TokenUsageDataPoint]`
+- Produces: `AgentUsageFlowChartView(trendDataPoints: [TokenUsageDataPoint], activityDataPoints: [TokenUsageDataPoint])`
+
+- [x] **Step 1: Add failing tests**
+
+Add store tests proving non-all-time selections hide token activity and all-time activity data remains daily while trend data may be compressed.
+
+- [x] **Step 2: Verify tests fail**
+
+Run:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageStoreTests
+```
+
+Expected: New tests fail because `showsTokenFlow` is still true for non-all-time ranges and `activityCalendarData` does not exist yet.
+
+- [x] **Step 3: Add daily all-time activity data**
+
+Add `activityCalendarData` to `AgentUsageDerivedViewData`, build it from uncompressed all-time daily totals, and make `showsTokenFlow` true only for non-session all-time selections with activity.
+
+- [x] **Step 4: Render only all-time Token Activity**
+
+Update `AgentUsageView` to pass trend and activity data into `AgentUsageFlowChartView`, and update the hotmap renderer to use natural current/latest-year calendar cells with month labels.
+
+- [x] **Step 5: Verify focused tests pass**
+
+Run:
+
+```bash
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageStoreTests
+```
+
+Expected: Focused tests pass.
+
+- [x] **Step 6: Verify full build and tests pass**
+
+Run:
+
+```bash
+xcodebuild -project pulse.xcodeproj -scheme pulse -configuration Debug build
+xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'
+```
+
+Expected: Build and full test suite pass.
+
+- [x] **Step 7: Commit follow-up**
+
+Run:
+
+```bash
+git add docs/superpowers/specs/2026-07-13-token-activity-hotmap-design.md docs/superpowers/plans/2026-07-13-token-activity-hotmap.md pulse/Managers/AgentUsageViewData.swift pulse/Managers/AgentUsageStore.swift pulse/Views/AgentUsageView.swift pulse/Views/AgentUsageFlowChartView.swift pulseTests/AgentUsageStoreTests.swift
+git commit -m "feat: show token activity as all-time calendar"
+```

@@ -431,7 +431,7 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(data.tokenFlowData.first?.bucketSizeDays, 2)
     }
 
-    func testDerivedDataForAllSourceTokenFlowFallsBackPerSourceWhenOnlyOneHasBuckets() {
+    func testDerivedDataForRangedAllSourceHidesTokenActivityWhenOnlyOneSourceHasBuckets() {
         let now = Date()
         let today = Calendar.current.startOfDay(for: now)
         let todayDay = agentUsageDayIdentifier(for: today)
@@ -477,7 +477,9 @@ final class AgentUsageViewDataTests: XCTestCase {
         ))
 
         XCTAssertEqual(data.summary.totalTokens, 95)
-        XCTAssertEqual(data.tokenFlowData.reduce(0) { $0 + $1.totalTokens }, 95)
+        XCTAssertFalse(data.showsTokenFlow)
+        XCTAssertTrue(data.tokenFlowData.isEmpty)
+        XCTAssertTrue(data.activityCalendarData.isEmpty)
     }
 
     func testDataSourceDescriptionForCodexMentionsDatabaseAndTranscripts() {

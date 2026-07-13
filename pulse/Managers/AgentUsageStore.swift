@@ -219,7 +219,6 @@ final class AgentUsageStore: ObservableObject {
         }
 
         let interval = dayInterval(for: selection.dateSelection)
-        let isTodayEquivalentSelection = selectionResolvesToToday(selection.dateSelection, interval: interval)
 
         let openCodeSnapshot: OpenCodeUsageSnapshot
         if state.openCodeDailyBuckets.isEmpty {
@@ -310,13 +309,20 @@ final class AgentUsageStore: ObservableObject {
             )
         }()
 
+        let tokenFlowData = buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+        let activityCalendarData = buildActivityCalendarData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+        let showsTokenFlow = selection.isSessionScope == false
+            && selection.dateSelection == .preset(.allTime)
+            && (tokenFlowData.isEmpty == false || activityCalendarData.isEmpty == false)
+
         let derivedData = AgentUsageDerivedViewData(
             selection: selection,
             scope: scope,
             summary: summary,
             projectOptions: buildProjectOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
             sessionOptions: buildSessionOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
-            tokenFlowData: buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
+            tokenFlowData: tokenFlowData,
+            activityCalendarData: activityCalendarData,
             usageMetrics: buildUsageMetrics(summary: summary),
             summaryPills: buildSummaryPills(summary: summary),
             contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocScopeSummary: ocScopeSummary, cxScopeSummary: cxScopeSummary, ocProjectCount: ocProjectCount, cxProjectCount: cxProjectCount, openCodeSessionsByID: openCodeSessionsByID, codexSessionsByID: codexSessionsByID, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
@@ -329,7 +335,7 @@ final class AgentUsageStore: ObservableObject {
             codexDetailThreadID: selection.source == .codex && selection.isSessionScope ? selection.sessionID : nil,
             isSessionScope: selection.isSessionScope,
             showsByModel: selection.isSessionScope == false,
-            showsTokenFlow: selection.isSessionScope == false && isTodayEquivalentSelection == false
+            showsTokenFlow: showsTokenFlow
         )
 
         derivedDataCache = (cacheKey, derivedData)
@@ -665,33 +671,15 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
-        let interval = dayInterval(for: selection.dateSelection)
-        guard selectionResolvesToToday(selection.dateSelection, interval: interval) == false else { return [] }
+        guard selection.dateSelection == .preset(.allTime) else { return [] }
+        let totalsByDay = tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
 
-        let openCodeTotals = selection.source != .codex
-            ? openCodeTokenFlowTotals(interval: interval, snapshot: openCodeSnapshot)
-            : [:]
-        let codexTotals = selection.source != .openCode
-            ? codexTokenFlowTotals(interval: interval, snapshot: codexSnapshot)
-            : [:]
-
-        guard openCodeTotals.isEmpty == false || codexTotals.isEmpty == false else { return [] }
-
-        var totalsByDay = openCodeTotals
-        for (day, value) in codexTotals {
-            totalsByDay[day, default: 0] += value
-        }
-
-        guard let earliestDay = totalsByDay.keys.min(), let latestDay = totalsByDay.keys.max() else { return [] }
+        guard totalsByDay.isEmpty == false,
+              let earliestDay = totalsByDay.keys.min(),
+              let latestDay = totalsByDay.keys.max() else { return [] }
 
         let totalDays = max(1, latestDay - earliestDay + 1)
-        let bucketSize: Int
-        if selection.dateSelection == .preset(.allTime) {
-            bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
-        } else {
-            bucketSize = 1
-        }
-
+        let bucketSize = max(1, Int(ceil(Double(totalDays) / 30)))
         let sortedDays = totalsByDay.keys.sorted()
 
         var buckets: [TokenUsageDataPoint] = []
@@ -705,17 +693,39 @@ final class AgentUsageStore: ObservableObject {
                 sum += totalsByDay[sortedDays[si]]!
                 si += 1
             }
-            let date = Date(timeIntervalSince1970: Double(cursor * 86_400_000) / 1000)
+            let date = dateForAgentUsageDayIdentifier(cursor)
             buckets.append(TokenUsageDataPoint(date: date, totalTokens: sum, bucketSizeDays: bucketSize))
             cursor = bucketEnd
         }
         return buckets
     }
 
-    private func selectionResolvesToToday(_ selection: AgentDateSelection, interval: Range<Int>?) -> Bool {
-        guard let interval, interval.count == 1 else { return false }
-        let today = agentUsageDayIdentifier(for: Date())
-        return interval.lowerBound == today
+    private func buildActivityCalendarData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
+        guard selection.dateSelection == .preset(.allTime) else { return [] }
+        return tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+            .sorted { $0.key < $1.key }
+            .map { day, totalTokens in
+                TokenUsageDataPoint(
+                    date: dateForAgentUsageDayIdentifier(day),
+                    totalTokens: totalTokens,
+                    bucketSizeDays: 1
+                )
+            }
+    }
+
+    private func tokenFlowTotalsByDay(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [Int: Int] {
+        let openCodeTotals = selection.source != .codex
+            ? openCodeTokenFlowTotals(interval: nil, snapshot: openCodeSnapshot)
+            : [:]
+        let codexTotals = selection.source != .openCode
+            ? codexTokenFlowTotals(interval: nil, snapshot: codexSnapshot)
+            : [:]
+
+        var totalsByDay = openCodeTotals
+        for (day, value) in codexTotals {
+            totalsByDay[day, default: 0] += value
+        }
+        return totalsByDay
     }
 
     private func openCodeTokenFlowTotals(
