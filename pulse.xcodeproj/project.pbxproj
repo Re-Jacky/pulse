@@ -60,7 +60,6 @@
 		4796E0D77356525AA0A8791F /* AgentDateSelectionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
-		74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B9298B2AA19B4C00000002 /* OverviewView.swift */; };
 		771043AB7AD1A8D23C4BDBCA /* AgentUsageMappingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BE256A8B154067F97191692 /* AgentUsageMappingPanel.swift */; };
 		7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */; };
 		87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */; };
@@ -174,7 +173,6 @@
 		32A38076629D72E9ECF4A374 /* MenuBarStatusItemView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MenuBarStatusItemView.swift; sourceTree = "<group>"; };
 		3BE256A8B154067F97191692 /* AgentUsageMappingPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageMappingPanel.swift; sourceTree = "<group>"; };
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
-		74B9298B2AA19B4C00000002 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexHooksManifest.swift; sourceTree = "<group>"; };
 		8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageModels.swift; sourceTree = "<group>"; };
@@ -320,7 +318,6 @@
 				100000000000000000000083 /* SessionListSidebarView.swift */,
 				7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */,
 				F2862347E446D893F932051E /* MetricRowView.swift */,
-				74B9298B2AA19B4C00000002 /* OverviewView.swift */,
 				D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */,
 				D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */,
 				AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */,
@@ -566,7 +563,6 @@
 				AA000005000000000000001A /* ProcessMonitor.swift in Sources */,
 				D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */,
 				F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */,
-				74B9298B2AA19B4C00000001 /* OverviewView.swift in Sources */,
 				100000000000000000000026 /* AgentUsageView.swift in Sources */,
 				7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */,
 				87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */,
