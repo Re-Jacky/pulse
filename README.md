@@ -13,18 +13,21 @@ A macOS menu bar app for system monitoring, process management, local agent usag
 <table align="center">
   <tr>
     <td valign="middle">
-      <img src="docs/images/stats.png" width="300" alt="Pulse — Stats tab" />
+      <img src="docs/images/process-2.1.6.png" width="300" alt="Pulse — Processes tab" />
     </td>
     <td valign="middle">
-      <img src="docs/images/process.png" width="300" alt="Pulse — Processes tab" />
+      <img src="docs/images/settings-2.1.6.png" width="300" alt="Pulse — Settings tab" />
     </td>
     <td valign="middle">
-      <img src="docs/images/settings.png" width="300" alt="Pulse — Settings tab" />
+      <img src="docs/images/session-manager-2.1.6.png" width="300" alt="Pulse — Session Manager tab" />
     </td>
   </tr>
   <tr>
     <td valign="middle">
-      <img src="docs/images/agent-overview.png" width="300" alt="Pulse — Agent tab" />
+      <img src="docs/images/agent-2.1.6.png" width="300" alt="Pulse — Agent tab" />
+    </td>
+    <td valign="middle">
+      <img src="docs/images/agent-lights-2.1.6.png" width="300" alt="Pulse — Agent Lights" />
     </td>
   </tr>
 </table>
