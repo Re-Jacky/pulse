@@ -108,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         Task { @MainActor [weak self] in
             await self?.updateManager.checkForUpdates(userInitiated: true)
+            self?.updateManager.startAutomaticChecks()
         }
 
         updateManager.performPostUpgradeTasks()

@@ -14,6 +14,7 @@ final class UpdateManager: ObservableObject {
     static let pendingInstalledPathKey = "update.pendingInstalledPath"
 
     @Published private(set) var state: UpdateState = .idle
+    private var automaticCheckTimer: Timer?
 
     private let currentVersion: String
     private let client: UpdateClient
@@ -61,6 +62,15 @@ final class UpdateManager: ObservableObject {
         self.installedAppURL = installedAppURL
         self.updaterAppURL = updaterAppURL
         self.launchUpdater = launchUpdater
+    }
+
+    func startAutomaticChecks() {
+        automaticCheckTimer?.invalidate()
+        automaticCheckTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.checkForUpdates(userInitiated: false)
+            }
+        }
     }
 
     @MainActor
