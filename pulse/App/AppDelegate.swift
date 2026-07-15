@@ -400,7 +400,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .combineLatest(agentLightsSettings.$selectedAgents)
             .receive(on: RunLoop.main)
             .sink { [weak self] _, _ in
-                self?.updateAgentStatusItemVisibility()
+                guard let self else { return }
+                updateAgentStatusItemVisibility()
+                if agentLightsSettings.isEnabled {
+                    agentStatusStore.startAutoClear()
+                } else {
+                    agentStatusStore.stopAutoClear()
+                }
             }
             .store(in: &cancellables)
     }
