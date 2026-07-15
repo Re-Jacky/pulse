@@ -108,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         Task { @MainActor [weak self] in
             await self?.updateManager.checkForUpdates(userInitiated: true)
+            self?.updateManager.startAutomaticChecks()
         }
 
         updateManager.performPostUpgradeTasks()
@@ -399,7 +400,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .combineLatest(agentLightsSettings.$selectedAgents)
             .receive(on: RunLoop.main)
             .sink { [weak self] _, _ in
-                self?.updateAgentStatusItemVisibility()
+                guard let self else { return }
+                updateAgentStatusItemVisibility()
+                if agentLightsSettings.isEnabled {
+                    agentStatusStore.startAutoClear()
+                } else {
+                    agentStatusStore.stopAutoClear()
+                }
             }
             .store(in: &cancellables)
     }
@@ -497,7 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func panelMetrics(agentEnabled: Bool, selectedTab: Int) -> (width: CGFloat, height: CGFloat, minWidth: CGFloat, minHeight: CGFloat) {
         let width = agentEnabled ? PanelMetrics.agentWidth : PanelMetrics.baseWidth
         let minWidth = agentEnabled ? PanelMetrics.agentMinWidth : PanelMetrics.baseMinWidth
-        let isAgentTabActive = agentEnabled && selectedTab == 2
+        let isAgentTabActive = agentEnabled && selectedTab == 1
         let height = isAgentTabActive ? PanelMetrics.agentHeight : PanelMetrics.baseHeight
         let minHeight = isAgentTabActive ? PanelMetrics.agentMinHeight : PanelMetrics.baseMinHeight
         return (width, height, minWidth, minHeight)

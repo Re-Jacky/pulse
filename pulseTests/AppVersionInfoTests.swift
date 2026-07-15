@@ -29,6 +29,24 @@ final class AppVersionInfoTests: XCTestCase {
         XCTAssertEqual(info.appDisplayVersion, "Pulse")
     }
 
+    func testHeaderDisplayVersionUsesTrimmedVersionOnly() {
+        let info = AppVersionInfo(
+            appVersion: "  1.3.1  ",
+            operatingSystemVersion: OperatingSystemVersion(majorVersion: 14, minorVersion: 5, patchVersion: 0)
+        )
+
+        XCTAssertEqual(info.headerDisplayVersion, "1.3.1")
+    }
+
+    func testHeaderDisplayVersionFallsBackWhenVersionBlank() {
+        let info = AppVersionInfo(
+            appVersion: "   ",
+            operatingSystemVersion: OperatingSystemVersion(majorVersion: 14, minorVersion: 5, patchVersion: 0)
+        )
+
+        XCTAssertEqual(info.headerDisplayVersion, "Pulse")
+    }
+
     func testSystemDisplayVersionUsesMajorAndMinor() {
         let info = AppVersionInfo(
             appVersion: "1.3.1",

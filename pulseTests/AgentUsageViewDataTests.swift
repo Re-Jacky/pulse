@@ -99,6 +99,35 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(months.last, AgentUsageActivityDisplayMonth(year: 2026, month: 12))
     }
 
+    func testTokenActivityPaletteUsesReadableLightAndDarkRamps() {
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 0, maxTokens: 100), .none)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 1, maxTokens: 100), .low)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 25, maxTokens: 100), .mediumLow)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 50, maxTokens: 100), .mediumHigh)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 75, maxTokens: 100), .high)
+
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .low, colorScheme: .light),
+            "#D7F3F0"
+        )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .high, colorScheme: .light),
+            "#087F8C"
+        )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .low, colorScheme: .dark),
+            "#2D4968"
+        )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .mediumLow, colorScheme: .dark),
+            "#416A8E"
+        )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .high, colorScheme: .dark),
+            "#A9DFF6"
+        )
+    }
+
     func testDateSelectionSummaryLabelForPresetToday() {
         XCTAssertEqual(
             AgentDateSelectionTriggerLabel.text(for: .preset(.today), calendar: .gregorianUTCForTests),

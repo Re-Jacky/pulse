@@ -54,6 +54,9 @@ final class AgentStatusStore: ObservableObject {
 
     private let persistence: AgentStatusPersistence
     private let visibleSlotCap = 4
+    private let autoClearInterval: TimeInterval = 60
+    private let idleThreshold: TimeInterval = 300
+    private var autoClearTimer: Timer?
     private var workingSubagentSessionIDsByParent: [AgentStatusAgent: [String: Set<String>]] = [:]
     private var latestEventVersionsBySessionID: [AgentStatusAgent: [String: SessionEventVersion]] = [:]
 
@@ -133,6 +136,41 @@ final class AgentStatusStore: ObservableObject {
         groups[groupIndex].slots = [Self.placeholder(for: agent)]
         updateOverflowCount(for: groupIndex)
         persist()
+    }
+
+    func clearIdleSlotsOlderThan(_ threshold: TimeInterval, for agent: AgentStatusAgent) {
+        guard let groupIndex = groups.firstIndex(where: { $0.agent == agent }) else { return }
+
+        let now = Date()
+        groups[groupIndex].slots.removeAll { slot in
+            guard slot.state == .idle, let lastSeen = slot.lastSeenAt else { return false }
+            return now.timeIntervalSince(lastSeen) >= threshold
+        }
+
+        if groups[groupIndex].slots.isEmpty {
+            groups[groupIndex].slots = [Self.placeholder(for: agent)]
+        }
+
+        updateOverflowCount(for: groupIndex)
+        persist()
+    }
+
+    func startAutoClear() {
+        stopAutoClear()
+        autoClearTimer = Timer.scheduledTimer(withTimeInterval: autoClearInterval, repeats: true) { [weak self] _ in
+            self?.performAutoClear()
+        }
+    }
+
+    func stopAutoClear() {
+        autoClearTimer?.invalidate()
+        autoClearTimer = nil
+    }
+
+    private func performAutoClear() {
+        for group in groups {
+            clearIdleSlotsOlderThan(idleThreshold, for: group.agent)
+        }
     }
 
     func visibleGroups(enabledAgents: Set<AgentStatusAgent>, featureEnabled: Bool) -> [AgentStatusGroup] {

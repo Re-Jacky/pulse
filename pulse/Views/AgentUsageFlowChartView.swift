@@ -43,6 +43,65 @@ struct AgentUsageActivityCalendarCell: Identifiable {
     var id: Int { day }
 }
 
+enum AgentUsageActivityColorPalette {
+    enum Level: Equatable {
+        case none
+        case low
+        case mediumLow
+        case mediumHigh
+        case high
+    }
+
+    static let activeLevels: [Level] = [.low, .mediumLow, .mediumHigh, .high]
+
+    static func level(for tokens: Int, maxTokens: Int) -> Level {
+        guard tokens > 0 else { return .none }
+
+        let ratio = Double(tokens) / Double(max(maxTokens, 1))
+        switch ratio {
+        case ..<0.25: return .low
+        case ..<0.5: return .mediumLow
+        case ..<0.75: return .mediumHigh
+        default: return .high
+        }
+    }
+
+    static func fillColor(for level: Level, colorScheme: ColorScheme) -> Color {
+        guard let hex = fillHex(for: level, colorScheme: colorScheme) else {
+            return Color.appFieldBorder.opacity(0.35)
+        }
+        return Color(hex: hex)
+    }
+
+    static func fillHex(for level: Level, colorScheme: ColorScheme) -> String? {
+        switch (colorScheme, level) {
+        case (_, .none): return nil
+        case (.light, .low): return "#D7F3F0"
+        case (.light, .mediumLow): return "#8ADBD3"
+        case (.light, .mediumHigh): return "#32B7AF"
+        case (.light, .high): return "#087F8C"
+        case (.dark, .low): return "#2D4968"
+        case (.dark, .mediumLow): return "#416A8E"
+        case (.dark, .mediumHigh): return "#557FA0"
+        case (.dark, .high): return "#A9DFF6"
+        @unknown default: return "#32B7AF"
+        }
+    }
+
+    static func textColor(for level: Level, colorScheme: ColorScheme) -> Color {
+        switch (colorScheme, level) {
+        case (_, .none):
+            return .appTertiaryText
+        case (.light, .high):
+            return Color.white.opacity(0.95)
+        case (.dark, .high):
+            return Color(hex: "#101214")
+        default:
+            return .appPrimaryText
+        }
+    }
+}
+
 enum AgentUsageActivityCalendarLayout {
     static func month(
         byAdding value: Int,
@@ -219,6 +278,7 @@ private struct AgentUsageActivityHotmapView: View {
     @AppStorage("agentUsageActivityCalendarScope") private var selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
     @State private var selectedDisplayMonth: AgentUsageActivityDisplayMonth?
     @State private var selectedDisplayYear: Int?
+    @Environment(\.colorScheme) private var colorScheme
 
     private let calendar = Calendar.autoupdatingCurrent
 
@@ -298,6 +358,8 @@ private struct AgentUsageActivityHotmapView: View {
                     selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
                 }
             }
+
+            AgentUsageActivityLegendView(colorScheme: colorScheme)
         }
     }
 
@@ -367,11 +429,43 @@ private struct AgentUsageActivityHotmapView: View {
     }
 }
 
+private struct AgentUsageActivityLegendView: View {
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Spacer()
+
+            Text("Less")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.appTertiaryText)
+
+            ForEach(Array(AgentUsageActivityColorPalette.activeLevels.enumerated()), id: \.offset) { _, level in
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(AgentUsageActivityColorPalette.fillColor(for: level, colorScheme: colorScheme))
+                    .frame(width: 12, height: 8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .stroke(Color.appFieldBorder.opacity(0.25), lineWidth: 0.5)
+                    )
+            }
+
+            Text("More")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.appTertiaryText)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Token usage intensity legend, less to more")
+    }
+}
+
 private struct AgentUsageActivityMonthView: View {
     let cells: [AgentUsageActivityCalendarCell]
     let tokenByDay: [Int: Int]
     let maxTokens: Int
     let calendar: Calendar
+
+    @Environment(\.colorScheme) private var colorScheme
 
     private let cellSpacing: CGFloat = 5
 
@@ -424,20 +518,16 @@ private struct AgentUsageActivityMonthView: View {
 
     private func color(for tokens: Int, isInRange: Bool) -> Color {
         guard isInRange else { return Color.clear }
-        guard tokens > 0 else { return Color.appFieldBorder.opacity(0.35) }
 
-        let ratio = Double(tokens) / Double(maxTokens)
-        switch ratio {
-        case ..<0.25: return Color.accentColor.opacity(0.28)
-        case ..<0.5: return Color.accentColor.opacity(0.45)
-        case ..<0.75: return Color.accentColor.opacity(0.65)
-        default: return Color.accentColor.opacity(0.9)
-        }
+        let level = AgentUsageActivityColorPalette.level(for: tokens, maxTokens: maxTokens)
+        return AgentUsageActivityColorPalette.fillColor(for: level, colorScheme: colorScheme)
     }
 
     private func textColor(for cell: AgentUsageActivityCalendarCell, tokens: Int) -> Color {
         guard cell.isInDisplayedMonth else { return .appTertiaryText.opacity(0.55) }
-        return tokens > 0 ? .appPrimaryText : .appTertiaryText
+
+        let level = AgentUsageActivityColorPalette.level(for: tokens, maxTokens: maxTokens)
+        return AgentUsageActivityColorPalette.textColor(for: level, colorScheme: colorScheme)
     }
 
     private func helpText(for cell: AgentUsageActivityCalendarCell, tokens: Int) -> String {
@@ -463,6 +553,8 @@ private struct AgentUsageActivityYearView: View {
     let displayYear: Int
     let calendar: Calendar
     let onSelectMonth: (AgentUsageActivityDisplayMonth) -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
 
     private let cellSpacing: CGFloat = 4
     private let cellHeight: CGFloat = 9
@@ -532,15 +624,8 @@ private struct AgentUsageActivityYearView: View {
     }
 
     private func color(for tokens: Int) -> Color {
-        guard tokens > 0 else { return Color.appFieldBorder.opacity(0.35) }
-
-        let ratio = Double(tokens) / Double(maxTokens)
-        switch ratio {
-        case ..<0.25: return Color.accentColor.opacity(0.28)
-        case ..<0.5: return Color.accentColor.opacity(0.45)
-        case ..<0.75: return Color.accentColor.opacity(0.65)
-        default: return Color.accentColor.opacity(0.9)
-        }
+        let level = AgentUsageActivityColorPalette.level(for: tokens, maxTokens: maxTokens)
+        return AgentUsageActivityColorPalette.fillColor(for: level, colorScheme: colorScheme)
     }
 
     private func monthLabel(for month: AgentUsageActivityDisplayMonth) -> String {

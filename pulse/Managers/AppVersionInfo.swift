@@ -25,6 +25,13 @@ struct AppVersionInfo {
         return "Pulse \(appVersion)"
     }
 
+    var headerDisplayVersion: String {
+        guard let appVersion else { return "Pulse" }
+
+        let trimmedVersion = appVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedVersion.isEmpty ? "Pulse" : trimmedVersion
+    }
+
     var systemDisplayVersion: String {
         "macOS \(operatingSystemVersion.majorVersion).\(operatingSystemVersion.minorVersion)"
     }
