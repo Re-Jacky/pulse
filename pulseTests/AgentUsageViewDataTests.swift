@@ -90,6 +90,20 @@ final class AgentUsageViewDataTests: XCTestCase {
         )
     }
 
+    func testTokenActivityCurrentPeriodUsesProvidedLocalCalendarDate() {
+        let calendar = Calendar.gregorianUTCForTests
+        let now = calendar.date(from: DateComponents(year: 2026, month: 7, day: 16))!
+
+        XCTAssertEqual(
+            AgentUsageActivityCalendarLayout.currentDisplayMonth(now: now, calendar: calendar),
+            AgentUsageActivityDisplayMonth(year: 2026, month: 7)
+        )
+        XCTAssertEqual(
+            AgentUsageActivityCalendarLayout.currentDisplayYear(now: now, calendar: calendar),
+            2026
+        )
+    }
+
     func testTokenActivityYearSummaryUsesTwelveMonthlyBuckets() {
         let calendar = Calendar.gregorianUTCForTests
         let months = AgentUsageActivityCalendarLayout.yearMonths(for: 2026, calendar: calendar)
@@ -101,31 +115,88 @@ final class AgentUsageViewDataTests: XCTestCase {
 
     func testTokenActivityPaletteUsesReadableLightAndDarkRamps() {
         XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 0, maxTokens: 100), .none)
-        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 1, maxTokens: 100), .low)
-        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 25, maxTokens: 100), .mediumLow)
-        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 50, maxTokens: 100), .mediumHigh)
-        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 75, maxTokens: 100), .high)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 1, maxTokens: 200_000_000), .lowest)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 30_000_000, maxTokens: 200_000_000), .low)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 60_000_000, maxTokens: 200_000_000), .mediumLow)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 100_000_000, maxTokens: 200_000_000), .medium)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 130_000_000, maxTokens: 200_000_000), .mediumHigh)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 170_000_000, maxTokens: 200_000_000), .high)
+        XCTAssertEqual(AgentUsageActivityColorPalette.level(for: 200_000_000, maxTokens: 200_000_000), .highest)
 
         XCTAssertEqual(
-            AgentUsageActivityColorPalette.fillHex(for: .low, colorScheme: .light),
-            "#D7F3F0"
+            AgentUsageActivityColorPalette.activeLevels.count,
+            7
         )
         XCTAssertEqual(
-            AgentUsageActivityColorPalette.fillHex(for: .high, colorScheme: .light),
-            "#087F8C"
+            Set(AgentUsageActivityColorPalette.activeLevels.compactMap {
+                AgentUsageActivityColorPalette.fillHex(for: $0, colorScheme: .light)
+            }).count,
+            7
         )
         XCTAssertEqual(
-            AgentUsageActivityColorPalette.fillHex(for: .low, colorScheme: .dark),
-            "#2D4968"
+            Set(AgentUsageActivityColorPalette.activeLevels.compactMap {
+                AgentUsageActivityColorPalette.fillHex(for: $0, colorScheme: .dark)
+            }).count,
+            7
         )
         XCTAssertEqual(
-            AgentUsageActivityColorPalette.fillHex(for: .mediumLow, colorScheme: .dark),
-            "#416A8E"
+            AgentUsageActivityColorPalette.fillHex(for: .lowest, colorScheme: .light),
+            "#E0F7F4"
         )
         XCTAssertEqual(
-            AgentUsageActivityColorPalette.fillHex(for: .high, colorScheme: .dark),
-            "#A9DFF6"
+            AgentUsageActivityColorPalette.fillHex(for: .highest, colorScheme: .light),
+            "#065F73"
         )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .lowest, colorScheme: .dark),
+            "#203A52"
+        )
+        XCTAssertEqual(
+            AgentUsageActivityColorPalette.fillHex(for: .highest, colorScheme: .dark),
+            "#D6F4FF"
+        )
+    }
+
+    func testTokenActivityFiltersDailyTrendDataToDisplayMonth() {
+        let calendar = Calendar.gregorianUTCForTests
+        let juneDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30))!
+        let julyDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+        let augustDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 1))!
+
+        let filtered = AgentUsageActivityCalendarLayout.filteredDataPoints(
+            [
+                TokenUsageDataPoint(date: juneDate, totalTokens: 10, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: julyDate, totalTokens: 20, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: augustDate, totalTokens: 30, bucketSizeDays: 1)
+            ],
+            scope: .month,
+            displayMonth: AgentUsageActivityDisplayMonth(year: 2026, month: 7),
+            displayYear: 2026,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(filtered.map(\.totalTokens), [20])
+    }
+
+    func testTokenActivityFiltersDailyTrendDataToDisplayYear() {
+        let calendar = Calendar.gregorianUTCForTests
+        let previousYearDate = calendar.date(from: DateComponents(year: 2025, month: 12, day: 31))!
+        let firstDate = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+        let secondDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+
+        let filtered = AgentUsageActivityCalendarLayout.filteredDataPoints(
+            [
+                TokenUsageDataPoint(date: previousYearDate, totalTokens: 10, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: firstDate, totalTokens: 20, bucketSizeDays: 1),
+                TokenUsageDataPoint(date: secondDate, totalTokens: 30, bucketSizeDays: 1)
+            ],
+            scope: .year,
+            displayMonth: AgentUsageActivityDisplayMonth(year: 2026, month: 1),
+            displayYear: 2026,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(filtered.map(\.totalTokens), [20, 30])
     }
 
     func testDateSelectionSummaryLabelForPresetToday() {

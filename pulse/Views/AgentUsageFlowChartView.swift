@@ -15,7 +15,7 @@ private enum AgentUsageChartMode: String, CaseIterable, Identifiable {
     }
 }
 
-private enum AgentUsageActivityCalendarScope: String, CaseIterable, Identifiable {
+enum AgentUsageActivityCalendarScope: String, CaseIterable, Identifiable {
     case month
     case year
 
@@ -46,23 +46,29 @@ struct AgentUsageActivityCalendarCell: Identifiable {
 enum AgentUsageActivityColorPalette {
     enum Level: Equatable {
         case none
+        case lowest
         case low
         case mediumLow
+        case medium
         case mediumHigh
         case high
+        case highest
     }
 
-    static let activeLevels: [Level] = [.low, .mediumLow, .mediumHigh, .high]
+    static let activeLevels: [Level] = [.lowest, .low, .mediumLow, .medium, .mediumHigh, .high, .highest]
 
     static func level(for tokens: Int, maxTokens: Int) -> Level {
         guard tokens > 0 else { return .none }
 
         let ratio = Double(tokens) / Double(max(maxTokens, 1))
         switch ratio {
-        case ..<0.25: return .low
-        case ..<0.5: return .mediumLow
+        case ..<0.15: return .lowest
+        case ..<0.30: return .low
+        case ..<0.45: return .mediumLow
+        case ..<0.60: return .medium
         case ..<0.75: return .mediumHigh
-        default: return .high
+        case ..<0.90: return .high
+        default: return .highest
         }
     }
 
@@ -76,14 +82,20 @@ enum AgentUsageActivityColorPalette {
     static func fillHex(for level: Level, colorScheme: ColorScheme) -> String? {
         switch (colorScheme, level) {
         case (_, .none): return nil
-        case (.light, .low): return "#D7F3F0"
+        case (.light, .lowest): return "#E0F7F4"
+        case (.light, .low): return "#BDEDE7"
         case (.light, .mediumLow): return "#8ADBD3"
-        case (.light, .mediumHigh): return "#32B7AF"
+        case (.light, .medium): return "#55C8C2"
+        case (.light, .mediumHigh): return "#24AAA8"
         case (.light, .high): return "#087F8C"
+        case (.light, .highest): return "#065F73"
+        case (.dark, .lowest): return "#203A52"
         case (.dark, .low): return "#2D4968"
-        case (.dark, .mediumLow): return "#416A8E"
-        case (.dark, .mediumHigh): return "#557FA0"
-        case (.dark, .high): return "#A9DFF6"
+        case (.dark, .mediumLow): return "#3A5D7B"
+        case (.dark, .medium): return "#497092"
+        case (.dark, .mediumHigh): return "#648BAA"
+        case (.dark, .high): return "#91C5DD"
+        case (.dark, .highest): return "#D6F4FF"
         @unknown default: return "#32B7AF"
         }
     }
@@ -92,9 +104,9 @@ enum AgentUsageActivityColorPalette {
         switch (colorScheme, level) {
         case (_, .none):
             return .appTertiaryText
-        case (.light, .high):
+        case (.light, .high), (.light, .highest):
             return Color.white.opacity(0.95)
-        case (.dark, .high):
+        case (.dark, .high), (.dark, .highest):
             return Color(hex: "#101214")
         default:
             return .appPrimaryText
@@ -136,14 +148,28 @@ enum AgentUsageActivityCalendarLayout {
         now: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) -> AgentUsageActivityDisplayMonth {
-        return AgentUsageActivityDisplayMonth(
+        currentDisplayMonth(now: now, calendar: calendar)
+    }
+
+    static func displayYear(
+        for dataPoints: [TokenUsageDataPoint],
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> Int {
+        currentDisplayYear(now: now, calendar: calendar)
+    }
+
+    static func currentDisplayMonth(
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> AgentUsageActivityDisplayMonth {
+        AgentUsageActivityDisplayMonth(
             year: calendar.component(.year, from: now),
             month: calendar.component(.month, from: now)
         )
     }
 
-    static func displayYear(
-        for dataPoints: [TokenUsageDataPoint],
+    static func currentDisplayYear(
         now: Date = Date(),
         calendar: Calendar = .autoupdatingCurrent
     ) -> Int {
@@ -172,6 +198,24 @@ enum AgentUsageActivityCalendarLayout {
                 calendar.component(.year, from: date) == month.year
             }
         )
+    }
+
+    static func filteredDataPoints(
+        _ dataPoints: [TokenUsageDataPoint],
+        scope: AgentUsageActivityCalendarScope,
+        displayMonth: AgentUsageActivityDisplayMonth,
+        displayYear: Int,
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> [TokenUsageDataPoint] {
+        dataPoints.filter { point in
+            switch scope {
+            case .month:
+                return calendar.component(.year, from: point.date) == displayMonth.year &&
+                    calendar.component(.month, from: point.date) == displayMonth.month
+            case .year:
+                return calendar.component(.year, from: point.date) == displayYear
+            }
+        }
     }
 
     private static func cells(
@@ -210,9 +254,18 @@ struct AgentUsageFlowChartView: View {
     let activityDataPoints: [TokenUsageDataPoint]
 
     @AppStorage("agentUsageTokenChartMode") private var selectedModeRawValue = AgentUsageChartMode.activity.rawValue
+    @AppStorage("agentUsageActivityCalendarScope") private var selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
+    @State private var selectedDisplayMonth: AgentUsageActivityDisplayMonth?
+    @State private var selectedDisplayYear: Int?
+
+    private let calendar = Calendar.autoupdatingCurrent
 
     private var selectedMode: AgentUsageChartMode {
         AgentUsageChartMode(rawValue: selectedModeRawValue) ?? .activity
+    }
+
+    private var selectedScope: AgentUsageActivityCalendarScope {
+        AgentUsageActivityCalendarScope(rawValue: selectedScopeRawValue) ?? .month
     }
 
     var body: some View {
@@ -223,11 +276,9 @@ struct AgentUsageFlowChartView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.appPrimaryText)
 
-                    if selectedMode == .activity {
-                        Text(activitySubtitle)
-                            .font(.system(size: 10))
-                            .foregroundColor(.appSecondaryText)
-                    }
+                    Text(activitySubtitle)
+                        .font(.system(size: 10))
+                        .foregroundColor(.appSecondaryText)
                 }
 
                 Spacer()
@@ -241,17 +292,22 @@ struct AgentUsageFlowChartView: View {
                 .frame(width: 150)
             }
 
-            if selectedMode == .trend, let bucketSizeDays = trendBucketSizeDays, bucketSizeDays > 1 {
-                Text("Each point combines \(bucketSizeDays) days.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.appSecondaryText)
-            }
+            rangeControls
 
             switch selectedMode {
             case .activity:
-                AgentUsageActivityHotmapView(dataPoints: activityDataPoints)
+                AgentUsageActivityHotmapView(
+                    dataPoints: activityDataPoints,
+                    selectedScope: selectedScope,
+                    displayMonth: displayMonth,
+                    displayYear: displayYear,
+                    calendar: calendar
+                ) { month in
+                    selectedDisplayMonth = month
+                    selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
+                }
             case .trend:
-                AgentUsageTrendChartView(dataPoints: trendDataPoints)
+                AgentUsageTrendChartView(dataPoints: selectedTrendDataPoints)
             }
         }
         .padding(12)
@@ -259,36 +315,9 @@ struct AgentUsageFlowChartView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private var activitySubtitle: String {
-        let month = AgentUsageActivityCalendarLayout.displayMonth(for: activityDataPoints)
-        let monthDate = Calendar.autoupdatingCurrent.date(from: DateComponents(year: month.year, month: month.month, day: 1)) ?? Date()
-        let year = AgentUsageActivityCalendarLayout.displayYear(for: activityDataPoints)
-        return "\(monthDate.formatted(.dateTime.month(.wide).year())) month / \(year) year"
-    }
-
-    private var trendBucketSizeDays: Int? {
-        let sizes = Set(trendDataPoints.map(\.bucketSizeDays))
-        return sizes.count == 1 ? sizes.first : nil
-    }
-}
-
-private struct AgentUsageActivityHotmapView: View {
-    let dataPoints: [TokenUsageDataPoint]
-
-    @AppStorage("agentUsageActivityCalendarScope") private var selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
-    @State private var selectedDisplayMonth: AgentUsageActivityDisplayMonth?
-    @State private var selectedDisplayYear: Int?
-    @Environment(\.colorScheme) private var colorScheme
-
-    private let calendar = Calendar.autoupdatingCurrent
-
-    private var selectedScope: AgentUsageActivityCalendarScope {
-        AgentUsageActivityCalendarScope(rawValue: selectedScopeRawValue) ?? .month
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+    private var rangeControls: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Button {
                     moveBackward()
                 } label: {
@@ -300,7 +329,8 @@ private struct AgentUsageActivityHotmapView: View {
                 Text(selectedScope == .month ? monthTitle : "Calendar year \(displayYear)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.appSecondaryText)
-                    .frame(minWidth: 112, alignment: .leading)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
 
                 Button {
                     moveForward()
@@ -309,34 +339,111 @@ private struct AgentUsageActivityHotmapView: View {
                 }
                 .buttonStyle(.borderless)
                 .help(selectedScope == .month ? "Next month" : "Next year")
-
-                Spacer()
-
-                Menu {
-                    ForEach(AgentUsageActivityCalendarScope.allCases) { scope in
-                        Button {
-                            selectedScopeRawValue = scope.rawValue
-                        } label: {
-                            Label(
-                                scope.title,
-                                systemImage: selectedScope == scope ? "checkmark" : "calendar"
-                            )
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                        Text(selectedScope.title)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.appSecondaryText)
-                }
-                .menuStyle(.borderlessButton)
-                .frame(width: 88)
-                .help("Switch activity calendar scope")
             }
+
+            Button {
+                jumpToCurrentPeriod()
+            } label: {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .buttonStyle(.borderless)
+            .help(selectedScope == .month ? "Jump to current month" : "Jump to current year")
+
+            Spacer()
+
+            Menu {
+                ForEach(AgentUsageActivityCalendarScope.allCases) { scope in
+                    Button {
+                        selectedScopeRawValue = scope.rawValue
+                    } label: {
+                        Label(
+                            scope.title,
+                            systemImage: selectedScope == scope ? "checkmark" : "calendar"
+                        )
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                    Text(selectedScope.title)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.appSecondaryText)
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 88)
+            .help("Switch token activity scope")
+        }
+    }
+
+    private var activitySubtitle: String {
+        selectedScope == .month ? "\(monthTitle) range" : "\(displayYear) range"
+    }
+
+    private var displayYear: Int {
+        selectedDisplayYear ?? AgentUsageActivityCalendarLayout.displayYear(for: activityDataPoints, calendar: calendar)
+    }
+
+    private var displayMonth: AgentUsageActivityDisplayMonth {
+        selectedDisplayMonth ?? AgentUsageActivityCalendarLayout.displayMonth(for: activityDataPoints, calendar: calendar)
+    }
+
+    private var monthTitle: String {
+        let date = calendar.date(from: DateComponents(year: displayMonth.year, month: displayMonth.month, day: 1)) ?? Date()
+        return date.formatted(.dateTime.month(.wide).year())
+    }
+
+    private var selectedTrendDataPoints: [TokenUsageDataPoint] {
+        AgentUsageActivityCalendarLayout.filteredDataPoints(
+            activityDataPoints.isEmpty ? trendDataPoints : activityDataPoints,
+            scope: selectedScope,
+            displayMonth: displayMonth,
+            displayYear: displayYear,
+            calendar: calendar
+        )
+    }
+
+    private func moveBackward() {
+        switch selectedScope {
+        case .month:
+            selectedDisplayMonth = AgentUsageActivityCalendarLayout.month(byAdding: -1, to: displayMonth, calendar: calendar)
+        case .year:
+            selectedDisplayYear = displayYear - 1
+        }
+    }
+
+    private func moveForward() {
+        switch selectedScope {
+        case .month:
+            selectedDisplayMonth = AgentUsageActivityCalendarLayout.month(byAdding: 1, to: displayMonth, calendar: calendar)
+        case .year:
+            selectedDisplayYear = displayYear + 1
+        }
+    }
+
+    private func jumpToCurrentPeriod() {
+        selectedDisplayMonth = AgentUsageActivityCalendarLayout.currentDisplayMonth(calendar: calendar)
+        selectedDisplayYear = AgentUsageActivityCalendarLayout.currentDisplayYear(calendar: calendar)
+    }
+}
+
+private struct AgentUsageActivityHotmapView: View {
+    let dataPoints: [TokenUsageDataPoint]
+    let selectedScope: AgentUsageActivityCalendarScope
+    let displayMonth: AgentUsageActivityDisplayMonth
+    let displayYear: Int
+    let calendar: Calendar
+    let onSelectMonth: (AgentUsageActivityDisplayMonth) -> Void
+
+    @State private var hoverSummary: AgentUsageActivityHoverSummary?
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AgentUsageActivityHoverSummaryView(summary: hoverSummary)
 
             switch selectedScope {
             case .month:
@@ -344,7 +451,8 @@ private struct AgentUsageActivityHotmapView: View {
                     cells: monthCells,
                     tokenByDay: tokenByDay,
                     maxTokens: maxTokens,
-                    calendar: calendar
+                    calendar: calendar,
+                    onHoverSummaryChange: { hoverSummary = $0 }
                 )
             case .year:
                 AgentUsageActivityYearView(
@@ -352,28 +460,14 @@ private struct AgentUsageActivityHotmapView: View {
                     tokensByMonthWeekday: tokensByMonthWeekday,
                     maxTokens: maxYearWeekdayTokens,
                     displayYear: displayYear,
-                    calendar: calendar
-                ) { month in
-                    selectedDisplayMonth = month
-                    selectedScopeRawValue = AgentUsageActivityCalendarScope.month.rawValue
-                }
+                    calendar: calendar,
+                    onHoverSummaryChange: { hoverSummary = $0 },
+                    onSelectMonth: onSelectMonth
+                )
             }
 
             AgentUsageActivityLegendView(colorScheme: colorScheme)
         }
-    }
-
-    private var displayYear: Int {
-        selectedDisplayYear ?? AgentUsageActivityCalendarLayout.displayYear(for: dataPoints, calendar: calendar)
-    }
-
-    private var displayMonth: AgentUsageActivityDisplayMonth {
-        selectedDisplayMonth ?? AgentUsageActivityCalendarLayout.displayMonth(for: dataPoints, calendar: calendar)
-    }
-
-    private var monthTitle: String {
-        let date = calendar.date(from: DateComponents(year: displayMonth.year, month: displayMonth.month, day: 1)) ?? Date()
-        return date.formatted(.dateTime.month(.wide).year())
     }
 
     private var monthCells: [AgentUsageActivityCalendarCell] {
@@ -409,23 +503,39 @@ private struct AgentUsageActivityHotmapView: View {
     private var maxYearWeekdayTokens: Int {
         max(tokensByMonthWeekday.values.max() ?? 0, 1)
     }
+}
 
-    private func moveBackward() {
-        switch selectedScope {
-        case .month:
-            selectedDisplayMonth = AgentUsageActivityCalendarLayout.month(byAdding: -1, to: displayMonth, calendar: calendar)
-        case .year:
-            selectedDisplayYear = displayYear - 1
-        }
-    }
+private struct AgentUsageActivityHoverSummary: Equatable {
+    let title: String
+    let valueText: String
+    let detailText: String
+}
 
-    private func moveForward() {
-        switch selectedScope {
-        case .month:
-            selectedDisplayMonth = AgentUsageActivityCalendarLayout.month(byAdding: 1, to: displayMonth, calendar: calendar)
-        case .year:
-            selectedDisplayYear = displayYear + 1
+private struct AgentUsageActivityHoverSummaryView: View {
+    let summary: AgentUsageActivityHoverSummary?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let summary {
+                Text(summary.title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.appSecondaryText)
+                Text(summary.valueText)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+                Text(summary.detailText)
+                    .font(.system(size: 10))
+                    .foregroundColor(.appTertiaryText)
+            } else {
+                Text("Hover a cell for usage")
+                    .font(.system(size: 10))
+                    .foregroundColor(.appTertiaryText)
+            }
         }
+        .lineLimit(1)
+        .frame(height: 14, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -464,6 +574,7 @@ private struct AgentUsageActivityMonthView: View {
     let tokenByDay: [Int: Int]
     let maxTokens: Int
     let calendar: Calendar
+    let onHoverSummaryChange: (AgentUsageActivityHoverSummary?) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -497,7 +608,9 @@ private struct AgentUsageActivityMonthView: View {
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .stroke(Color.appFieldBorder.opacity(cell.isInDisplayedMonth ? 0.35 : 0.12), lineWidth: 0.5)
                         )
-                        .help(helpText(for: cell, tokens: tokens))
+                        .onHover { isHovering in
+                            onHoverSummaryChange(isHovering ? hoverSummary(for: cell, tokens: tokens) : nil)
+                        }
                 }
             }
         }
@@ -530,8 +643,12 @@ private struct AgentUsageActivityMonthView: View {
         return AgentUsageActivityColorPalette.textColor(for: level, colorScheme: colorScheme)
     }
 
-    private func helpText(for cell: AgentUsageActivityCalendarCell, tokens: Int) -> String {
-        "\(compact(tokens)) tokens on \(shortDate(cell.date))"
+    private func hoverSummary(for cell: AgentUsageActivityCalendarCell, tokens: Int) -> AgentUsageActivityHoverSummary {
+        AgentUsageActivityHoverSummary(
+            title: shortDate(cell.date),
+            valueText: "\(compact(tokens)) tokens",
+            detailText: cell.isInDisplayedMonth ? "daily usage" : "outside displayed month"
+        )
     }
 
     private func shortDate(_ date: Date) -> String {
@@ -552,6 +669,7 @@ private struct AgentUsageActivityYearView: View {
     let maxTokens: Int
     let displayYear: Int
     let calendar: Calendar
+    let onHoverSummaryChange: (AgentUsageActivityHoverSummary?) -> Void
     let onSelectMonth: (AgentUsageActivityDisplayMonth) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -600,7 +718,9 @@ private struct AgentUsageActivityYearView: View {
                                     RoundedRectangle(cornerRadius: 2, style: .continuous)
                                         .stroke(Color.appFieldBorder.opacity(0.25), lineWidth: 0.5)
                                 )
-                                .help(helpText(for: month, weekdayIndex: weekdayIndex, tokens: tokens))
+                                .onHover { isHovering in
+                                    onHoverSummaryChange(isHovering ? hoverSummary(for: month, weekdayIndex: weekdayIndex, tokens: tokens) : nil)
+                                }
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -633,8 +753,12 @@ private struct AgentUsageActivityYearView: View {
         return date.formatted(.dateTime.month(.abbreviated))
     }
 
-    private func helpText(for month: AgentUsageActivityDisplayMonth, weekdayIndex: Int, tokens: Int) -> String {
-        "\(compact(tokens)) tokens on \(weekdayLabels[weekdayIndex])s in \(monthLabel(for: month)) \(displayYear)"
+    private func hoverSummary(for month: AgentUsageActivityDisplayMonth, weekdayIndex: Int, tokens: Int) -> AgentUsageActivityHoverSummary {
+        AgentUsageActivityHoverSummary(
+            title: "\(monthLabel(for: month)) \(displayYear)",
+            valueText: "\(compact(tokens)) tokens",
+            detailText: "\(weekdayLabels[weekdayIndex]) total"
+        )
     }
 
     private func compact(_ value: Int) -> String {
