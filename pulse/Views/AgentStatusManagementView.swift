@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AgentStatusManagementView: View {
@@ -154,14 +155,7 @@ struct AgentStatusManagementView: View {
                     .lineLimit(1)
 
                 ForEach(Self.detailLines(for: slot)) { detail in
-                    if let tooltip = detail.tooltip {
-                        TooltipTextLine(text: detail.text, tooltip: tooltip)
-                    } else {
-                        Text(detail.text)
-                            .font(.system(size: 12))
-                            .foregroundColor(.appSecondaryText)
-                            .lineLimit(1)
-                    }
+                    SlotDetailLineView(detail: detail)
                 }
             }
 
@@ -190,7 +184,7 @@ struct AgentStatusManagementView: View {
         }
 
         if let sessionID = slot.sessionID, sessionID.isEmpty == false {
-            details.append(SlotDetailLine(text: "Session ID: \(sessionID)", tooltip: sessionID))
+            details.append(SlotDetailLine(text: "Session ID: \(sessionID)", tooltip: sessionID, copyValue: sessionID))
         }
 
         if let projectPath = slot.projectPath, projectPath.isEmpty == false {
@@ -230,6 +224,63 @@ private struct SlotDetailLine: Identifiable {
     let id = UUID()
     let text: String
     let tooltip: String?
+    let copyValue: String?
+
+    init(text: String, tooltip: String?, copyValue: String? = nil) {
+        self.text = text
+        self.tooltip = tooltip
+        self.copyValue = copyValue
+    }
+}
+
+struct SessionIDCopyAction {
+    @discardableResult
+    static func copy(_ value: String, pasteboard: NSPasteboard = .general) -> Bool {
+        pasteboard.clearContents()
+        return pasteboard.setString(value, forType: .string)
+    }
+}
+
+private struct SlotDetailLineView: View {
+    let detail: SlotDetailLine
+
+    @State private var didCopy = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let tooltip = detail.tooltip {
+                TooltipTextLine(text: detail.text, tooltip: tooltip)
+            } else {
+                Text(detail.text)
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .lineLimit(1)
+            }
+
+            if let copyValue = detail.copyValue {
+                Button {
+                    guard SessionIDCopyAction.copy(copyValue) else { return }
+                    didCopy = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        didCopy = false
+                    }
+                } label: {
+                    if didCopy {
+                        Text("Copied")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.accentColor)
+                    } else {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.appSecondaryText)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(didCopy ? "Copied" : "Copy Session ID")
+                .accessibilityLabel(didCopy ? "Copied" : "Copy Session ID")
+            }
+        }
+    }
 }
 
 enum TooltipPresentation {

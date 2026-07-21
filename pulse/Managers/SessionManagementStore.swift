@@ -194,6 +194,8 @@ final class SessionManagementStore: ObservableObject {
             let projectMatches = selectedProjectPath == nil || session.projectPath == selectedProjectPath
             let searchMatches =
                 searchQuery.isEmpty ||
+                session.id.localizedCaseInsensitiveContains(searchQuery) ||
+                session.rawSessionID.localizedCaseInsensitiveContains(searchQuery) ||
                 session.title.localizedCaseInsensitiveContains(searchQuery) ||
                 session.projectName.localizedCaseInsensitiveContains(searchQuery) ||
                 session.subtitle.localizedCaseInsensitiveContains(searchQuery)

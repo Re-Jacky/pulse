@@ -27,6 +27,26 @@ final class SessionManagementStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testVisibleSessionsSearchMatchesManagedAndRawSessionIDs() async {
+        let repository = StubSessionManagementRepository(
+            sessions: [
+                makeManagedSession(id: "codex::thread_strategy_gateway", source: .codex, title: "Audit", projectPath: "/tmp/a"),
+                makeManagedSession(id: "opencode::ses_strategy_gateway::openai::gpt-5.4::default", source: .openCode, title: "Build", projectPath: "/tmp/b")
+            ]
+        )
+        let store = SessionManagementStore(repository: repository)
+
+        store.refreshIfNeeded()
+        await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
+
+        store.setSearchQuery("thread_strategy")
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["codex::thread_strategy_gateway"])
+
+        store.setSearchQuery("ses_strategy_gateway")
+        XCTAssertEqual(store.visibleSessions().map(\.id), ["opencode::ses_strategy_gateway::openai::gpt-5.4::default"])
+    }
+
+    @MainActor
     func testVisibleSessionsPreserveRepositoryOrder() async {
         let newer = makeManagedSession(
             id: "codex::2",

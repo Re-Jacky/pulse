@@ -86,6 +86,15 @@ final class AgentStatusManagementViewTests: XCTestCase {
         )
     }
 
+    func testSessionIDCopyActionWritesRawIDToPasteboard() throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+
+        let didCopy = SessionIDCopyAction.copy("session-123", pasteboard: pasteboard)
+
+        XCTAssertTrue(didCopy)
+        XCTAssertEqual(pasteboard.string(forType: .string), "session-123")
+    }
+
     private func makeSlot(
         agent: AgentStatusAgent,
         state: AgentSessionLightState,
