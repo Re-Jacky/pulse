@@ -798,10 +798,9 @@ final class AgentUsageStore: ObservableObject {
         if let cacheWrite = summary.cacheWriteTokens {
             pills.append(AgentUsageSummaryPill(id: "cacheWrite", title: "Cache Write", valueText: compact(cacheWrite)))
         }
-        if let cacheRead = summary.cacheReadTokens, let input = summary.inputTokens {
-            let totalInput = input + cacheRead
-            if totalInput > 0 {
-                let rate = Double(cacheRead) / Double(totalInput)
+        if let cacheRead = summary.cacheReadTokens, let denominator = summary.cacheHitDenominatorTokens {
+            if denominator > 0 {
+                let rate = Double(cacheRead) / Double(denominator)
                 pills.append(AgentUsageSummaryPill(id: "hitRate", title: "Hit Rate", valueText: String(format: "%.0f%%", rate * 100)))
             }
         }
@@ -901,6 +900,7 @@ final class AgentUsageStore: ObservableObject {
             outputTokens: summary.outputTokens,
             reasoningTokens: summary.reasoningTokens,
             cacheReadTokens: summary.cacheReadTokens,
+            cacheHitDenominatorTokens: summary.cacheHitDenominatorTokens,
             cacheWriteTokens: summary.cacheWriteTokens,
             requestCount: requestCount,
             sessionsCount: summary.sessionsCount,
@@ -953,6 +953,7 @@ final class AgentUsageStore: ObservableObject {
             outputTokens: summary.outputTokens,
             reasoningTokens: summary.reasoningTokens,
             cacheReadTokens: summary.cacheReadTokens,
+            cacheHitDenominatorTokens: summary.cacheHitDenominatorTokens,
             cacheWriteTokens: summary.cacheWriteTokens,
             requestCount: summary.requestCount,
             sessionsCount: summary.sessionsCount,
@@ -1267,6 +1268,7 @@ final class AgentUsageStore: ObservableObject {
                 outputTokens: nil,
                 reasoningTokens: nil,
                 cacheReadTokens: nil,
+                cacheHitDenominatorTokens: nil,
                 cacheWriteTokens: nil,
                 requestCount: 0,
                 sessionsCount: 0,
@@ -1317,6 +1319,7 @@ final class AgentUsageStore: ObservableObject {
                 outputTokens: nil,
                 reasoningTokens: nil,
                 cacheReadTokens: nil,
+                cacheHitDenominatorTokens: nil,
                 cacheWriteTokens: nil,
                 requestCount: 0,
                 sessionsCount: 0,
@@ -1449,6 +1452,7 @@ final class AgentUsageStore: ObservableObject {
             outputTokens: output,
             reasoningTokens: reasoning,
             cacheReadTokens: cacheRead,
+            cacheHitDenominatorTokens: input + cacheRead,
             cacheWriteTokens: cacheWrite,
             requestCount: requests,
             sessionsCount: sessionIDs.count,

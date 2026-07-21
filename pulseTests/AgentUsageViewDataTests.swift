@@ -956,6 +956,41 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(hitRatePill?.valueText, "38%")
     }
 
+    func testBuildSummaryPillsUsesCodexInputAsCacheHitDenominator() {
+        let store = AgentUsageStore(repository: StubRepository())
+        store.replaceStateForTesting(
+            AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeDailyBuckets: [],
+                codexSnapshot: CodexUsageSnapshot(sessions: [
+                    makeCodexSession(
+                        id: "thread_1",
+                        tokens: 120,
+                        inputTokens: 100,
+                        outputTokens: 20,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 60
+                    )
+                ]),
+                codexDailyBuckets: [],
+                refreshGeneration: 1,
+                codexDetailCache: [:]
+            )
+        )
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+        let hitRatePill = data.summaryPills.first { $0.id == "hitRate" }
+
+        XCTAssertNotNil(hitRatePill)
+        XCTAssertEqual(hitRatePill?.valueText, "60%")
+    }
+
     func testBuildSummaryPillsOmitsHitRateWhenNoCacheReadTokens() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(

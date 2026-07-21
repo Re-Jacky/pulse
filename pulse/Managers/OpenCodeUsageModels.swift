@@ -192,6 +192,7 @@ struct OpenCodeUsageSnapshot: Equatable {
             outputTokens: output,
             reasoningTokens: reasoning,
             cacheReadTokens: cacheRead,
+            cacheHitDenominatorTokens: input + cacheRead,
             cacheWriteTokens: cacheWrite,
             requestCount: requests,
             sessionsCount: sessions.count,

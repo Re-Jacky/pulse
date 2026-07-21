@@ -322,6 +322,7 @@ struct CodexUsageSnapshot: Equatable {
             outputTokens: reduceOptional(\.outputTokens, sessions: sessions),
             reasoningTokens: reduceOptional(\.reasoningTokens, sessions: sessions),
             cacheReadTokens: reduceOptional(\.cacheReadTokens, sessions: sessions),
+            cacheHitDenominatorTokens: reduceOptional(\.inputTokens, sessions: sessions),
             cacheWriteTokens: nil,
             requestCount: 0,
             sessionsCount: sessions.count,

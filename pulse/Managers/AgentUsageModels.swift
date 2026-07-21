@@ -268,6 +268,7 @@ struct AgentUsageSummary: Equatable {
     let outputTokens: Int?
     let reasoningTokens: Int?
     let cacheReadTokens: Int?
+    let cacheHitDenominatorTokens: Int?
     let cacheWriteTokens: Int?
     let requestCount: Int
     let sessionsCount: Int
@@ -365,6 +366,7 @@ extension AgentUsageSummary {
             outputTokens: mergeOptional(a.outputTokens, b.outputTokens, +),
             reasoningTokens: mergeOptional(a.reasoningTokens, b.reasoningTokens, +),
             cacheReadTokens: mergeOptional(a.cacheReadTokens, b.cacheReadTokens, +),
+            cacheHitDenominatorTokens: mergeOptional(a.cacheHitDenominatorTokens, b.cacheHitDenominatorTokens, +),
             cacheWriteTokens: mergeOptional(a.cacheWriteTokens, b.cacheWriteTokens, +),
             requestCount: a.requestCount + b.requestCount,
             sessionsCount: a.sessionsCount + b.sessionsCount,
