@@ -316,13 +316,18 @@ struct CodexUsageSnapshot: Equatable {
     }
 
     static func makeSummary(from sessions: [CodexSessionRecord]) -> AgentUsageSummary {
-        AgentUsageSummary(
-            totalTokens: sessions.reduce(0) { $0 + $1.tokensUsed },
-            inputTokens: reduceOptional(\.inputTokens, sessions: sessions),
+        let inputTokens = reduceOptional(\.inputTokens, sessions: sessions)
+        let cacheReadTokens = reduceOptional(\.cacheReadTokens, sessions: sessions)
+        let totalTokens = sessions.reduce(0) { $0 + $1.tokensUsed }
+        let cacheHitDenominatorTokens = cacheReadTokens == nil ? nil : totalTokens
+
+        return AgentUsageSummary(
+            totalTokens: totalTokens,
+            inputTokens: inputTokens,
             outputTokens: reduceOptional(\.outputTokens, sessions: sessions),
             reasoningTokens: reduceOptional(\.reasoningTokens, sessions: sessions),
-            cacheReadTokens: reduceOptional(\.cacheReadTokens, sessions: sessions),
-            cacheHitDenominatorTokens: reduceOptional(\.inputTokens, sessions: sessions),
+            cacheReadTokens: cacheReadTokens,
+            cacheHitDenominatorTokens: cacheHitDenominatorTokens,
             cacheWriteTokens: nil,
             requestCount: 0,
             sessionsCount: sessions.count,

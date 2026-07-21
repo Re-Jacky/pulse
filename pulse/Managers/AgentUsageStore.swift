@@ -232,7 +232,7 @@ final class AgentUsageStore: ObservableObject {
         if state.codexDailyBuckets.isEmpty {
             codexSnapshot = filteredCodexSnapshot(for: selection.dateSelection, interval: interval)
         } else {
-            codexSnapshot = aggregatedCodexSnapshot(for: selection.dateSelection, interval: interval)
+            codexSnapshot = aggregatedCodexSnapshot(interval: interval)
         }
         let scope = selection.scope
         let openCodeSessionsByID = Dictionary(uniqueKeysWithValues: openCodeSnapshot.sessions.map { ($0.id, $0) })
@@ -506,14 +506,7 @@ final class AgentUsageStore: ObservableObject {
         return OpenCodeUsageSnapshot(sessions: records)
     }
 
-    private func aggregatedCodexSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> CodexUsageSnapshot {
-        guard let interval else {
-            if let preset = selection.preset {
-                return state.codexSnapshot.filtered(to: preset)
-            }
-            return state.codexSnapshot
-        }
-
+    private func aggregatedCodexSnapshot(interval: Range<Int>?) -> CodexUsageSnapshot {
         let records: [CodexSessionRecord] = codexBucketsBySession.compactMap { sessionID, buckets in
             guard let session = cxMetadataBySession[sessionID] else { return nil }
 
@@ -521,7 +514,7 @@ final class AgentUsageStore: ObservableObject {
             var totalTokens = 0, input = 0, output = 0, reasoning = 0, cacheRead = 0
             var hasInRangeBuckets = false
             for b in buckets {
-                guard interval.contains(b.day) else { continue }
+                guard interval.map({ $0.contains(b.day) }) ?? true else { continue }
                 hasInRangeBuckets = true
                 totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
                 reasoning += b.reasoningTokens; cacheRead += b.cacheReadTokens

@@ -956,7 +956,7 @@ final class AgentUsageViewDataTests: XCTestCase {
         XCTAssertEqual(hitRatePill?.valueText, "38%")
     }
 
-    func testBuildSummaryPillsUsesCodexInputAsCacheHitDenominator() {
+    func testBuildSummaryPillsUsesCodexTotalAsCacheHitDenominator() {
         let store = AgentUsageStore(repository: StubRepository())
         store.replaceStateForTesting(
             AgentUsageLoadedState(
@@ -988,7 +988,7 @@ final class AgentUsageViewDataTests: XCTestCase {
         let hitRatePill = data.summaryPills.first { $0.id == "hitRate" }
 
         XCTAssertNotNil(hitRatePill)
-        XCTAssertEqual(hitRatePill?.valueText, "60%")
+        XCTAssertEqual(hitRatePill?.valueText, "50%")
     }
 
     func testBuildSummaryPillsOmitsHitRateWhenNoCacheReadTokens() {

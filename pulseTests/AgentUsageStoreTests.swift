@@ -1222,6 +1222,143 @@ final class AgentUsageStoreTests: XCTestCase {
         )
     }
 
+    func testCodexAllTimeUsesBucketTokenDetailsForCacheHitRate() {
+        let activityTime = Date(timeIntervalSince1970: 7_000)
+        let activityDay = agentUsageDayIdentifier(for: activityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: Date(timeIntervalSince1970: 2_000))
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: activityDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120,
+                requestCount: 1,
+                latestActivityAt: activityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 120)
+        XCTAssertEqual(data.summary.inputTokens, 100)
+        XCTAssertEqual(data.summary.cacheReadTokens, 40)
+        XCTAssertEqual(data.summary.cacheHitDenominatorTokens, 120)
+        XCTAssertEqual(data.summaryPills.first { $0.id == "hitRate" }?.valueText, "33%")
+    }
+
+    func testCodexTodayUsesNativeTotalAsCacheHitRateDenominator() {
+        let activityTime = Date()
+        let activityDay = agentUsageDayIdentifier(for: activityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: Date(timeIntervalSince1970: 2_000))
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: activityDay,
+                inputTokens: 14_200_000,
+                outputTokens: 1_000_000,
+                reasoningTokens: 300_000,
+                cacheReadTokens: 13_100_000,
+                totalTokens: 14_400_000,
+                requestCount: 1,
+                latestActivityAt: activityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .codex,
+            timeRange: .today,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 14_400_000)
+        XCTAssertEqual(data.summary.cacheReadTokens, 13_100_000)
+        XCTAssertEqual(data.summary.cacheHitDenominatorTokens, 14_400_000)
+        XCTAssertEqual(data.summaryPills.first { $0.id == "hitRate" }?.valueText, "91%")
+    }
+
+    func testAllTimeCombinedHitRateMergesOpenCodeAndCodexDenominators() {
+        let activityTime = Date(timeIntervalSince1970: 7_000)
+        let activityDay = agentUsageDayIdentifier(for: activityTime)
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [
+            OpenCodeSessionRecord(
+                id: "oc_1::openai::gpt-5::",
+                title: "OpenCode Session",
+                directory: "/Users/zyao/Desktop/pulse",
+                agent: "build",
+                modelProviderID: "openai",
+                modelID: "gpt-5",
+                modelVariant: nil,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 0,
+                cacheReadTokens: 100,
+                cacheWriteTokens: 0,
+                requestCount: 1,
+                cost: 0,
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                updatedAt: activityTime
+            )
+        ])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [
+            makeCodexSession(id: "cx_1", tokens: 999, updatedAt: Date(timeIntervalSince1970: 2_000))
+        ])
+        repository.codexDailyBuckets = [
+            CodexDailyBucket(
+                sessionID: "cx_1",
+                day: activityDay,
+                inputTokens: 100,
+                outputTokens: 20,
+                reasoningTokens: 5,
+                cacheReadTokens: 40,
+                totalTokens: 120,
+                requestCount: 1,
+                latestActivityAt: activityTime
+            )
+        ]
+
+        let store = AgentUsageStore(repository: repository)
+        store.refreshAll()
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all,
+            timeRange: .allTime,
+            projectDirectory: nil,
+            sessionID: nil,
+            modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.cacheReadTokens, 140)
+        XCTAssertEqual(data.summary.cacheHitDenominatorTokens, 320)
+        XCTAssertEqual(data.summaryPills.first { $0.id == "hitRate" }?.valueText, "44%")
+    }
+
     func testDerivedDataUsesBucketsForLast7DaysIncludingToday() {
         let todayDay = agentUsageDayIdentifier(for: Date())
 
