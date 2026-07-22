@@ -212,6 +212,21 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertEqual(normalizedPayload["kind"] as? String, "session.started")
     }
 
+    func testCodexHookIgnoresSystemThreadEvents() throws {
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
+
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        let payload = """
+        {"hook_event_name":"UserPromptSubmit","session_id":"system_thread","thread_id":"system_thread","thread_source":"system","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!
+
+        try harness.runHook(with: payload)
+        XCTAssertFalse(harness.didCaptureSenderPayload())
+    }
+
     func testCodexHookUsesTranscriptPathInsteadOfTurnIdentifierForSessionID() throws {
         let harness = try CodexHookRegressionHarness()
         defer { harness.cleanup() }
@@ -441,6 +456,10 @@ final class CodexHookRegressionHarness: AgentIntegrationManagingFileSystem {
         let data = try Data(contentsOf: captureURL)
         let object = try JSONSerialization.jsonObject(with: data, options: [])
         return try XCTUnwrap(object as? [String: Any])
+    }
+
+    func didCaptureSenderPayload() -> Bool {
+        fileManager.fileExists(atPath: captureURL.path)
     }
 
     func fileExists(at url: URL) -> Bool {

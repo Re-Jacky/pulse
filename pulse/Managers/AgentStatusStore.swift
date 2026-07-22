@@ -45,7 +45,7 @@ final class UserDefaultsAgentStatusPersistence: AgentStatusPersistence {
 
 @MainActor
 final class AgentStatusStore: ObservableObject {
-    private struct SessionEventVersion {
+    private struct SessionEventVersion: Equatable {
         let timestamp: Date
         let precedence: Int
     }
@@ -56,6 +56,8 @@ final class AgentStatusStore: ObservableObject {
     private let visibleSlotCap = 4
     private let autoClearInterval: TimeInterval = 60
     private let idleThreshold: TimeInterval = 300
+    private let codexSessionMaterializationDelay: TimeInterval
+    private let codexSessionExists: @Sendable (String) -> Bool
     private var autoClearTimer: Timer?
     private var workingSubagentSessionIDsByParent: [AgentStatusAgent: [String: Set<String>]] = [:]
     private var latestEventVersionsBySessionID: [AgentStatusAgent: [String: SessionEventVersion]] = [:]
@@ -67,8 +69,17 @@ final class AgentStatusStore: ObservableObject {
         )
     }
 
-    init(persistence: AgentStatusPersistence, enabledAgents: [AgentStatusAgent]) {
+    init(
+        persistence: AgentStatusPersistence,
+        enabledAgents: [AgentStatusAgent],
+        codexSessionMaterializationDelay: TimeInterval = 3,
+        codexSessionExists: @escaping @Sendable (String) -> Bool = { threadID in
+            CodexUsageQuery.threadExists(threadID: threadID)
+        }
+    ) {
         self.persistence = persistence
+        self.codexSessionMaterializationDelay = codexSessionMaterializationDelay
+        self.codexSessionExists = codexSessionExists
         groups = Self.bootstrapGroups(from: persistence.load(), enabledAgents: enabledAgents)
         latestEventVersionsBySessionID = Self.bootstrapLatestEventVersions(from: groups)
     }
@@ -88,6 +99,107 @@ final class AgentStatusStore: ObservableObject {
             applySubagentEvent(event, parentSessionID: parentSessionID, in: groupIndex)
         } else {
             applyPrimarySessionEvent(event, in: groupIndex)
+        }
+
+        updateOverflowCount(for: groupIndex)
+        persist()
+
+        if event.agent == .codex, event.kind == .sessionStarted {
+            scheduleEphemeralSessionCheck(for: event)
+        }
+    }
+
+    private func scheduleEphemeralSessionCheck(for event: PulseAgentStatusEvent) {
+        let sessionID = event.sessionID
+        let parentSessionID = event.parentSessionID
+        let isSubagent = event.isSubagent
+        let timestamp = event.timestamp
+        let delay = codexSessionMaterializationDelay
+        let sessionExists = codexSessionExists
+
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + delay) {
+            let exists = sessionExists(sessionID)
+            guard exists == false else { return }
+
+            Task { @MainActor [weak self] in
+                self?.removeUnmaterializedCodexSession(
+                    sessionID: sessionID,
+                    parentSessionID: parentSessionID,
+                    isSubagent: isSubagent,
+                    startedAt: timestamp
+                )
+            }
+        }
+    }
+
+    private func removeUnmaterializedCodexSession(
+        sessionID: String,
+        parentSessionID: String?,
+        isSubagent: Bool,
+        startedAt: Date
+    ) {
+        let startedVersion = SessionEventVersion(
+            timestamp: startedAt,
+            precedence: Self.precedence(for: Self.map(.sessionStarted))
+        )
+        guard latestEventVersionsBySessionID[.codex]?[sessionID] == startedVersion else {
+            return
+        }
+
+        if isSubagent, let parentSessionID, parentSessionID.isEmpty == false {
+            removeWorkingSubagentSession(
+                agent: .codex,
+                parentSessionID: parentSessionID,
+                childSessionID: sessionID
+            )
+        } else {
+            removeSlot(for: .codex, sessionID: sessionID)
+        }
+
+        latestEventVersionsBySessionID[.codex]?[sessionID] = nil
+    }
+
+    func removeSlot(for agent: AgentStatusAgent, sessionID: String) {
+        guard let groupIndex = groups.firstIndex(where: { $0.agent == agent }) else { return }
+        guard let slotIndex = groups[groupIndex].slots.firstIndex(where: { $0.sessionID == sessionID }) else { return }
+
+        workingSubagentSessionIDsByParent[agent]?[sessionID] = nil
+        groups[groupIndex].slots.remove(at: slotIndex)
+
+        if groups[groupIndex].slots.isEmpty {
+            groups[groupIndex].slots = [Self.placeholder(for: agent)]
+        }
+
+        updateOverflowCount(for: groupIndex)
+        persist()
+    }
+
+    private func removeWorkingSubagentSession(
+        agent: AgentStatusAgent,
+        parentSessionID: String,
+        childSessionID: String
+    ) {
+        var sessionsByParent = workingSubagentSessionIDsByParent[agent] ?? [:]
+        guard var childSessionIDs = sessionsByParent[parentSessionID],
+              childSessionIDs.remove(childSessionID) != nil else {
+            return
+        }
+
+        if childSessionIDs.isEmpty {
+            sessionsByParent[parentSessionID] = nil
+        } else {
+            sessionsByParent[parentSessionID] = childSessionIDs
+        }
+        workingSubagentSessionIDsByParent[agent] = sessionsByParent
+
+        guard let groupIndex = groups.firstIndex(where: { $0.agent == agent }) else { return }
+        if let slotIndex = groups[groupIndex].slots.firstIndex(where: { $0.sessionID == parentSessionID }) {
+            let baseState = groups[groupIndex].slots[slotIndex].sessionState ?? groups[groupIndex].slots[slotIndex].state
+            groups[groupIndex].slots[slotIndex].state = effectiveState(
+                for: agent,
+                sessionID: parentSessionID,
+                baseState: baseState
+            )
         }
 
         updateOverflowCount(for: groupIndex)

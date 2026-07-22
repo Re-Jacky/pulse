@@ -462,6 +462,47 @@ enum CodexUsageQuery {
             goals: mergedGoals
         )
     }
+
+    static func threadExists(
+        threadID: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) -> Bool {
+        var databaseURLs: [URL] = []
+        var seenPaths = Set<String>()
+
+        if let explicitPath = environment["CODEX_DB_PATH"], explicitPath.isEmpty == false {
+            let url = URL(fileURLWithPath: NSString(string: explicitPath).expandingTildeInPath)
+            if fileManager.fileExists(atPath: url.path), seenPaths.insert(url.path).inserted {
+                databaseURLs.append(url)
+            }
+        }
+
+        for url in validStateDatabaseURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager) {
+            guard seenPaths.insert(url.path).inserted else { continue }
+            databaseURLs.append(url)
+        }
+
+        return databaseURLs.contains { threadExists(threadID: threadID, databaseURL: $0) }
+    }
+
+    static func threadExists(threadID: String, databaseURL: URL) -> Bool {
+        guard let db = try? openReadOnlyDatabase(databaseURL: databaseURL) else {
+            return false
+        }
+        defer { sqlite3_close(db) }
+
+        let sql = "select 1 from threads where id = ? limit 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            return false
+        }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, (threadID as NSString).utf8String, -1, nil)
+        return sqlite3_step(statement) == SQLITE_ROW
+    }
 }
 
 private func buildTranscriptURLIndex(

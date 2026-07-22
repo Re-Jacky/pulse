@@ -359,6 +359,80 @@ final class AgentUsageStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
+    func testCodexThreadExistsSearchesAllValidStateDatabases() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home")
+        let codexRoot = home.appendingPathComponent(".codex")
+        let sqliteDir = codexRoot.appendingPathComponent("sqlite")
+        let activeRootDB = codexRoot.appendingPathComponent("state_6.sqlite")
+        let historicalSQLiteDB = sqliteDir.appendingPathComponent("state_5.sqlite")
+
+        try FileManager.default.createDirectory(at: sqliteDir, withIntermediateDirectories: true)
+
+        let rootWriter = try openWritableDatabase(activeRootDB)
+        defer { sqlite3_close(rootWriter) }
+        let sqliteWriter = try openWritableDatabase(historicalSQLiteDB)
+        defer { sqlite3_close(sqliteWriter) }
+
+        let schema = """
+        create table threads (
+            id text primary key,
+            title text,
+            cwd text not null,
+            model text,
+            model_provider text not null,
+            tokens_used integer not null default 0,
+            reasoning_effort text,
+            thread_source text,
+            agent_nickname text,
+            agent_role text,
+            created_at_ms integer,
+            updated_at_ms integer,
+            archived integer
+        );
+        """
+        try execute(rootWriter, sql: schema)
+        try execute(sqliteWriter, sql: schema)
+
+        try execute(rootWriter, sql: """
+        insert into threads values
+        ('active_only', 'Active Only', '/tmp/pulse', 'gpt-5.4', 'openai', 300, '', 'user', null, null, 2000, 6000, 0);
+        """)
+        try execute(sqliteWriter, sql: """
+        insert into threads values
+        ('historical_only', 'Historical Only', '/tmp/old', 'gpt-5.4', 'openai', 200, '', 'user', null, null, 1500, 3000, 0);
+        """)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000)], ofItemAtPath: activeRootDB.path)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000)], ofItemAtPath: historicalSQLiteDB.path)
+
+        XCTAssertEqual(
+            CodexUsageQuery.resolveDatabaseURL(
+                environment: [:],
+                homeDirectoryURL: home,
+                fileManager: .default
+            )?.resolvingSymlinksInPath().path,
+            activeRootDB.resolvingSymlinksInPath().path
+        )
+        XCTAssertTrue(
+            CodexUsageQuery.threadExists(
+                threadID: "historical_only",
+                environment: [:],
+                homeDirectoryURL: home,
+                fileManager: .default
+            )
+        )
+        XCTAssertFalse(
+            CodexUsageQuery.threadExists(
+                threadID: "missing",
+                environment: [:],
+                homeDirectoryURL: home,
+                fileManager: .default
+            )
+        )
+
+        try? FileManager.default.removeItem(at: root)
+    }
+
     func testCodexLoadMergedSnapshotCanSkipTranscriptURLs() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")

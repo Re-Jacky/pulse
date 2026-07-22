@@ -106,6 +106,15 @@ struct CodexIntegrationInstaller {
           );
         }
 
+        function normalizeThreadSource(payload) {
+          return firstNonEmptyString(
+            payload.thread_source,
+            payload.threadSource,
+            payload.source?.thread_source,
+            payload.source?.threadSource
+          );
+        }
+
         function hasNestedSubagentSource(sourceValue) {
           if (typeof sourceValue !== "object" || sourceValue === null) {
             return false;
@@ -124,7 +133,7 @@ struct CodexIntegrationInstaller {
             return true;
           }
 
-          const threadSource = String(payload.thread_source ?? payload.threadSource ?? "");
+          const threadSource = normalizeThreadSource(payload);
           const hasThreadSourceMetadata = threadSource === "subagent" || hasNestedSubagentSource(payload.source);
 
           if (hasThreadSourceMetadata) {
@@ -142,6 +151,7 @@ struct CodexIntegrationInstaller {
         const parentSessionID = normalizeParentSessionID(payload);
         const projectPath = String(payload.cwd ?? payload.directory ?? payload.project_path ?? payload.projectPath ?? process.cwd());
         const title = String(payload.title ?? payload.session_title ?? payload.sessionTitle ?? "");
+        const threadSource = normalizeThreadSource(payload);
         const isSubagent = isSubagentEvent(payload, eventName, parentSessionID);
         const kind = eventName === "Stop" || eventName === "SubagentStop" ? "session.idle" :
           eventName === "SessionStart" ? "session.started" : "session.working";
@@ -149,6 +159,11 @@ struct CodexIntegrationInstaller {
         const normalizedTitle = title.length > 0 ? title : (projectPath.split("/").filter(Boolean).pop() || "Codex Session");
 
         if (eventName === "SessionStart" && source === "startup") {
+          process.stdout.write(JSON.stringify({ continue: true }) + "\\n");
+          process.exit(0);
+        }
+
+        if (threadSource === "system") {
           process.stdout.write(JSON.stringify({ continue: true }) + "\\n");
           process.exit(0);
         }

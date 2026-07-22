@@ -152,6 +152,118 @@ final class AgentStatusStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testUnmaterializedCodexSessionStartIsRemovedAfterValidation() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexSessionMaterializationDelay: 0,
+            codexSessionExists: { _ in false }
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "ephemeral",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Ephemeral",
+                timestamp: Date(timeIntervalSince1970: 100),
+                kind: .sessionStarted,
+                message: nil
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].state, .empty)
+        XCTAssertNil(store.groups[0].slots[0].sessionID)
+    }
+
+    @MainActor
+    func testCodexMaterializationCleanupDoesNotRemoveNewerWorkingEvent() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexSessionMaterializationDelay: 0,
+            codexSessionExists: { _ in false }
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Started",
+                timestamp: Date(timeIntervalSince1970: 100),
+                kind: .sessionStarted,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Working",
+                timestamp: Date(timeIntervalSince1970: 101),
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "session-1")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .working)
+    }
+
+    @MainActor
+    func testUnmaterializedCodexSubagentStartDoesNotLeaveParentWorking() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexSessionMaterializationDelay: 0,
+            codexSessionExists: { _ in false }
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Parent",
+                timestamp: Date(timeIntervalSince1970: 100),
+                kind: .sessionIdle,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "child",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child",
+                timestamp: Date(timeIntervalSince1970: 101),
+                kind: .sessionStarted,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
     func testPersistPreservesGroupsForAgentsThatAreNotCurrentlyEnabled() {
         let persistence = SpyAgentStatusPersistence(
             persisted: PersistedAgentStatusStore(
