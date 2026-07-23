@@ -7,12 +7,14 @@ protocol AgentIntegrationWritableFileSystem {
 typealias AgentIntegrationInstallerFileSystem = AgentIntegrationFileSystem & AgentIntegrationWritableFileSystem
 
 enum PulseAgentEventSenderTemplate {
-    static let managedVersion = "pulse-agent-lights-v2"
+    static let senderVersion = "sender-v1"
+    static let codexHookVersion = "codex-hook-v1"
+    static let openCodePluginVersion = "opencode-plugin-v1"
 
     static func script(listenerPort: Int) -> String {
         """
         #!/bin/sh
-        # PULSE_MANAGED_VERSION=\(managedVersion)
+        # PULSE_AGENT_SENDER_VERSION=\(senderVersion)
         # pulse-agent-event-sender
         debug_enabled_file="$HOME/.pulse-agent-lights/debug-enabled"
         sender_log="$HOME/.pulse-agent-lights/logs/pulse-agent-sender.log"

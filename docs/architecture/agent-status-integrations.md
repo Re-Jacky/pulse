@@ -12,6 +12,20 @@ Pulse models live agent state in three layers:
 
 The install and uninstall flow for those adapters is owned by `AgentIntegrationManager`.
 
+## Integration Revisions
+
+Each generated integration file carries an independent revision marker in its header:
+
+- OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1`
+- Codex hook: `PULSE_CODEX_HOOK_VERSION=codex-hook-v1`
+- Shared sender: `PULSE_AGENT_SENDER_VERSION=sender-v1`
+
+These are opaque integration revisions, not the Pulse marketing version. They are bumped only when the corresponding generated code or event contract changes, so a normal Pulse app release does not make every installed integration appear outdated.
+
+`AgentIntegrationManager` compares each installed marker exactly with the expected revision. OpenCode requires a current plugin and sender; Codex requires a current hook and sender plus a Pulse hook entry in `hooks.json`. Missing integrations are reported as not installed, while existing Pulse-managed files with missing or old markers are reported as outdated.
+
+At app startup, Pulse automatically reinstalls integrations reported as outdated. Reconciliation is limited to files identified as Pulse-managed, preserves user-owned Codex hook entries, and does not install integrations that the user has never enabled.
+
 ## Installed Files
 
 ### OpenCode

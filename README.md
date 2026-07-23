@@ -296,6 +296,8 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
 - Supports **OpenCode** and **Codex** live session lights in the menu bar
 - Uses a Pulse-managed OpenCode plugin at `~/.config/opencode/plugins/pulse-agent-lights.ts`
 - Uses a Pulse-managed Codex hook at `~/.codex/hooks/pulse-agent-lights-hook.sh` with merged entries in `~/.codex/hooks.json`
+- Stores independent revision markers in the generated plugin, hook, and shared sender files; revisions change only when that integration’s generated code changes, not on every Pulse app release
+- Checks those markers at startup and automatically reinstalls stale Pulse-managed integrations while leaving missing integrations and user-owned files untouched
 - Keeps the model event-driven: Pulse does not poll databases or logs for live session state
 - Shows only top-level sessions as visible rows
 - Aggregates real subagent work back into the parent session, so a parent stays `working` while any child is still active

@@ -36,7 +36,7 @@ struct OpenCodeIntegrationInstaller {
 
     private func pluginSource() -> String {
         """
-        // PULSE_MANAGED_VERSION=\(PulseAgentEventSenderTemplate.managedVersion)
+        // PULSE_OPENCODE_PLUGIN_VERSION=\(PulseAgentEventSenderTemplate.openCodePluginVersion)
         // pulse-agent-lights
         // pulse-agent-event-sender
         // opencode

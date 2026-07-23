@@ -42,7 +42,7 @@ final class AgentIntegrationManager: ObservableObject {
             return notInstalledStatus(for: agent)
         }
 
-        guard primaryFileHasManagedVersion(for: layout) else {
+        guard isOpenCodeCurrent() else {
             return outdatedStatus(for: agent)
         }
 
@@ -92,6 +92,23 @@ final class AgentIntegrationManager: ObservableObject {
         try install(agent)
     }
 
+    func updateOutdatedIntegrations() {
+        for agent in AgentStatusAgent.allCases {
+            guard status(for: agent).state == .outdated else {
+                continue
+            }
+
+            do {
+                try reinstall(agent)
+                installFailures[agent] = nil
+            } catch {
+                installFailures[agent] = error.localizedDescription
+            }
+        }
+
+        objectWillChange.send()
+    }
+
     func uninstall(_ agent: AgentStatusAgent) throws {
         if agent == .codex {
             try uninstallCodex()
@@ -131,7 +148,7 @@ final class AgentIntegrationManager: ObservableObject {
         let hooksContainPulseHook = codexHooksContainPulseHook()
         let hasAnyPulseFootprint = hookScriptExists || hooksContainPulseHook
 
-        if hookScriptManaged && hooksContainPulseHook {
+        if hookScriptManaged && hooksContainPulseHook && isCodexCurrent() {
             return installedStatus(for: .codex)
         }
 
@@ -142,12 +159,33 @@ final class AgentIntegrationManager: ObservableObject {
         return notInstalledStatus(for: .codex)
     }
 
-    private func primaryFileHasManagedVersion(for layout: AgentIntegrationLayout) -> Bool {
-        guard let contents = fileSystem.readFile(at: layout.primaryURL) else {
+    private func isOpenCodeCurrent() -> Bool {
+        hasMarker(
+            in: openCodePluginURL,
+            marker: "PULSE_OPENCODE_PLUGIN_VERSION=\(PulseAgentEventSenderTemplate.openCodePluginVersion)"
+        ) && hasCurrentSenderVersion()
+    }
+
+    private func isCodexCurrent() -> Bool {
+        hasMarker(
+            in: codexHookURL,
+            marker: "PULSE_CODEX_HOOK_VERSION=\(PulseAgentEventSenderTemplate.codexHookVersion)"
+        ) && hasCurrentSenderVersion()
+    }
+
+    private func hasCurrentSenderVersion() -> Bool {
+        hasMarker(
+            in: codexSenderURL,
+            marker: "PULSE_AGENT_SENDER_VERSION=\(PulseAgentEventSenderTemplate.senderVersion)"
+        )
+    }
+
+    private func hasMarker(in url: URL, marker: String) -> Bool {
+        guard let contents = fileSystem.readFile(at: url) else {
             return false
         }
 
-        return contents.contains(managedVersionMarker)
+        return contents.contains(marker)
     }
 
     private func isPulseManaged(_ url: URL) -> Bool {
@@ -155,7 +193,10 @@ final class AgentIntegrationManager: ObservableObject {
             return false
         }
 
-        return contents.contains(managedVersionMarker)
+        return contents.contains("PULSE_AGENT_SENDER_VERSION=")
+            || contents.contains("PULSE_CODEX_HOOK_VERSION=")
+            || contents.contains("PULSE_OPENCODE_PLUGIN_VERSION=")
+            || contents.contains("PULSE_MANAGED_VERSION=")
     }
 
     private func shouldRemoveSharedSender(afterUninstalling agent: AgentStatusAgent) -> Bool {
@@ -167,8 +208,11 @@ final class AgentIntegrationManager: ObservableObject {
             return isPulseManaged(codexHookURL) && codexHooksContainPulseHook()
         }
 
-        let layout = layout(for: agent)
-        return fileSystem.fileExists(at: layout.primaryURL) && primaryFileHasManagedVersion(for: layout)
+        if agent == .openCode {
+            return isOpenCodeCurrent()
+        }
+
+        return fileSystem.fileExists(at: codexHookURL) && isCodexCurrent()
     }
 
     private func uninstallCodex() throws {
@@ -337,10 +381,6 @@ final class AgentIntegrationManager: ObservableObject {
         homeDirectoryURL
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("hooks.json")
-    }
-
-    private var managedVersionMarker: String {
-        "PULSE_MANAGED_VERSION=\(PulseAgentEventSenderTemplate.managedVersion)"
     }
 
     private func senderURL(for agent: AgentStatusAgent) -> URL {

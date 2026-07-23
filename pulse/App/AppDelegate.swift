@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         updateManager.performPostUpgradeTasks()
+        agentIntegrationManager.updateOutdatedIntegrations()
 
         setupStatusItem()
         setupAgentStatusItem()

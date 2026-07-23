@@ -43,7 +43,7 @@ struct CodexIntegrationInstaller {
     private func hookScriptSource() -> String {
         """
         #!/bin/sh
-        # PULSE_MANAGED_VERSION=\(PulseAgentEventSenderTemplate.managedVersion)
+        # PULSE_CODEX_HOOK_VERSION=\(PulseAgentEventSenderTemplate.codexHookVersion)
         # codex
         # pulse-agent-event-sender
         # hook_event_name

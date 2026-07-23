@@ -51,6 +51,74 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertEqual(status.guidance, ["Restart OpenCode so the Pulse plugin is loaded."])
     }
 
+    func testOpenCodeStatusIsOutdatedWhenPluginRevisionIsStale() {
+        let fs = InMemoryAgentIntegrationFileSystem(seed: .staleOpenCodePlugin)
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        XCTAssertEqual(manager.status(for: .openCode).state, .outdated)
+    }
+
+    func testOpenCodeStatusIsOutdatedWhenSharedSenderRevisionIsStale() {
+        let fs = InMemoryAgentIntegrationFileSystem(seed: .staleOpenCodeSender)
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        XCTAssertEqual(manager.status(for: .openCode).state, .outdated)
+    }
+
+    func testCodexStatusIsOutdatedWhenHookRevisionIsStale() {
+        let fs = InMemoryAgentIntegrationFileSystem(seed: .staleCodexHook)
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        XCTAssertEqual(manager.status(for: .codex).state, .outdated)
+    }
+
+    func testCodexStatusIsOutdatedWhenSharedSenderRevisionIsStale() {
+        let fs = InMemoryAgentIntegrationFileSystem(seed: .staleCodexSender)
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        XCTAssertEqual(manager.status(for: .codex).state, .outdated)
+    }
+
+    func testUpdateOutdatedIntegrationsReinstallsOnlyStaleManagedIntegrations() throws {
+        let fs = InMemoryAgentIntegrationFileSystem(seed: .staleOpenCodePlugin)
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        manager.updateOutdatedIntegrations()
+
+        let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
+        XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
+        XCTAssertEqual(manager.status(for: .codex).state, .notInstalled)
+    }
+
+    func testUpdateOutdatedIntegrationsDoesNotInstallMissingIntegrations() throws {
+        let fs = InMemoryAgentIntegrationFileSystem()
+        let manager = AgentIntegrationManager(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        manager.updateOutdatedIntegrations()
+
+        XCTAssertEqual(manager.status(for: .openCode).state, .notInstalled)
+        XCTAssertEqual(manager.status(for: .codex).state, .notInstalled)
+    }
+
     func testOpenCodeInstallerWritesPluginThatCallsSharedSender() throws {
         let fs = InMemoryAgentIntegrationFileSystem()
         let installer = OpenCodeIntegrationInstaller(
@@ -84,7 +152,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(plugin.contains("existsSync(debugEnabledPath) === false"))
         XCTAssertTrue(plugin.contains("pulse-agent-event-sender"))
         XCTAssertTrue(plugin.contains("opencode"))
-        XCTAssertTrue(plugin.contains("PULSE_MANAGED_VERSION"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
     }
 
     func testOpenCodePluginTreatsOnlySessionParentsAsSubagents() throws {
@@ -124,6 +192,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
     func testSenderTemplateSupportsOptInDebugLog() {
         let script = PulseAgentEventSenderTemplate.script(listenerPort: 45821)
 
+        XCTAssertTrue(script.contains("PULSE_AGENT_SENDER_VERSION=sender-v1"))
         XCTAssertTrue(script.contains(".pulse-agent-lights/debug-enabled"))
         XCTAssertTrue(script.contains(".pulse-agent-lights/logs/pulse-agent-sender.log"))
         XCTAssertTrue(script.contains("raw_payload"))
@@ -140,7 +209,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try installer.install()
 
         let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
-        XCTAssertTrue(hook.contains("PULSE_MANAGED_VERSION"))
+        XCTAssertTrue(hook.contains("PULSE_CODEX_HOOK_VERSION=codex-hook-v1"))
         XCTAssertTrue(hook.contains("hook_event_name"))
         XCTAssertTrue(hook.contains("parentSessionID"))
         XCTAssertTrue(hook.contains("isSubagent"))
@@ -324,7 +393,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try manager.reinstall(.openCode)
 
         let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
-        XCTAssertTrue(plugin.contains(PulseAgentEventSenderTemplate.managedVersion))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
         XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
     }
 
@@ -563,6 +632,10 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         case openCodeInstalled
         case bothInstalled
         case outdatedOpenCodeInstall
+        case staleOpenCodePlugin
+        case staleOpenCodeSender
+        case staleCodexHook
+        case staleCodexSender
         case userOwnedCodexHook
         case userOwnedCodexHooks
         case codexInstalledWithUserHooks
@@ -583,7 +656,15 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         case .bothInstalled:
             files = Self.makeOpenCodeInstall().merging(Self.makeCodexInstall()) { _, new in new }
         case .outdatedOpenCodeInstall:
-            files = Self.makeOpenCodeInstall(managedVersion: "pulse-agent-lights-v0")
+            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v0", senderVersion: "sender-v0")
+        case .staleOpenCodePlugin:
+            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v0")
+        case .staleOpenCodeSender:
+            files = Self.makeOpenCodeInstall(senderVersion: "sender-v0")
+        case .staleCodexHook:
+            files = Self.makeCodexInstall(hookVersion: "codex-hook-v0")
+        case .staleCodexSender:
+            files = Self.makeCodexInstall(senderVersion: "sender-v0")
         case .userOwnedCodexHook:
             let hookURL = URL(fileURLWithPath: "/Users/tester")
                 .appendingPathComponent(".codex", isDirectory: true)
@@ -688,31 +769,37 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         .appendingPathComponent(".codex", isDirectory: true)
         .appendingPathComponent("hooks.json")
 
-    private static func makeOpenCodeInstall(managedVersion: String = PulseAgentEventSenderTemplate.managedVersion) -> [URL: String] {
+    private static func makeOpenCodeInstall(
+        pluginVersion: String = "opencode-plugin-v1",
+        senderVersion: String = "sender-v1"
+    ) -> [URL: String] {
         [
             openCodeSenderURL: """
             #!/bin/sh
-            # PULSE_MANAGED_VERSION=\(managedVersion)
+            # PULSE_AGENT_SENDER_VERSION=\(senderVersion)
             # pulse-agent-event-sender
             """,
             openCodePluginURL: """
             // pulse-agent-lights
             // pulse-agent-event-sender
-            // PULSE_MANAGED_VERSION=\(managedVersion)
+            // PULSE_OPENCODE_PLUGIN_VERSION=\(pluginVersion)
             """
         ]
     }
 
-    private static func makeCodexInstall(managedVersion: String = PulseAgentEventSenderTemplate.managedVersion) -> [URL: String] {
+    private static func makeCodexInstall(
+        hookVersion: String = "codex-hook-v1",
+        senderVersion: String = "sender-v1"
+    ) -> [URL: String] {
         [
             openCodeSenderURL: """
             #!/bin/sh
-            # PULSE_MANAGED_VERSION=\(managedVersion)
+            # PULSE_AGENT_SENDER_VERSION=\(senderVersion)
             # pulse-agent-event-sender
             """,
             codexHookURL: """
             #!/bin/sh
-            # PULSE_MANAGED_VERSION=\(managedVersion)
+            # PULSE_CODEX_HOOK_VERSION=\(hookVersion)
             # codex
             # pulse-agent-event-sender
             # hook_event_name
@@ -770,8 +857,11 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         ]
     }
 
-    private static func makeCodexInstallWithUserHooks(managedVersion: String = PulseAgentEventSenderTemplate.managedVersion) -> [URL: String] {
-        var install = makeCodexInstall(managedVersion: managedVersion)
+    private static func makeCodexInstallWithUserHooks(
+        hookVersion: String = "codex-hook-v1",
+        senderVersion: String = "sender-v1"
+    ) -> [URL: String] {
+        var install = makeCodexInstall(hookVersion: hookVersion, senderVersion: senderVersion)
         install[codexHooksURL] = """
         {
           "hooks": {
