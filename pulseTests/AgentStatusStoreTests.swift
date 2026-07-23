@@ -288,6 +288,39 @@ final class AgentStatusStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testCodexAbortedTranscriptTurnAfterInitialCheckMarksWorkingSessionIdle() async throws {
+        let abortProbe = ThreadSafeAbortProbe(abortsAfterCheckCount: 2)
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexTurnAbortedCheckDelay: 0.01,
+            codexTurnWasAborted: abortProbe.turnWasAborted
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Working",
+                timestamp: Date(timeIntervalSince1970: 170),
+                kind: .sessionWorking,
+                message: nil,
+                transcriptPath: "/tmp/session.jsonl",
+                turnID: "turn-1"
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertGreaterThanOrEqual(abortProbe.checkCount, 2)
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "session-1")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
     func testUnmaterializedCodexSubagentStartDoesNotLeaveParentWorking() async throws {
         let store = AgentStatusStore(
             persistence: InMemoryAgentStatusPersistence(),
@@ -975,6 +1008,29 @@ final class AgentStatusStoreTests: XCTestCase {
 
         XCTAssertEqual(persistence.load(), expected)
         defaults.removePersistentDomain(forName: suiteName)
+    }
+}
+
+private final class ThreadSafeAbortProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private let abortsAfterCheckCount: Int
+    private var storedCheckCount = 0
+
+    init(abortsAfterCheckCount: Int) {
+        self.abortsAfterCheckCount = abortsAfterCheckCount
+    }
+
+    var checkCount: Int {
+        lock.withLock {
+            storedCheckCount
+        }
+    }
+
+    func turnWasAborted(transcriptPath _: String, turnID _: String) -> Bool {
+        lock.withLock {
+            storedCheckCount += 1
+            return storedCheckCount >= abortsAfterCheckCount
+        }
     }
 }
 

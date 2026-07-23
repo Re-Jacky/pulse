@@ -183,12 +183,35 @@ final class AgentStatusStore: ObservableObject {
         let turnWasAborted = codexTurnWasAborted
 
         DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + delay) {
-            guard turnWasAborted(transcriptPath, turnID) else { return }
+            guard turnWasAborted(transcriptPath, turnID) else {
+                Task { @MainActor [weak self] in
+                    self?.rescheduleCodexTurnAbortedCheckIfCurrent(
+                        event,
+                        expectedVersion: expectedVersion,
+                        transcriptPath: transcriptPath,
+                        turnID: turnID
+                    )
+                }
+                return
+            }
 
             Task { @MainActor [weak self] in
                 self?.markCodexTurnAbortedIfCurrent(event, expectedVersion: expectedVersion)
             }
         }
+    }
+
+    private func rescheduleCodexTurnAbortedCheckIfCurrent(
+        _ event: PulseAgentStatusEvent,
+        expectedVersion: SessionEventVersion,
+        transcriptPath: String,
+        turnID: String
+    ) {
+        guard latestEventVersionsBySessionID[.codex]?[event.sessionID] == expectedVersion else {
+            return
+        }
+
+        scheduleCodexTurnAbortedCheck(for: event, transcriptPath: transcriptPath, turnID: turnID)
     }
 
     private func markCodexTurnAbortedIfCurrent(
