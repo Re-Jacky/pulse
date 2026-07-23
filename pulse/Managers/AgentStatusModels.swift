@@ -42,6 +42,8 @@ struct PulseAgentStatusEvent: Codable, Equatable {
     let message: String?
     let parentSessionID: String?
     let isSubagent: Bool
+    let transcriptPath: String?
+    let turnID: String?
 
     init(
         agent: AgentStatusAgent,
@@ -52,7 +54,9 @@ struct PulseAgentStatusEvent: Codable, Equatable {
         kind: PulseAgentStatusEventKind,
         message: String?,
         parentSessionID: String? = nil,
-        isSubagent: Bool = false
+        isSubagent: Bool = false,
+        transcriptPath: String? = nil,
+        turnID: String? = nil
     ) {
         self.agent = agent
         self.sessionID = sessionID
@@ -63,6 +67,8 @@ struct PulseAgentStatusEvent: Codable, Equatable {
         self.message = message
         self.parentSessionID = parentSessionID
         self.isSubagent = isSubagent
+        self.transcriptPath = transcriptPath
+        self.turnID = turnID
     }
 }
 

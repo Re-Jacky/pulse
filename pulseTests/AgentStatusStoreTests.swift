@@ -13,7 +13,9 @@ final class AgentStatusStoreTests: XCTestCase {
             kind: .sessionWorking,
             message: "running",
             parentSessionID: "parent-1",
-            isSubagent: true
+            isSubagent: true,
+            transcriptPath: "/tmp/session.jsonl",
+            turnID: "turn-1"
         )
 
         let data = try JSONEncoder().encode(event)
@@ -21,6 +23,8 @@ final class AgentStatusStoreTests: XCTestCase {
 
         XCTAssertEqual(jsonObject["sessionTitle"] as? String, "Fix menu bar")
         XCTAssertNil(jsonObject["title"])
+        XCTAssertEqual(jsonObject["transcriptPath"] as? String, "/tmp/session.jsonl")
+        XCTAssertEqual(jsonObject["turnID"] as? String, "turn-1")
 
         let decoded = try JSONDecoder().decode(PulseAgentStatusEvent.self, from: data)
         XCTAssertEqual(decoded, event)
@@ -208,6 +212,70 @@ final class AgentStatusStoreTests: XCTestCase {
                 timestamp: Date(timeIntervalSince1970: 101),
                 kind: .sessionWorking,
                 message: nil
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "session-1")
+        XCTAssertEqual(store.groups[0].slots[0].state, .working)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .working)
+    }
+
+    @MainActor
+    func testCodexAbortedTranscriptTurnMarksWorkingSessionIdle() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexTurnAbortedCheckDelay: 0,
+            codexTurnWasAborted: { transcriptPath, turnID in
+                transcriptPath == "/tmp/session.jsonl" && turnID == "turn-1"
+            }
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Working",
+                timestamp: Date(timeIntervalSince1970: 150),
+                kind: .sessionWorking,
+                message: nil,
+                transcriptPath: "/tmp/session.jsonl",
+                turnID: "turn-1"
+            )
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "session-1")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testCodexWorkingSessionStaysWorkingWhenTranscriptTurnIsNotAborted() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexTurnAbortedCheckDelay: 0,
+            codexTurnWasAborted: { _, _ in false }
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "session-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Working",
+                timestamp: Date(timeIntervalSince1970: 160),
+                kind: .sessionWorking,
+                message: nil,
+                transcriptPath: "/tmp/session.jsonl",
+                turnID: "turn-1"
             )
         )
 
@@ -433,6 +501,55 @@ final class AgentStatusStoreTests: XCTestCase {
                 message: nil,
                 parentSessionID: "parent",
                 isSubagent: true
+            )
+        )
+
+        XCTAssertEqual(store.groups[0].slots.count, 1)
+        XCTAssertEqual(store.groups[0].slots[0].sessionID, "parent")
+        XCTAssertEqual(store.groups[0].slots[0].state, .idle)
+        XCTAssertEqual(store.groups[0].slots[0].sessionState, .idle)
+    }
+
+    @MainActor
+    func testPrimaryCloseClearsWorkingSubagentsAndShowsIdle() {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex]
+        )
+
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 250),
+                kind: .sessionWorking,
+                message: nil
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "child-1",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Child Session",
+                timestamp: Date(timeIntervalSince1970: 251),
+                kind: .sessionWorking,
+                message: nil,
+                parentSessionID: "parent",
+                isSubagent: true
+            )
+        )
+        store.apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: "parent",
+                projectPath: "/tmp/pulse",
+                sessionTitle: "Main Session",
+                timestamp: Date(timeIntervalSince1970: 252),
+                kind: .sessionClosed,
+                message: nil
             )
         )
 

@@ -17,6 +17,8 @@ final class PulseAgentStatusServer {
         let message: String?
         let parentSessionID: String?
         let isSubagent: Bool?
+        let transcriptPath: String?
+        let turnID: String?
 
         var event: PulseAgentStatusEvent {
             PulseAgentStatusEvent(
@@ -28,7 +30,9 @@ final class PulseAgentStatusServer {
                 kind: kind,
                 message: message,
                 parentSessionID: parentSessionID,
-                isSubagent: isSubagent ?? false
+                isSubagent: isSubagent ?? false,
+                transcriptPath: transcriptPath,
+                turnID: turnID
             )
         }
     }

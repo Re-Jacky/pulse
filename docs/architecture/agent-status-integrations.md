@@ -17,7 +17,7 @@ The install and uninstall flow for those adapters is owned by `AgentIntegrationM
 Each generated integration file carries an independent revision marker in its header:
 
 - OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1`
-- Codex hook: `PULSE_CODEX_HOOK_VERSION=codex-hook-v1`
+- Codex hook: `PULSE_CODEX_HOOK_VERSION=codex-hook-v3`
 - Shared sender: `PULSE_AGENT_SENDER_VERSION=sender-v1`
 
 These are opaque integration revisions, not the Pulse marketing version. They are bumped only when the corresponding generated code or event contract changes, so a normal Pulse app release does not make every installed integration appear outdated.
@@ -72,16 +72,18 @@ Pulse merges its Codex entries into the shared `hooks.json` file instead of owni
    - `UserPromptSubmit` -> `session.working`
    - `SubagentStart` -> `session.working`
    - `SubagentStop` -> `session.idle`
-   - `Stop` -> `session.idle`
+   - `Stop` -> `session.closed`
 4. Subagent events are marked with `isSubagent = true` and include `parentSessionID` when Codex provides it.
-5. The hook forwards one normalized JSON payload to the shared sender.
-6. The hook returns `{ "continue": true }` so it never blocks Codex execution.
+5. For `UserPromptSubmit`, the hook also forwards `transcriptPath` and `turnID` when Codex provides them.
+6. The hook forwards one normalized JSON payload to the shared sender.
+7. The hook returns `{ "continue": true }` so it never blocks Codex execution.
 
 Current Codex limitation:
 
 - Some Codex builds do not reliably emit a closing `Stop` hook when a user manually interrupts a turn.
-- In those cases, Pulse keeps the last event-driven state until a later Codex event arrives.
-- Pulse intentionally does not guess an `idle` transition with a timeout for Codex, because that would trade correctness for heuristics.
+- Codex transcripts can still record the interrupted turn as an `event_msg` payload with `type = "turn_aborted"`.
+- When Pulse receives a Codex `session.working` event with both `transcriptPath` and `turnID`, it performs a short transcript-backed check for that exact aborted turn before demoting the session to `idle`.
+- Pulse intentionally avoids a blind `idle` timeout for Codex; the fallback requires transcript evidence for the matching turn.
 
 ## Shared Sender
 

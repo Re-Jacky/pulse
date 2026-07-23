@@ -209,15 +209,15 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try installer.install()
 
         let hook = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights-hook.sh"))
-        XCTAssertTrue(hook.contains("PULSE_CODEX_HOOK_VERSION=codex-hook-v1"))
+        XCTAssertTrue(hook.contains("PULSE_CODEX_HOOK_VERSION=codex-hook-v3"))
         XCTAssertTrue(hook.contains("hook_event_name"))
         XCTAssertTrue(hook.contains("parentSessionID"))
         XCTAssertTrue(hook.contains("isSubagent"))
         XCTAssertTrue(hook.contains("payload.session_id"))
         XCTAssertTrue(hook.contains("payload.transcript_path"))
         XCTAssertTrue(hook.contains("payload.thread_id"))
-        XCTAssertFalse(hook.contains("payload.turn_id"))
-        XCTAssertFalse(hook.contains("payload.turnId"))
+        XCTAssertTrue(hook.contains("payload.turn_id"))
+        XCTAssertTrue(hook.contains("payload.turnId"))
         XCTAssertFalse(hook.contains("payload.id"))
         XCTAssertFalse(hook.contains("payload.parent_id"))
         XCTAssertFalse(hook.contains("payload.parentId"))
@@ -242,7 +242,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try harness.installSenderCaptureScript()
 
         let mainPayload = """
-        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl","session_id":"thread_parent","thread_id":"thread_parent","cwd":"/tmp/pulse"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl","session_id":"thread_parent","thread_id":"thread_parent","turn_id":"turn_parent","cwd":"/tmp/pulse"}
         """.data(using: .utf8)!
 
         let mainNormalizedPayload = try harness.normalizedSenderPayload(from: mainPayload)
@@ -250,17 +250,21 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertEqual(mainNormalizedPayload["sessionID"] as? String, "thread_parent")
         XCTAssertNotEqual(mainNormalizedPayload["sessionID"] as? String, "/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl")
         XCTAssertEqual(mainNormalizedPayload["kind"] as? String, "session.working")
+        XCTAssertEqual(mainNormalizedPayload["transcriptPath"] as? String, "/Users/zyao/.codex/sessions/thread_parent-2026-06-24.jsonl")
+        XCTAssertEqual(mainNormalizedPayload["turnID"] as? String, "turn_parent")
         XCTAssertNil(mainNormalizedPayload["parentSessionID"])
         XCTAssertNil(mainNormalizedPayload["isSubagent"])
 
         let childPayload = """
-        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
+        {"hook_event_name":"UserPromptSubmit","transcript_path":"/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl","session_id":"thread_child","thread_id":"thread_child","turn_id":"turn_child","thread_source":"subagent","parent_thread_id":"thread_parent","source":{"subagent":{"thread_spawn":{"parent_thread_id":"thread_parent"}}},"cwd":"/tmp/pulse"}
         """.data(using: .utf8)!
 
         let childNormalizedPayload = try harness.normalizedSenderPayload(from: childPayload)
         XCTAssertEqual(childNormalizedPayload["agent"] as? String, "codex")
         XCTAssertEqual(childNormalizedPayload["sessionID"] as? String, "thread_child")
         XCTAssertEqual(childNormalizedPayload["kind"] as? String, "session.working")
+        XCTAssertEqual(childNormalizedPayload["transcriptPath"] as? String, "/Users/zyao/.codex/sessions/thread_child-2026-06-24.jsonl")
+        XCTAssertEqual(childNormalizedPayload["turnID"] as? String, "turn_child")
         XCTAssertEqual(childNormalizedPayload["parentSessionID"] as? String, "thread_parent")
         XCTAssertEqual(childNormalizedPayload["isSubagent"] as? Bool, true)
     }
@@ -279,6 +283,24 @@ final class AgentIntegrationManagerTests: XCTestCase {
         let normalizedPayload = try harness.normalizedSenderPayload(from: payload)
         XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_parent")
         XCTAssertEqual(normalizedPayload["kind"] as? String, "session.started")
+    }
+
+    func testCodexHookReportsStopAsClosedSession() throws {
+        let harness = try CodexHookRegressionHarness()
+        defer { harness.cleanup() }
+
+        try harness.installCodexIntegration()
+        try harness.installSenderCaptureScript()
+
+        let payload = """
+        {"hook_event_name":"Stop","session_id":"thread_parent","thread_id":"thread_parent","transcript_path":"/tmp/thread_parent.jsonl","turn_id":"turn_parent","cwd":"/tmp/pulse"}
+        """.data(using: .utf8)!
+
+        let normalizedPayload = try harness.normalizedSenderPayload(from: payload)
+        XCTAssertEqual(normalizedPayload["sessionID"] as? String, "thread_parent")
+        XCTAssertEqual(normalizedPayload["kind"] as? String, "session.closed")
+        XCTAssertEqual(normalizedPayload["transcriptPath"] as? String, "/tmp/thread_parent.jsonl")
+        XCTAssertEqual(normalizedPayload["turnID"] as? String, "turn_parent")
     }
 
     func testCodexHookIgnoresSystemThreadEvents() throws {
@@ -788,7 +810,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
     }
 
     private static func makeCodexInstall(
-        hookVersion: String = "codex-hook-v1",
+        hookVersion: String = "codex-hook-v3",
         senderVersion: String = "sender-v1"
     ) -> [URL: String] {
         [
@@ -858,7 +880,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
     }
 
     private static func makeCodexInstallWithUserHooks(
-        hookVersion: String = "codex-hook-v1",
+        hookVersion: String = "codex-hook-v3",
         senderVersion: String = "sender-v1"
     ) -> [URL: String] {
         var install = makeCodexInstall(hookVersion: hookVersion, senderVersion: senderVersion)

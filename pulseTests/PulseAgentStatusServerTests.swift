@@ -22,6 +22,29 @@ final class PulseAgentStatusServerTests: XCTestCase {
     }
 
     @MainActor
+    func testHandlePayloadForwardsCodexTranscriptMetadataForAbortFallback() async throws {
+        let store = AgentStatusStore(
+            persistence: InMemoryAgentStatusPersistence(),
+            enabledAgents: [.codex],
+            codexTurnAbortedCheckDelay: 0,
+            codexTurnWasAborted: { transcriptPath, turnID in
+                transcriptPath == "/tmp/session.jsonl" && turnID == "turn-1"
+            }
+        )
+        let server = PulseAgentStatusServer(store: store)
+        let payload = """
+        {"agent":"codex","sessionID":"s1","projectPath":"/tmp/pulse","title":"Task","timestamp":"1970-01-01T00:01:40Z","kind":"session.working","transcriptPath":"/tmp/session.jsonl","turnID":"turn-1"}
+        """.data(using: .utf8)!
+
+        try server.handlePayload(payload)
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(store.groups[0].slots.first?.sessionID, "s1")
+        XCTAssertEqual(store.groups[0].slots.first?.state, .idle)
+        XCTAssertEqual(store.groups[0].slots.first?.sessionState, .idle)
+    }
+
+    @MainActor
     func testHandlePayloadRejectsMalformedEvent() {
         let store = AgentStatusStore(
             persistence: InMemoryAgentStatusPersistence(),

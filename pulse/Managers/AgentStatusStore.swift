@@ -58,6 +58,8 @@ final class AgentStatusStore: ObservableObject {
     private let idleThreshold: TimeInterval = 300
     private let codexSessionMaterializationDelay: TimeInterval
     private let codexSessionExists: @Sendable (String) -> Bool
+    private let codexTurnAbortedCheckDelay: TimeInterval
+    private let codexTurnWasAborted: @Sendable (String, String) -> Bool
     private var autoClearTimer: Timer?
     private var workingSubagentSessionIDsByParent: [AgentStatusAgent: [String: Set<String>]] = [:]
     private var latestEventVersionsBySessionID: [AgentStatusAgent: [String: SessionEventVersion]] = [:]
@@ -75,11 +77,15 @@ final class AgentStatusStore: ObservableObject {
         codexSessionMaterializationDelay: TimeInterval = 3,
         codexSessionExists: @escaping @Sendable (String) -> Bool = { threadID in
             CodexUsageQuery.threadExists(threadID: threadID)
-        }
+        },
+        codexTurnAbortedCheckDelay: TimeInterval = 2,
+        codexTurnWasAborted: @escaping @Sendable (String, String) -> Bool = AgentStatusStore.defaultCodexTurnWasAborted
     ) {
         self.persistence = persistence
         self.codexSessionMaterializationDelay = codexSessionMaterializationDelay
         self.codexSessionExists = codexSessionExists
+        self.codexTurnAbortedCheckDelay = codexTurnAbortedCheckDelay
+        self.codexTurnWasAborted = codexTurnWasAborted
         groups = Self.bootstrapGroups(from: persistence.load(), enabledAgents: enabledAgents)
         latestEventVersionsBySessionID = Self.bootstrapLatestEventVersions(from: groups)
     }
@@ -106,6 +112,14 @@ final class AgentStatusStore: ObservableObject {
 
         if event.agent == .codex, event.kind == .sessionStarted {
             scheduleEphemeralSessionCheck(for: event)
+        }
+        if event.agent == .codex,
+           event.kind == .sessionWorking,
+           let transcriptPath = event.transcriptPath,
+           transcriptPath.isEmpty == false,
+           let turnID = event.turnID,
+           turnID.isEmpty == false {
+            scheduleCodexTurnAbortedCheck(for: event, transcriptPath: transcriptPath, turnID: turnID)
         }
     }
 
@@ -157,6 +171,49 @@ final class AgentStatusStore: ObservableObject {
         }
 
         latestEventVersionsBySessionID[.codex]?[sessionID] = nil
+    }
+
+    private func scheduleCodexTurnAbortedCheck(
+        for event: PulseAgentStatusEvent,
+        transcriptPath: String,
+        turnID: String
+    ) {
+        let expectedVersion = Self.version(for: event)
+        let delay = codexTurnAbortedCheckDelay
+        let turnWasAborted = codexTurnWasAborted
+
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + delay) {
+            guard turnWasAborted(transcriptPath, turnID) else { return }
+
+            Task { @MainActor [weak self] in
+                self?.markCodexTurnAbortedIfCurrent(event, expectedVersion: expectedVersion)
+            }
+        }
+    }
+
+    private func markCodexTurnAbortedIfCurrent(
+        _ event: PulseAgentStatusEvent,
+        expectedVersion: SessionEventVersion
+    ) {
+        guard latestEventVersionsBySessionID[.codex]?[event.sessionID] == expectedVersion else {
+            return
+        }
+
+        apply(
+            PulseAgentStatusEvent(
+                agent: .codex,
+                sessionID: event.sessionID,
+                projectPath: event.projectPath,
+                sessionTitle: event.sessionTitle,
+                timestamp: Date(),
+                kind: .sessionClosed,
+                message: "Interrupted",
+                parentSessionID: event.parentSessionID,
+                isSubagent: event.isSubagent,
+                transcriptPath: event.transcriptPath,
+                turnID: event.turnID
+            )
+        )
     }
 
     func removeSlot(for agent: AgentStatusAgent, sessionID: String) {
@@ -270,7 +327,9 @@ final class AgentStatusStore: ObservableObject {
     func startAutoClear() {
         stopAutoClear()
         autoClearTimer = Timer.scheduledTimer(withTimeInterval: autoClearInterval, repeats: true) { [weak self] _ in
-            self?.performAutoClear()
+            Task { @MainActor in
+                self?.performAutoClear()
+            }
         }
     }
 
@@ -347,6 +406,9 @@ final class AgentStatusStore: ObservableObject {
 
     private func updatePrimarySlot(at slotIndex: Int, in groupIndex: Int, with event: PulseAgentStatusEvent) {
         let existingID = groups[groupIndex].slots[slotIndex].id
+        if event.kind == .sessionClosed {
+            workingSubagentSessionIDsByParent[event.agent]?[event.sessionID] = nil
+        }
         groups[groupIndex].slots[slotIndex] = makePrimarySlot(from: event, existingID: existingID)
     }
 
@@ -528,5 +590,30 @@ final class AgentStatusStore: ObservableObject {
         case .error:
             return 2
         }
+    }
+
+    nonisolated private static let defaultCodexTurnWasAborted: @Sendable (String, String) -> Bool = { transcriptPath, turnID in
+        codexTranscriptContainsAbortedTurn(transcriptPath: transcriptPath, turnID: turnID)
+    }
+
+    nonisolated private static func codexTranscriptContainsAbortedTurn(transcriptPath: String, turnID: String) -> Bool {
+        guard turnID.isEmpty == false,
+              let contents = try? String(contentsOfFile: transcriptPath, encoding: .utf8) else {
+            return false
+        }
+
+        for line in contents.split(separator: "\n") {
+            guard let data = String(line).data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let payload = object["payload"] as? [String: Any],
+                  payload["type"] as? String == "turn_aborted",
+                  payload["turn_id"] as? String == turnID else {
+                continue
+            }
+
+            return true
+        }
+
+        return false
     }
 }

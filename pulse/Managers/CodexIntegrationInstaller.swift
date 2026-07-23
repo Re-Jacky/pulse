@@ -151,9 +151,12 @@ struct CodexIntegrationInstaller {
         const parentSessionID = normalizeParentSessionID(payload);
         const projectPath = String(payload.cwd ?? payload.directory ?? payload.project_path ?? payload.projectPath ?? process.cwd());
         const title = String(payload.title ?? payload.session_title ?? payload.sessionTitle ?? "");
+        const transcriptPath = firstNonEmptyString(payload.transcript_path, payload.transcriptPath);
+        const turnID = firstNonEmptyString(payload.turn_id, payload.turnID, payload.turnId);
         const threadSource = normalizeThreadSource(payload);
         const isSubagent = isSubagentEvent(payload, eventName, parentSessionID);
-        const kind = eventName === "Stop" || eventName === "SubagentStop" ? "session.idle" :
+        const kind = eventName === "Stop" ? "session.closed" :
+          eventName === "SubagentStop" ? "session.idle" :
           eventName === "SessionStart" ? "session.started" : "session.working";
         const sender = "\(senderURL.path)";
         const normalizedTitle = title.length > 0 ? title : (projectPath.split("/").filter(Boolean).pop() || "Codex Session");
@@ -175,6 +178,8 @@ struct CodexIntegrationInstaller {
           title: normalizedTitle,
           timestamp: new Date().toISOString(),
           kind,
+          ...(transcriptPath.length > 0 ? { transcriptPath } : {}),
+          ...(turnID.length > 0 ? { turnID } : {}),
           ...(parentSessionID.length > 0 ? { parentSessionID } : {}),
           ...(isSubagent ? { isSubagent: true } : {}),
         };

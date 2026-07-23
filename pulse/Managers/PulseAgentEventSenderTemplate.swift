@@ -8,7 +8,7 @@ typealias AgentIntegrationInstallerFileSystem = AgentIntegrationFileSystem & Age
 
 enum PulseAgentEventSenderTemplate {
     static let senderVersion = "sender-v1"
-    static let codexHookVersion = "codex-hook-v1"
+    static let codexHookVersion = "codex-hook-v3"
     static let openCodePluginVersion = "opencode-plugin-v1"
 
     static func script(listenerPort: Int) -> String {
