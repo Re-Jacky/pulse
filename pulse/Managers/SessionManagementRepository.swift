@@ -195,6 +195,8 @@ final class SessionManagementRepository: SessionManagementRepositorying {
             return try loadTranscript(for: session) { _ in }
         case .all:
             return []
+        case .claudeCode:
+            return []
         }
     }
 
@@ -212,6 +214,8 @@ final class SessionManagementRepository: SessionManagementRepositorying {
             return try loadCodexTranscriptProgressively(session.rawSessionID, session.transcriptURL, onPartialUpdate)
         case .all:
             return []
+        case .claudeCode:
+            return []
         }
     }
 
@@ -222,6 +226,8 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         case .codex:
             return .codex(command: "codex resume \(session.rawSessionID)")
         case .all:
+            return .codex(command: "")
+        case .claudeCode:
             return .codex(command: "")
         }
     }

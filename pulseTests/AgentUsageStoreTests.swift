@@ -928,6 +928,50 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(store.codexDetail(for: "thread_1"), .loaded(repository.codexDetail))
     }
 
+    func testRefreshLoadsClaudeCodeState() {
+        let repository = StubAgentUsageRepository()
+        repository.claudeCodeSnapshot = ClaudeCodeUsageSnapshot(sessions: [makeClaudeCodeSession(id: "cc_1", tokens: 222)])
+        repository.claudeCodeDailyBuckets = [
+            ClaudeCodeDailyBucket(sessionID: "cc_1", day: 100, inputTokens: 10, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 1, totalTokens: 16, requestCount: 1, latestActivityAt: nil)
+        ]
+        let store = AgentUsageStore(repository: repository)
+
+        store.refreshAll()
+
+        XCTAssertEqual(store.state.claudeCodeSnapshot.sessions.map(\.id), ["cc_1"])
+        XCTAssertEqual(store.state.claudeCodeDailyBuckets.count, 1)
+        XCTAssertEqual(repository.claudeCodeLoadCount, 1)
+        XCTAssertEqual(repository.claudeCodeBucketLoadCount, 1)
+    }
+
+    func testAvailableSourcesIncludeClaudeCodeWhenProjectsExist() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let projects = root.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/missing-opencode.db")
+        repository.codexDatabaseURL = URL(fileURLWithPath: "/tmp/missing-codex.db")
+        repository.claudeCodeProjectsURL = projects
+
+        let store = AgentUsageStore(repository: repository)
+        XCTAssertTrue(store.availableSources.contains(.claudeCode))
+    }
+
+    func testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/missing-opencode.db")
+        repository.codexDatabaseURL = URL(fileURLWithPath: "/tmp/missing-codex.db")
+        repository.claudeCodeProjectsURL = root.appendingPathComponent("no-such-projects")
+
+        let store = AgentUsageStore(repository: repository)
+        XCTAssertFalse(store.availableSources.contains(.claudeCode))
+    }
+
     func testReconcileClearsSessionForAllSource() {
         let store = AgentUsageStore(repository: StubAgentUsageRepository())
         let selection = AgentUsageSelection(
@@ -953,6 +997,8 @@ final class AgentUsageStoreTests: XCTestCase {
             openCodeDailyBuckets: buckets,
             codexSnapshot: CodexUsageSnapshot(sessions: []),
             codexDailyBuckets: [],
+            claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+            claudeCodeDailyBuckets: [],
             refreshGeneration: 0,
             codexDetailCache: [:]
         )
@@ -1887,6 +1933,8 @@ private func makeStoreWithLoadedState(
             openCodeDailyBuckets: openCodeBuckets,
             codexSnapshot: CodexUsageSnapshot(sessions: codexSessions),
             codexDailyBuckets: codexBuckets,
+            claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+            claudeCodeDailyBuckets: [],
             refreshGeneration: 1,
             codexDetailCache: [:]
         )
@@ -1943,6 +1991,23 @@ private func makeCodexSession(id: String, tokens: Int = 100) -> CodexSessionReco
     makeCodexSession(id: id, tokens: tokens, provider: "openai", model: "gpt-5", updatedAt: Date(timeIntervalSince1970: 2000))
 }
 
+private func makeClaudeCodeSession(id: String, tokens: Int = 0, cwd: String = "/tmp/project", updatedAt: TimeInterval = 2_000) -> ClaudeCodeSessionRecord {
+    ClaudeCodeSessionRecord(
+        id: id,
+        title: "Claude Session \(id)",
+        cwd: cwd,
+        model: "sonnet",
+        modelProvider: "Claude",
+        tokensUsed: tokens,
+        inputTokens: tokens,
+        outputTokens: 0,
+        cacheReadTokens: nil,
+        cacheWriteTokens: nil,
+        createdAt: Date(timeIntervalSince1970: 1_000),
+        updatedAt: Date(timeIntervalSince1970: updatedAt)
+    )
+}
+
 private func makeCodexSession(
     id: String,
     tokens: Int = 100,
@@ -1983,21 +2048,27 @@ private func formatAgentUsageDate(_ date: Date) -> String {
 private final class StubAgentUsageRepository: AgentUsageRepositorying {
     var openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
     var codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
+    var claudeCodeProjectsURL = URL(fileURLWithPath: "/tmp/.claude/projects")
 
     var openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [])
     var openCodeDailyBuckets: [OpenCodeDailyBucket] = []
     var codexSnapshot = CodexUsageSnapshot(sessions: [])
     var codexDailyBuckets: [CodexDailyBucket] = []
+    var claudeCodeSnapshot = ClaudeCodeUsageSnapshot(sessions: [])
+    var claudeCodeDailyBuckets: [ClaudeCodeDailyBucket] = []
     var codexDetail = CodexSessionDetail(threadID: "", edges: [], goals: [])
     var openCodeError: OpenCodeUsageQuery.QueryError?
     var openCodeDailyBucketError: OpenCodeUsageQuery.QueryError?
     var codexError: CodexUsageQuery.QueryError?
+    var claudeCodeError: ClaudeCodeUsageQuery.QueryError?
 
     var openCodeLoadCount = 0
     var openCodeBucketLoadCount = 0
     var codexLoadCount = 0
     var codexBucketLoadCount = 0
     var codexDetailLoadCount = 0
+    var claudeCodeLoadCount = 0
+    var claudeCodeBucketLoadCount = 0
 
     func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot {
         openCodeLoadCount += 1
@@ -2023,6 +2094,18 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
         return codexDailyBuckets
     }
 
+    func loadClaudeCodeSnapshot() throws -> ClaudeCodeUsageSnapshot {
+        claudeCodeLoadCount += 1
+        if let claudeCodeError { throw claudeCodeError }
+        return claudeCodeSnapshot
+    }
+
+    func loadClaudeCodeDailyBuckets() throws -> [ClaudeCodeDailyBucket] {
+        claudeCodeBucketLoadCount += 1
+        if let claudeCodeError { throw claudeCodeError }
+        return claudeCodeDailyBuckets
+    }
+
     func loadCodexDetail(
         threadID: String,
         homeDirectoryURL: URL,
@@ -2036,6 +2119,7 @@ private final class StubAgentUsageRepository: AgentUsageRepositorying {
 private final class BlockingAgentUsageRepository: AgentUsageRepositorying {
     let openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
     let codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
+    let claudeCodeProjectsURL = URL(fileURLWithPath: "/tmp/.claude/projects")
     let didStartLoading = XCTestExpectation(description: "started loading")
 
     private let semaphore = DispatchSemaphore(value: 0)
@@ -2055,6 +2139,14 @@ private final class BlockingAgentUsageRepository: AgentUsageRepositorying {
     }
 
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket] {
+        []
+    }
+
+    func loadClaudeCodeSnapshot() throws -> ClaudeCodeUsageSnapshot {
+        ClaudeCodeUsageSnapshot(sessions: [makeClaudeCodeSession(id: "cc_async")])
+    }
+
+    func loadClaudeCodeDailyBuckets() throws -> [ClaudeCodeDailyBucket] {
         []
     }
 

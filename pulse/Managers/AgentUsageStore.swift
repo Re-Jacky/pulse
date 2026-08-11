@@ -18,6 +18,8 @@ final class AgentUsageStore: ObservableObject {
         let dailyBuckets: [OpenCodeDailyBucket]
         let codexSnapshot: CodexUsageSnapshot
         let codexDailyBuckets: [CodexDailyBucket]
+        let claudeCodeSnapshot: ClaudeCodeUsageSnapshot
+        let claudeCodeDailyBuckets: [ClaudeCodeDailyBucket]
         let refreshGeneration: Int
         let lastError: LoadError?
         let loadedAnySource: Bool
@@ -26,11 +28,13 @@ final class AgentUsageStore: ObservableObject {
     enum LoadError: Error, Equatable, LocalizedError {
         case openCode(OpenCodeUsageQuery.QueryError)
         case codex(CodexUsageQuery.QueryError)
+        case claudeCode(ClaudeCodeUsageQuery.QueryError)
 
         var errorDescription: String? {
             switch self {
             case .openCode(let error): return error.errorDescription
             case .codex(let error): return error.errorDescription
+            case .claudeCode(let error): return error.errorDescription
             }
         }
     }
@@ -53,6 +57,9 @@ final class AgentUsageStore: ObservableObject {
     private var cxMetadataBySession: [String: CodexSessionRecord] = [:]
     private var ocSessionsByDirectory: [String: [String]] = [:]
     private var cxCSessionsByDirectory: [String: [String]] = [:]
+    private var ccBucketsBySession: [String: [ClaudeCodeDailyBucket]] = [:]
+    private var ccMetadataBySession: [String: ClaudeCodeSessionRecord] = [:]
+    private var ccSessionsByDirectory: [String: [String]] = [:]
     private let supportedSources: [AgentSource]
     private var enabledSources: Set<AgentSource>
 
@@ -70,7 +77,8 @@ final class AgentUsageStore: ObservableObject {
         self.state = .empty
         self.supportedSources = makeAvailableSources(
             openCodeDatabaseURL: self.repository.openCodeDatabaseURL,
-            codexDatabaseURL: self.repository.codexDatabaseURL
+            codexDatabaseURL: self.repository.codexDatabaseURL,
+            claudeCodeProjectsURL: self.repository.claudeCodeProjectsURL
         )
         self.enabledSources = Set(AgentSource.selectableCases)
         self.availableSources = Self.visibleSources(
@@ -130,6 +138,8 @@ final class AgentUsageStore: ObservableObject {
             openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
             codexDailyBuckets: state.codexDailyBuckets,
+            claudeCodeSnapshot: state.claudeCodeSnapshot,
+            claudeCodeDailyBuckets: state.claudeCodeDailyBuckets,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
         )
@@ -150,6 +160,8 @@ final class AgentUsageStore: ObservableObject {
             openCodeDailyBuckets: state.openCodeDailyBuckets,
             codexSnapshot: state.codexSnapshot,
             codexDailyBuckets: state.codexDailyBuckets,
+            claudeCodeSnapshot: state.claudeCodeSnapshot,
+            claudeCodeDailyBuckets: state.claudeCodeDailyBuckets,
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
         )
@@ -193,14 +205,18 @@ final class AgentUsageStore: ObservableObject {
             OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
         }
         codexBucketsBySession = Dictionary(grouping: state.codexDailyBuckets) { $0.sessionID }
+        ccBucketsBySession = Dictionary(grouping: state.claudeCodeDailyBuckets) { $0.sessionID }
         ocMetadataByRawID = Dictionary(
             state.openCodeCumulativeSnapshot.sessions.map { (rawSessionID(from: $0.id), $0) },
             uniquingKeysWith: { _, last in last }
         )
         cxMetadataBySession = Dictionary(uniqueKeysWithValues: state.codexSnapshot.sessions.map { ($0.id, $0) })
+        ccMetadataBySession = Dictionary(uniqueKeysWithValues: state.claudeCodeSnapshot.sessions.map { ($0.id, $0) })
         ocSessionsByDirectory = Dictionary(grouping: state.openCodeCumulativeSnapshot.sessions) { $0.directory }
             .mapValues { $0.map { rawSessionID(from: $0.id) } }
         cxCSessionsByDirectory = Dictionary(grouping: state.codexSnapshot.sessions.filter { $0.isSubagent == false }) { $0.cwd }
+            .mapValues { $0.map(\.id) }
+        ccSessionsByDirectory = Dictionary(grouping: state.claudeCodeSnapshot.sessions) { $0.cwd }
             .mapValues { $0.map(\.id) }
     }
 
@@ -280,6 +296,8 @@ final class AgentUsageStore: ObservableObject {
                 ocScopeSummary
             case .codex:
                 cxScopeSummary
+            case .claudeCode:
+                state.claudeCodeSnapshot.summary(for: scope)
             }
 
             let enrichedRequestCount: Int = {
@@ -288,6 +306,8 @@ final class AgentUsageStore: ObservableObject {
                     return baseSummary.requestCount
                 case .codex:
                     return codexRequestCountFromBuckets(for: selection, scope: scope)
+                case .claudeCode:
+                    return baseSummary.requestCount
                 case .all:
                     return baseSummary.requestCount + codexRequestCountFromBuckets(for: selection, scope: scope)
 
@@ -359,6 +379,8 @@ final class AgentUsageStore: ObservableObject {
             openCodeDailyBuckets: context.previousState.openCodeDailyBuckets,
             codexSnapshot: context.previousState.codexSnapshot,
             codexDailyBuckets: context.previousState.codexDailyBuckets,
+            claudeCodeSnapshot: context.previousState.claudeCodeSnapshot,
+            claudeCodeDailyBuckets: context.previousState.claudeCodeDailyBuckets,
             refreshGeneration: context.previousState.refreshGeneration,
             codexDetailCache: [:]
         )
@@ -375,6 +397,8 @@ final class AgentUsageStore: ObservableObject {
         var dailyBuckets = context.previousState.openCodeDailyBuckets
         var codexSnapshot = context.previousState.codexSnapshot
         var codexDailyBuckets = context.previousState.codexDailyBuckets
+        var claudeCodeSnapshot = context.previousState.claudeCodeSnapshot
+        var claudeCodeDailyBuckets = context.previousState.claudeCodeDailyBuckets
         var firstError: LoadError?
         var loadedAnySource = false
 
@@ -410,11 +434,28 @@ final class AgentUsageStore: ObservableObject {
             codexDailyBuckets = []
         }
 
+        if context.enabledSources.contains(.claudeCode) {
+            do {
+                claudeCodeSnapshot = try repository.loadClaudeCodeSnapshot()
+                claudeCodeDailyBuckets = try repository.loadClaudeCodeDailyBuckets()
+                loadedAnySource = true
+            } catch let error as ClaudeCodeUsageQuery.QueryError {
+                if firstError == nil { firstError = .claudeCode(error) }
+            } catch {
+                if firstError == nil { firstError = .claudeCode(.queryStepFailed(message: error.localizedDescription)) }
+            }
+        } else {
+            claudeCodeSnapshot = ClaudeCodeUsageSnapshot(sessions: [])
+            claudeCodeDailyBuckets = []
+        }
+
         return RefreshResult(
             openCodeSnapshot: openCodeSnapshot,
             dailyBuckets: dailyBuckets,
             codexSnapshot: codexSnapshot,
             codexDailyBuckets: codexDailyBuckets,
+            claudeCodeSnapshot: claudeCodeSnapshot,
+            claudeCodeDailyBuckets: claudeCodeDailyBuckets,
             refreshGeneration: loadedAnySource ? context.nextGeneration : context.previousState.refreshGeneration,
             lastError: firstError,
             loadedAnySource: loadedAnySource
@@ -427,6 +468,8 @@ final class AgentUsageStore: ObservableObject {
             openCodeDailyBuckets: result.dailyBuckets,
             codexSnapshot: result.codexSnapshot,
             codexDailyBuckets: result.codexDailyBuckets,
+            claudeCodeSnapshot: result.claudeCodeSnapshot,
+            claudeCodeDailyBuckets: result.claudeCodeDailyBuckets,
             refreshGeneration: result.refreshGeneration,
             codexDetailCache: [:]
         )
@@ -435,14 +478,18 @@ final class AgentUsageStore: ObservableObject {
             OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
         }
         codexBucketsBySession = Dictionary(grouping: result.codexDailyBuckets) { $0.sessionID }
+        ccBucketsBySession = Dictionary(grouping: result.claudeCodeDailyBuckets) { $0.sessionID }
         ocMetadataByRawID = Dictionary(
             result.openCodeSnapshot.sessions.map { (rawSessionID(from: $0.id), $0) },
             uniquingKeysWith: { _, last in last }
         )
         cxMetadataBySession = Dictionary(uniqueKeysWithValues: result.codexSnapshot.sessions.map { ($0.id, $0) })
+        ccMetadataBySession = Dictionary(uniqueKeysWithValues: result.claudeCodeSnapshot.sessions.map { ($0.id, $0) })
         ocSessionsByDirectory = Dictionary(grouping: result.openCodeSnapshot.sessions) { $0.directory }
             .mapValues { $0.map { rawSessionID(from: $0.id) } }
         cxCSessionsByDirectory = Dictionary(grouping: result.codexSnapshot.sessions.filter { $0.isSubagent == false }) { $0.cwd }
+            .mapValues { $0.map(\.id) }
+        ccSessionsByDirectory = Dictionary(grouping: result.claudeCodeSnapshot.sessions) { $0.cwd }
             .mapValues { $0.map(\.id) }
 
         lastError = result.lastError
@@ -632,6 +679,8 @@ final class AgentUsageStore: ObservableObject {
                     subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
                 )
             }
+        case .claudeCode:
+            return []
         }
     }
 
@@ -660,6 +709,8 @@ final class AgentUsageStore: ObservableObject {
                     subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime(updatedAt)) \u{2022} \($0.modelDisplayName)\(effort)"
                 )
             }
+        case .claudeCode:
+            return []
         }
     }
 
@@ -882,6 +933,8 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: updatedAt.map(shortDateTime) ?? "-", secondaryText: nil))
             }
+        case .claudeCode:
+            return []
         }
         return rows
     }
@@ -1007,6 +1060,8 @@ final class AgentUsageStore: ObservableObject {
             case .session(_, let sessionID):
                 return cxLatestBySession[sessionID] ?? codexSnapshot.summary(for: scope).lastUpdated
             }
+        case .claudeCode:
+            return nil
         }
     }
 
@@ -1114,6 +1169,7 @@ final class AgentUsageStore: ObservableObject {
             }
             return openCodeProviderBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
         case .codex: return codexSnapshot.providerBreakdown(for: scope)
+        case .claudeCode: return []
         }
     }
 
@@ -1151,6 +1207,8 @@ final class AgentUsageStore: ObservableObject {
                     secondaryText: nil
                 )
             }
+        case .claudeCode:
+            return []
         }
     }
 
@@ -1455,7 +1513,7 @@ final class AgentUsageStore: ObservableObject {
     }
 }
 
-private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: URL?) -> [AgentSource] {
+private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: URL?, claudeCodeProjectsURL: URL) -> [AgentSource] {
     var sources: [AgentSource] = []
     var realSources: [AgentSource] = []
     if FileManager.default.fileExists(atPath: openCodeDatabaseURL.path) {
@@ -1463,6 +1521,9 @@ private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: UR
     }
     if let codexDatabaseURL, FileManager.default.fileExists(atPath: codexDatabaseURL.path) {
         realSources.append(.codex)
+    }
+    if FileManager.default.fileExists(atPath: claudeCodeProjectsURL.path) {
+        realSources.append(.claudeCode)
     }
     if realSources.isEmpty {
         realSources = [.openCode, .codex]

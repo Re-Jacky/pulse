@@ -141,7 +141,8 @@ struct AgentUsageView: View {
         AgentUsageDataSourceDescription.message(
             for: selection.source,
             openCodeDatabaseURL: agentStore.repository.openCodeDatabaseURL,
-            codexDatabaseURL: agentStore.repository.codexDatabaseURL
+            codexDatabaseURL: agentStore.repository.codexDatabaseURL,
+            claudeCodeProjectsURL: agentStore.repository.claudeCodeProjectsURL
         )
     }
 
@@ -152,6 +153,7 @@ struct AgentUsageView: View {
             return paths.joined(separator: " + ")
         case .openCode: return agentStore.repository.openCodeDatabaseURL.path
         case .codex: return agentStore.repository.codexDatabaseURL?.path ?? "Codex database not found"
+        case .claudeCode: return agentStore.repository.claudeCodeProjectsURL.path
         }
     }
 

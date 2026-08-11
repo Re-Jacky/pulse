@@ -4,8 +4,9 @@ enum AgentSource: String, CaseIterable, Identifiable, Hashable, Codable {
     case all = "all"
     case openCode = "opencode"
     case codex = "codex"
+    case claudeCode = "claudecode"
 
-    static let selectableCases: [AgentSource] = [.openCode, .codex]
+    static let selectableCases: [AgentSource] = [.openCode, .codex, .claudeCode]
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum AgentSource: String, CaseIterable, Identifiable, Hashable, Codable {
         case .all: return "All"
         case .openCode: return "OpenCode"
         case .codex: return "Codex"
+        case .claudeCode: return "Claude Code"
         }
     }
 }
@@ -393,16 +395,18 @@ extension AgentUsageSummary {
 }
 
 enum AgentUsageDataSourceDescription {
-    static func message(for source: AgentSource, openCodeDatabaseURL: URL, codexDatabaseURL: URL?) -> String {
+    static func message(for source: AgentSource, openCodeDatabaseURL: URL, codexDatabaseURL: URL?, claudeCodeProjectsURL: URL) -> String {
         switch source {
         case .all:
             let codexDescription = codexDatabaseURL?.path ?? "Codex state DB not found"
-            return "Pulse reads OpenCode usage from \(openCodeDatabaseURL.path), reads Codex session metadata from \(codexDescription), and derives Codex token usage from local transcripts under ~/.codex when you refresh the panel."
+            return "Pulse reads OpenCode usage from \(openCodeDatabaseURL.path), reads Codex session metadata from \(codexDescription), derives Codex token usage from local transcripts under ~/.codex, and reads Claude Code usage from transcripts under \(claudeCodeProjectsURL.path) when you refresh the panel."
         case .openCode:
             return "Pulse reads this agent's local usage data from \(openCodeDatabaseURL.path) when you refresh the panel."
         case .codex:
             let codexDescription = codexDatabaseURL?.path ?? "Codex state DB not found"
             return "Pulse reads Codex session metadata from \(codexDescription) and derives token usage from local transcripts under ~/.codex when you refresh the panel."
+        case .claudeCode:
+            return "Pulse reads Claude Code token usage from local transcripts under \(claudeCodeProjectsURL.path) when you refresh the panel."
         }
     }
 }

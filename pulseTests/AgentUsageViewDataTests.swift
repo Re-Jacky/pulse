@@ -513,6 +513,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 80)]),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -540,6 +542,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "thread_1", tokens: 80)]),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -575,6 +579,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                     )
                 ]),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -611,6 +617,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -660,6 +668,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                     )
                 ]),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -683,7 +693,8 @@ final class AgentUsageViewDataTests: XCTestCase {
         let description = AgentUsageDataSourceDescription.message(
             for: .codex,
             openCodeDatabaseURL: URL(fileURLWithPath: "/Users/zyao/.local/share/opencode/opencode.db"),
-            codexDatabaseURL: URL(fileURLWithPath: "/Users/zyao/.codex/sqlite/state_5.sqlite")
+            codexDatabaseURL: URL(fileURLWithPath: "/Users/zyao/.codex/sqlite/state_5.sqlite"),
+            claudeCodeProjectsURL: URL(fileURLWithPath: "/tmp/.claude/projects")
         )
 
         XCTAssertEqual(
@@ -714,6 +725,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                         latestActivityAt: now
                     )
                 ],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -781,6 +794,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                         latestActivityAt: now
                     )
                 ],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -826,6 +841,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 ],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -892,6 +909,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -940,6 +959,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -973,6 +994,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                     )
                 ]),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -1018,6 +1041,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -1078,6 +1103,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -1160,6 +1187,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 ],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -1211,6 +1240,8 @@ final class AgentUsageViewDataTests: XCTestCase {
                 openCodeDailyBuckets: [],
                 codexSnapshot: CodexUsageSnapshot(sessions: []),
                 codexDailyBuckets: [],
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
                 refreshGeneration: 1,
                 codexDetailCache: [:]
             )
@@ -1340,10 +1371,13 @@ private func makeCodexSession(
 private final class StubRepository: AgentUsageRepositorying {
     var openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/opencode.db")
     var codexDatabaseURL: URL? = URL(fileURLWithPath: "/tmp/codex.db")
+    var claudeCodeProjectsURL = URL(fileURLWithPath: "/tmp/.claude/projects")
     func loadOpenCodeCumulativeSnapshot() throws -> OpenCodeUsageSnapshot { OpenCodeUsageSnapshot(sessions: []) }
     func loadOpenCodeDailyBuckets() throws -> [OpenCodeDailyBucket] { [] }
     func loadCodexSnapshot() throws -> CodexUsageSnapshot { CodexUsageSnapshot(sessions: []) }
     func loadCodexDailyBuckets() throws -> [CodexDailyBucket] { [] }
+    func loadClaudeCodeSnapshot() throws -> ClaudeCodeUsageSnapshot { ClaudeCodeUsageSnapshot(sessions: []) }
+    func loadClaudeCodeDailyBuckets() throws -> [ClaudeCodeDailyBucket] { [] }
     func loadCodexDetail(
         threadID: String,
         homeDirectoryURL: URL,

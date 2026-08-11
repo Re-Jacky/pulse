@@ -79,6 +79,8 @@ struct AgentUsageLoadedState: Equatable {
     let openCodeDailyBuckets: [OpenCodeDailyBucket]
     let codexSnapshot: CodexUsageSnapshot
     let codexDailyBuckets: [CodexDailyBucket]
+    let claudeCodeSnapshot: ClaudeCodeUsageSnapshot
+    let claudeCodeDailyBuckets: [ClaudeCodeDailyBucket]
     let refreshGeneration: Int
     let codexDetailCache: [String: CodexSessionDetailState]
 
@@ -87,6 +89,8 @@ struct AgentUsageLoadedState: Equatable {
         openCodeDailyBuckets: [],
         codexSnapshot: CodexUsageSnapshot(sessions: []),
         codexDailyBuckets: [],
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+        claudeCodeDailyBuckets: [],
         refreshGeneration: 0,
         codexDetailCache: [:]
     )
