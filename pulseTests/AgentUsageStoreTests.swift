@@ -961,15 +961,33 @@ final class AgentUsageStoreTests: XCTestCase {
 
     func testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
+        let openCodeDatabaseURL = root.appendingPathComponent("opencode.db")
+        let codexDatabaseURL = root.appendingPathComponent("codex.db")
+        FileManager.default.createFile(atPath: openCodeDatabaseURL.path, contents: Data())
+        FileManager.default.createFile(atPath: codexDatabaseURL.path, contents: Data())
 
         let repository = StubAgentUsageRepository()
-        repository.openCodeDatabaseURL = URL(fileURLWithPath: "/tmp/missing-opencode.db")
-        repository.codexDatabaseURL = URL(fileURLWithPath: "/tmp/missing-codex.db")
+        repository.openCodeDatabaseURL = openCodeDatabaseURL
+        repository.codexDatabaseURL = codexDatabaseURL
         repository.claudeCodeProjectsURL = root.appendingPathComponent("no-such-projects")
 
         let store = AgentUsageStore(repository: repository)
         XCTAssertFalse(store.availableSources.contains(.claudeCode))
+    }
+
+    func testAvailableSourcesFallbackIncludesClaudeCodeWhenAllSourcesMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let repository = StubAgentUsageRepository()
+        repository.openCodeDatabaseURL = root.appendingPathComponent("no-opencode.db")
+        repository.codexDatabaseURL = root.appendingPathComponent("no-codex.db")
+        repository.claudeCodeProjectsURL = root.appendingPathComponent("no-projects")
+
+        let store = AgentUsageStore(repository: repository)
+        XCTAssertTrue(store.availableSources.contains(.claudeCode))
     }
 
     func testReconcileClearsSessionForAllSource() {

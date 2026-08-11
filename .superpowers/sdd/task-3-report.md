@@ -1,66 +1,86 @@
-# Task 3 Report
+# Task 3 Report: Wire Claude Code through AgentSource, repository, and store state
 
-## What I implemented
+**Branch:** `feat/claude-code-agent-usage`
+**Commit:** `edc6b03` — `feat: thread Claude Code source through agent usage store`
 
-I added persisted agent-usage date selection state backed by a small `AgentDateSelectionStorage` helper in `pulse/Managers/AgentUsageModels.swift`. It stores selection kind plus preset/start/end day fields using app-storage-friendly `UserDefaults` keys, reads the legacy `agentUsageSelectedTimeRange` preset value when the new keys are absent, and defaults to `.preset(.today)` when nothing valid is stored.
+## Implementation
 
-`pulse/Views/AgentUsageView.swift` now loads and saves the date selection through that helper via local `@State`, while keeping the existing range picker behavior intact. I did not change refresh/fetch behavior or add the new picker UI.
+Claude Code is now a first-class agent-usage source:
 
-Follow-up hardening:
-
-- Explicit persisted `.singleDay` / `.dayRange` selections now render a neutral `Custom Range` label instead of implying `Today`.
-- `AgentDateSelectionStorage.load()` now validates partial new-format state before trusting it, and falls back to a valid legacy preset when the new-format payload is incomplete or malformed.
-
-## What I tested and test results
-
-Focused tests:
-
-- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageViewDataTests`
-- Result: passed
-
-Full suite:
-
-- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'`
-- Result: failed in unrelated pre-existing tests:
-  - `SessionManagementStoreTests.testLoadTranscriptUsesDiscoveredOpenCodeDatabaseInstance()`
-  - `SessionManagementStoreTests.testProjectFilterOptionsDeduplicateProjectsWithinCurrentSource()`
-
-Follow-up focused tests:
-
-- `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageViewDataTests`
-- Result: passed after the hardening fixes
-
-I also verified the red-green cycle for the new tests:
-
-- Added the new tests first
-- Ran the focused test target and confirmed it failed because `AgentDateSelectionStorage` did not exist yet
-- Implemented the helper and re-ran the focused target until it passed
+- `pulse/Managers/AgentUsageModels.swift` — `AgentSource.claudeCode` (`"claudecode"`), added to `selectableCases`, `displayName` → "Claude Code", and `AgentUsageDataSourceDescription.message(...)` gained `claudeCodeProjectsURL: URL` + a `.claudeCode` case.
+- `pulse/Managers/AgentUsageRepository.swift` — protocol gains `claudeCodeProjectsURL` + `loadClaudeCodeSnapshot()` + `loadClaudeCodeDailyBuckets()`; `AgentUsageRepository` implements them via `ClaudeCodeUsageQuery`.
+- `pulse/Managers/AgentUsageViewData.swift` — `AgentUsageLoadedState` gains `claudeCodeSnapshot` / `claudeCodeDailyBuckets` (+ in `.empty`).
+- `pulse/Managers/AgentUsageStore.swift` — `RefreshResult` fields, `LoadError.claudeCode(ClaudeCodeUsageQuery.QueryError)`, precomputed dicts `ccBucketsBySession` / `ccMetadataBySession` / `ccSessionsByDirectory`, `init`/`beginRefresh`/`ensureCodexDetailLoaded`/`applyRefreshResult`/`replaceStateForTesting` carry claude state, `loadRefreshResult` loads claude when enabled (error path mirrors codex, `firstError` last-write-wins), `makeAvailableSources` gains `claudeCodeProjectsURL` and includes claude when `FileManager.fileExists` on the projects dir.
+- `pulseTests/AgentUsageStoreTests.swift` — `makeClaudeCodeSession` helper + 3 new tests (from brief Step 1); `StubAgentUsageRepository` / `BlockingAgentUsageRepository` extended.
+- `pulseTests/AgentUsageViewDataTests.swift` — `StubRepository` conformed to the new protocol; all 15 `AgentUsageLoadedState(...)` call sites updated; `.message(for:)` test call site updated.
+- `pulseTests/AgentUsageStoreTests.swift` — 2 `AgentUsageLoadedState(...)` call sites updated (17 total across both files).
 
 ## TDD Evidence
 
-Red:
+**RED** — `xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS' -only-testing:pulseTests/AgentUsageStoreTests`
+```
+.../AgentUsageStoreTests.swift:933: error: value of type 'StubAgentUsageRepository' has no member 'claudeCodeSnapshot'
+...: error: value of type 'AgentUsageLoadedState' has no member 'claudeCodeSnapshot'
+...: error: type 'AgentSource' has no member 'claudeCode'
+** TEST FAILED **
+```
 
-- `AgentUsageViewDataTests` failed with missing `AgentDateSelectionStorage` and related symbols before implementation.
-- The follow-up tests would have failed before the hardening pass because explicit selections rendered as a preset label and invalid new-format state could override legacy migration.
+**GREEN (focused)** — same command after implementing:
+```
+** TEST SUCCEEDED **
+53 passed, 0 failed (incl. testRefreshLoadsClaudeCodeState, testAvailableSourcesIncludeClaudeCodeWhenProjectsExist, testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing)
+```
 
-Green:
+**GREEN (full suite):** `xcodebuild test …` → `** TEST SUCCEEDED **` (exit 0)
 
-- The focused `AgentUsageViewDataTests` target passed after the storage helper and view wiring were added.
-- The same focused target passed again after the follow-up hardening changes.
+## Deviations from the brief
 
-## Files changed
+1. **`makeAvailableSources` no-source fallback is `[.openCode, .codex]`, NOT `[.openCode, .codex, .claudeCode]`.** The brief's Step 1 test `testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing` sets ALL THREE sources missing (opencode/codex DB paths + claude projects dir) and asserts `.claudeCode` is NOT in `availableSources`. The brief's Step 10 fallback code would put claude there, so the brief contradicts itself — the test fails against the verbatim fallback. I followed the test (the specific behavioral requirement) and left claude out of the empty fallback; this is also more truthful ("claude available iff its directory exists"). Line-779 `setEnabledSources([.codex])` → `[.codex]` still passes.
+2. **Compile-forcing placeholder `.claudeCode` cases** added where adding the enum case broke exhaustive switches — Task 4/5 own the real implementations:
+   - `AgentUsageStore` derived-data switches (8): `baseSummary` → `state.claudeCodeSnapshot.summary(for: scope)`, `enrichedRequestCount` → `baseSummary.requestCount`, `buildProjectOptions`/`buildSessionOptions`/`buildContextRows`/`buildProviderBreakdown`/`buildModelBreakdownRows` → empty, `latestActivityDate` → `nil`.
+   - `AgentUsageView.databasePath` → returns `claudeCodeProjectsURL.path` (needed to compile).
+   - `SessionManagementRepository.loadTranscript` (×2) → `[]`, `resumeAction` → `.codex(command: "")` (inert, matches `.all` precedent).
+   - `SessionManagementStoreTests` stub `resumeAction` → `.codex(command: "")`.
+3. **`SessionManagementStoreTests.testRefreshPublishesPartialSessionListBeforeCompletion` assertion** `loadingSources == [.codex]` → `[.codex, .claudeCode]`. Direct consequence of claude joining `selectableCases` (still-loading sources after an opencode partial = codex + claude). This mirrors the brief's own Step-7 note about 3→4 element lists, which it only applied to the `availableSources` assertion.
+4. **`AgentUsageViewDataTests` `.message(for:)` call site updated** with `claudeCodeProjectsURL:` — the brief said the single caller was the view, but the test calls it too (must compile).
 
-- `/Users/zyao/Desktop/pulse/pulse/Managers/AgentUsageModels.swift`
-- `/Users/zyao/Desktop/pulse/pulse/Views/AgentUsageView.swift`
-- `/Users/zyao/Desktop/pulse/pulseTests/AgentUsageViewDataTests.swift`
-- `/Users/zyao/Desktop/pulse/.superpowers/sdd/task-3-report.md`
+## Self-review
 
-## Self-review findings
+- Load/error/availability plumbing mirrors the `.codex` pattern exactly: `beginRefresh` carries claude state, `loadRefreshResult` sets `loadedAnySource` + `firstError` (last-write-wins), `applyRefreshResult`/`replaceStateForTesting` rebuild `ccBucketsBySession`/`ccMetadataBySession`/`ccSessionsByDirectory` as pre-computed dicts — no linear scans introduced (AGENTS.md perf contract intact).
+- No subagent filtering for claude (every session is top-level), per the brief.
+- All 17 `AgentUsageLoadedState(` call sites in `pulseTests/` updated; verified by `rg -c "claudeCodeSnapshot:"` = 15 + 2.
+- Full suite green; focused suite green (53 tests).
+- Commit includes the 4 extra files beyond the brief's `git add` list because they are required for the pulse + pulseTests targets to compile (the brief's own Step 2/7 require GREEN).
 
-The persistence/migration path is intentionally narrow and does not touch data refresh or query logic. The legacy preset migration is explicit, and the default fallback is stable.
+## Concerns
 
-One concern remains outside this task: the full suite currently has two failing `SessionManagementStoreTests` cases that reproduce independently, so they appear unrelated to this change.
+- The brief's internal contradiction (Step 1 test vs Step 10 fallback) was resolved in favor of the test — worth confirming with the human that claude should be absent from the fresh-install/no-source fallback. If they prefer the fallback to advertise all three sources, the exclusion test must change instead.
+- Placeholder derived-data behavior means selecting `.claudeCode` in the UI before Task 4 shows token totals (summary) but empty project/session/breakdown lists; Task 4 replaces all of these.
 
-## Any issues or concerns
+---
 
-The new storage helper currently leaves the old `agentUsageSelectedTimeRange` key in place after migration so existing installs can continue reading it if needed. That is compatible with the requested migration behavior.
+## Fix round 1: availability fallback offers all three sources
+
+**Human decision:** when NO agent sources are detected on disk, the fallback must offer all three: `realSources = [.openCode, .codex, .claudeCode]` (the plan's approved design).
+
+**What changed:**
+1. `pulse/Managers/AgentUsageStore.swift` — `makeAvailableSources` empty fallback restored to `[.openCode, .codex, .claudeCode]`.
+2. `pulseTests/AgentUsageStoreTests.swift` — `testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing` now uses the "only claude missing" scenario: creates real temporary files for `openCodeDatabaseURL` and `codexDatabaseURL`, points `claudeCodeProjectsURL` at a missing dir, and asserts `.claudeCode` is NOT in `availableSources` (no fallback triggered). `testAvailableSourcesIncludeClaudeCodeWhenProjectsExist` kept as-is.
+3. Added `testAvailableSourcesFallbackIncludesClaudeCodeWhenAllSourcesMissing` — all three URLs missing, asserts `availableSources.contains(.claudeCode)` is TRUE (fallback offers all three).
+
+**Test commands + output:**
+
+`xcodebuild test -project pulse.xcodeproj -scheme pulse -destination 'platform=macOS'`
+```
+exit: 0
+539: ** TEST SUCCEEDED **
+313 passed, 0 failed
+Test case 'AgentUsageStoreTests.testAvailableSourcesExcludeClaudeCodeWhenProjectsMissing()' passed
+Test case 'AgentUsageStoreTests.testAvailableSourcesFallbackIncludesClaudeCodeWhenAllSourcesMissing()' passed
+Test case 'AgentUsageStoreTests.testAvailableSourcesIncludeClaudeCodeWhenProjectsExist()' passed
+Test case 'AgentUsageStoreTests.testRefreshLoadsClaudeCodeState()' passed
+```
+
+No existing test asserted the old 3-element all-missing fallback list, so no other assertions needed updating.
+
+**Commit:** `fix: availability fallback offers all three sources`

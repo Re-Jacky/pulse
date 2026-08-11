@@ -1526,7 +1526,7 @@ private func makeAvailableSources(openCodeDatabaseURL: URL, codexDatabaseURL: UR
         realSources.append(.claudeCode)
     }
     if realSources.isEmpty {
-        realSources = [.openCode, .codex]
+        realSources = [.openCode, .codex, .claudeCode]
     }
     if realSources.count >= 2 {
         sources = [.all] + realSources
