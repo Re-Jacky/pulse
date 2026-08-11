@@ -1965,6 +1965,78 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(data.summary.totalTokens, 60)
         XCTAssertEqual(data.summary.sessionsCount, 3)
     }
+
+    func testDerivedDataForClaudeCodeEnrichesRequestCountFromDailyBuckets() {
+        let store = AgentUsageStore(repository: StubAgentUsageRepository())
+        let now = Date()
+        let todayDay = agentUsageDayIdentifier(for: now)
+        let yesterdayDay = todayDay - 1
+
+        // Bucket-derived aggregation iterates ccBucketsBySession, so a user-only
+        // 0-token session with no assistant messages has no buckets and is absent
+        // from the aggregated snapshot even when present in the metadata —
+        // consistent with aggregatedCodexSnapshot.
+        store.replaceStateForTesting(AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+            openCodeDailyBuckets: [],
+            codexSnapshot: CodexUsageSnapshot(sessions: []),
+            codexDailyBuckets: [],
+            claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: [
+                makeClaudeCodeSession(id: "cc_1", tokens: 999),
+                makeClaudeCodeSession(id: "cc_useronly", tokens: 0)
+            ]),
+            claudeCodeDailyBuckets: [
+                ClaudeCodeDailyBucket(
+                    sessionID: "cc_1",
+                    day: todayDay,
+                    inputTokens: 40,
+                    outputTokens: 20,
+                    cacheReadTokens: 10,
+                    cacheWriteTokens: 5,
+                    totalTokens: 75,
+                    requestCount: 2,
+                    latestActivityAt: now
+                ),
+                ClaudeCodeDailyBucket(
+                    sessionID: "cc_1",
+                    day: yesterdayDay,
+                    inputTokens: 30,
+                    outputTokens: 10,
+                    cacheReadTokens: 5,
+                    cacheWriteTokens: 0,
+                    totalTokens: 45,
+                    requestCount: 1,
+                    latestActivityAt: now.addingTimeInterval(-90_000)
+                )
+            ],
+            refreshGeneration: 1,
+            codexDetailCache: [:]
+        ))
+        store.setEnabledSources([.claudeCode])
+
+        let allTime = store.derivedData(for: AgentUsageSelection(
+            source: .claudeCode, timeRange: .allTime, projectDirectory: nil, sessionID: nil, modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(allTime.summary.totalTokens, 120)
+        XCTAssertEqual(allTime.summary.requestCount, 3)
+        XCTAssertEqual(allTime.summary.sessionsCount, 1)
+        XCTAssertEqual(allTime.tokenFlowData.map(\.totalTokens).reduce(0, +), 120)
+        XCTAssertEqual(allTime.tokenFlowData.count, 2)
+        XCTAssertEqual(allTime.activityCalendarData.map(\.totalTokens).reduce(0, +), 120)
+        XCTAssertTrue(allTime.activityCalendarData.allSatisfy { $0.bucketSizeDays == 1 })
+        XCTAssertTrue(allTime.showsTokenFlow)
+
+        let today = store.derivedData(for: AgentUsageSelection(
+            source: .claudeCode, timeRange: .today, projectDirectory: nil, sessionID: nil, modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(today.summary.totalTokens, 75)
+        XCTAssertEqual(today.summary.requestCount, 2)
+        XCTAssertEqual(today.summary.sessionsCount, 1)
+        XCTAssertTrue(today.tokenFlowData.isEmpty)
+        XCTAssertFalse(today.showsTokenFlow)
+    }
 }
 
 private func openWritableDatabase(_ url: URL) throws -> OpaquePointer? {

@@ -15,6 +15,28 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: root)
+        // ClaudeCodeUsageQuery persists its size+mtime transcript cache to the
+        // real ~/Library/Caches/Pulse keyed by a stable hash of the (temp) home
+        // directory. Remove exactly the file this test run wrote so we do not
+        // leak cache files into the user's caches.
+        try? FileManager.default.removeItem(at: claudeCacheFileURL())
+    }
+
+    private func claudeCacheFileURL() -> URL {
+        let baseURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return baseURL
+            .appendingPathComponent("Pulse", isDirectory: true)
+            .appendingPathComponent("claude-code-transcript-cache-\(stableHash(home.path))-v1.json")
+    }
+
+    private func stableHash(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 
     private func writeTranscript(_ contents: String, id: String) throws {
