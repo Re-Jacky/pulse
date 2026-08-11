@@ -1918,6 +1918,53 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertEqual(store.state.openCodeCumulativeSnapshot.sessions.map(\.id), ["oc_async"])
         XCTAssertEqual(store.state.codexSnapshot.sessions.map(\.id), ["cx_async"])
     }
+
+    func testClaudeCodeSourceDerivedData() {
+        let store = AgentUsageStore(repository: StubAgentUsageRepository())
+        store.replaceStateForTesting(AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+            openCodeDailyBuckets: [],
+            codexSnapshot: CodexUsageSnapshot(sessions: []),
+            codexDailyBuckets: [],
+            claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: [makeClaudeCodeSession(id: "cc_1", tokens: 100)]),
+            claudeCodeDailyBuckets: [],
+            refreshGeneration: 1,
+            codexDetailCache: [:]
+        ))
+        store.setEnabledSources([.claudeCode])
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .claudeCode, timeRange: .allTime, projectDirectory: nil, sessionID: nil, modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 100)
+        XCTAssertEqual(data.summary.sessionsCount, 1)
+        XCTAssertEqual(data.projectOptions.count, 1)
+        XCTAssertEqual(data.modelBreakdownRows.count, 1)
+        XCTAssertEqual(data.providerBreakdown.count, 1)
+    }
+
+    func testAllModeMergesClaudeCodeSummary() {
+        let store = AgentUsageStore(repository: StubAgentUsageRepository())
+        store.replaceStateForTesting(AgentUsageLoadedState(
+            openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 10)]),
+            openCodeDailyBuckets: [],
+            codexSnapshot: CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 20)]),
+            codexDailyBuckets: [],
+            claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: [makeClaudeCodeSession(id: "cc_1", tokens: 30)]),
+            claudeCodeDailyBuckets: [],
+            refreshGeneration: 1,
+            codexDetailCache: [:]
+        ))
+        store.setEnabledSources([.openCode, .codex, .claudeCode])
+
+        let data = store.derivedData(for: AgentUsageSelection(
+            source: .all, timeRange: .allTime, projectDirectory: nil, sessionID: nil, modelGroupBy: .model
+        ))
+
+        XCTAssertEqual(data.summary.totalTokens, 60)
+        XCTAssertEqual(data.summary.sessionsCount, 3)
+    }
 }
 
 private func openWritableDatabase(_ url: URL) throws -> OpaquePointer? {

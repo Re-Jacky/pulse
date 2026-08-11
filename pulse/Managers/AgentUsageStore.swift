@@ -250,21 +250,31 @@ final class AgentUsageStore: ObservableObject {
         } else {
             codexSnapshot = aggregatedCodexSnapshot(interval: interval)
         }
+        let claudeCodeSnapshot: ClaudeCodeUsageSnapshot
+        if state.claudeCodeDailyBuckets.isEmpty {
+            claudeCodeSnapshot = filteredClaudeCodeSnapshot(for: selection.dateSelection, interval: interval)
+        } else {
+            claudeCodeSnapshot = aggregatedClaudeCodeSnapshot(interval: interval)
+        }
         let scope = selection.scope
         let openCodeSessionsByID = Dictionary(uniqueKeysWithValues: openCodeSnapshot.sessions.map { ($0.id, $0) })
         let codexSessionsByID = Dictionary(uniqueKeysWithValues: codexSnapshot.sessions.map { ($0.id, $0) })
+        let claudeCodeSessionsByID = Dictionary(uniqueKeysWithValues: claudeCodeSnapshot.sessions.map { ($0.id, $0) })
 
         let ocLatestBySession = openCodeLatestActivityBySession(interval: interval, snapshot: openCodeSnapshot)
         let cxLatestBySession = codexLatestActivityBySession(interval: interval, snapshot: codexSnapshot)
+        let ccLatestBySession = claudeCodeLatestActivityBySession(interval: interval, snapshot: claudeCodeSnapshot)
 
         let ocScopeSummary = openCodeSnapshot.summary(for: scope)
         let cxScopeSummary = codexSnapshot.summary(for: scope)
+        let ccScopeSummary = claudeCodeSnapshot.summary(for: scope)
         let allProviderCandidates = selection.source == .all && selection.isSessionScope == false
             ? buildAllProviderMappingCandidates(
                 selection: selection,
                 scope: scope,
                 openCodeSnapshot: openCodeSnapshot,
-                codexSnapshot: codexSnapshot
+                codexSnapshot: codexSnapshot,
+                claudeCodeSnapshot: claudeCodeSnapshot
             )
             : []
         let allModelCandidates = selection.source == .all && selection.isSessionScope == false
@@ -272,32 +282,36 @@ final class AgentUsageStore: ObservableObject {
                 selection: selection,
                 scope: scope,
                 openCodeSnapshot: openCodeSnapshot,
-                codexSnapshot: codexSnapshot
+                codexSnapshot: codexSnapshot,
+                claudeCodeSnapshot: claudeCodeSnapshot
             )
             : []
         let ocProjectCount: Int
         let cxProjectCount: Int
+        let ccProjectCount: Int
         if scope == .allProjects {
             ocProjectCount = Set(openCodeSnapshot.sessions.map(\.directory)).count
             cxProjectCount = Set(codexSnapshot.sessions.filter { $0.isSubagent == false }.map(\.cwd)).count
+            ccProjectCount = Set(claudeCodeSnapshot.sessions.map(\.cwd)).count
         } else {
             ocProjectCount = 0
             cxProjectCount = 0
+            ccProjectCount = 0
         }
 
         let summary: AgentUsageSummary = {
             let baseSummary: AgentUsageSummary = switch selection.source {
             case .all:
                 AgentUsageSummary.merge(
-                    ocScopeSummary,
-                    cxScopeSummary
+                    AgentUsageSummary.merge(ocScopeSummary, cxScopeSummary),
+                    ccScopeSummary
                 )
             case .openCode:
                 ocScopeSummary
             case .codex:
                 cxScopeSummary
             case .claudeCode:
-                state.claudeCodeSnapshot.summary(for: scope)
+                ccScopeSummary
             }
 
             let enrichedRequestCount: Int = {
@@ -307,10 +321,11 @@ final class AgentUsageStore: ObservableObject {
                 case .codex:
                     return codexRequestCountFromBuckets(for: selection, scope: scope)
                 case .claudeCode:
-                    return baseSummary.requestCount
+                    return claudeRequestCountFromBuckets(for: selection, scope: scope)
                 case .all:
-                    return baseSummary.requestCount + codexRequestCountFromBuckets(for: selection, scope: scope)
-
+                    return baseSummary.requestCount
+                        + codexRequestCountFromBuckets(for: selection, scope: scope)
+                        + claudeRequestCountFromBuckets(for: selection, scope: scope)
                 }
             }()
 
@@ -323,14 +338,16 @@ final class AgentUsageStore: ObservableObject {
                     interval: interval,
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
+                    claudeCodeSnapshot: claudeCodeSnapshot,
                     ocLatestBySession: ocLatestBySession,
-                    cxLatestBySession: cxLatestBySession
+                    cxLatestBySession: cxLatestBySession,
+                    ccLatestBySession: ccLatestBySession
                 )
             )
         }()
 
-        let tokenFlowData = buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
-        let activityCalendarData = buildActivityCalendarData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+        let tokenFlowData = buildTokenFlowData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot)
+        let activityCalendarData = buildActivityCalendarData(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot)
         let showsTokenFlow = selection.isSessionScope == false
             && selection.dateSelection == .preset(.allTime)
             && (tokenFlowData.isEmpty == false || activityCalendarData.isEmpty == false)
@@ -339,15 +356,15 @@ final class AgentUsageStore: ObservableObject {
             selection: selection,
             scope: scope,
             summary: summary,
-            projectOptions: buildProjectOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot),
-            sessionOptions: buildSessionOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
+            projectOptions: buildProjectOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot),
+            sessionOptions: buildSessionOptions(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession, ccLatestBySession: ccLatestBySession),
             tokenFlowData: tokenFlowData,
             activityCalendarData: activityCalendarData,
             usageMetrics: buildUsageMetrics(summary: summary),
             summaryPills: buildSummaryPills(summary: summary),
-            contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocScopeSummary: ocScopeSummary, cxScopeSummary: cxScopeSummary, ocProjectCount: ocProjectCount, cxProjectCount: cxProjectCount, openCodeSessionsByID: openCodeSessionsByID, codexSessionsByID: codexSessionsByID, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
-            providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, allProviderCandidates: allProviderCandidates),
-            modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, allModelCandidates: allModelCandidates),
+            contextRows: buildContextRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, ocScopeSummary: ocScopeSummary, cxScopeSummary: cxScopeSummary, ccScopeSummary: ccScopeSummary, ocProjectCount: ocProjectCount, cxProjectCount: cxProjectCount, ccProjectCount: ccProjectCount, openCodeSessionsByID: openCodeSessionsByID, codexSessionsByID: codexSessionsByID, claudeCodeSessionsByID: claudeCodeSessionsByID, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession, ccLatestBySession: ccLatestBySession),
+            providerBreakdown: buildProviderBreakdown(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, allProviderCandidates: allProviderCandidates),
+            modelBreakdownRows: buildModelBreakdownRows(selection: selection, scope: scope, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, allModelCandidates: allModelCandidates),
             providerMappingCandidates: allProviderCandidates,
             modelMappingCandidates: allModelCandidates,
             selectedOpenCodeSession: selection.source == .openCode ? normalizedOpenCodeSession(id: selection.sessionID, sessionsByID: openCodeSessionsByID, ocLatestBySession: ocLatestBySession) : nil,
@@ -596,6 +613,45 @@ final class AgentUsageStore: ObservableObject {
         return CodexUsageSnapshot(sessions: records)
     }
 
+    private func aggregatedClaudeCodeSnapshot(interval: Range<Int>?) -> ClaudeCodeUsageSnapshot {
+        let records: [ClaudeCodeSessionRecord] = ccBucketsBySession.compactMap { sessionID, buckets in
+            guard let session = ccMetadataBySession[sessionID] else { return nil }
+
+            var maxActivity: Date?
+            var totalTokens = 0, input = 0, output = 0, cacheRead = 0, cacheWrite = 0
+            var hasInRangeBuckets = false
+            for b in buckets {
+                guard interval.map({ $0.contains(b.day) }) ?? true else { continue }
+                hasInRangeBuckets = true
+                totalTokens += b.totalTokens; input += b.inputTokens; output += b.outputTokens
+                cacheRead += b.cacheReadTokens; cacheWrite += b.cacheWriteTokens
+                let d = b.latestActivityAt ?? approximateClaudeCodeActivityDate(for: b.day, relativeTo: session.updatedAt)
+                if maxActivity == nil || d > maxActivity! { maxActivity = d }
+            }
+
+            guard hasInRangeBuckets else { return nil }
+
+            let updatedAt = maxActivity ?? session.updatedAt
+
+            return ClaudeCodeSessionRecord(
+                id: session.id,
+                title: session.title,
+                cwd: session.cwd,
+                model: session.model,
+                modelProvider: session.modelProvider,
+                tokensUsed: totalTokens,
+                inputTokens: input,
+                outputTokens: output,
+                cacheReadTokens: cacheRead,
+                cacheWriteTokens: cacheWrite,
+                createdAt: session.createdAt,
+                updatedAt: updatedAt
+            )
+        }
+
+        return ClaudeCodeUsageSnapshot(sessions: records)
+    }
+
     private func dayInterval(for selection: AgentDateSelection) -> Range<Int>? {
         agentUsageDayInterval(for: selection)
     }
@@ -622,6 +678,24 @@ final class AgentUsageStore: ObservableObject {
         return CodexUsageSnapshot(sessions: sessions)
     }
 
+    private func filteredClaudeCodeSnapshot(for selection: AgentDateSelection, interval: Range<Int>?) -> ClaudeCodeUsageSnapshot {
+        if let preset = selection.preset, interval == nil {
+            return state.claudeCodeSnapshot.filtered(to: preset)
+        }
+        guard let interval else { return state.claudeCodeSnapshot }
+        let sessions = state.claudeCodeSnapshot.sessions.filter {
+            interval.contains(agentUsageDayIdentifier(for: $0.updatedAt))
+        }
+        return ClaudeCodeUsageSnapshot(sessions: sessions)
+    }
+
+    private func approximateClaudeCodeActivityDate(for day: Int, relativeTo reference: Date) -> Date {
+        let calendar = Calendar.autoupdatingCurrent
+        let referenceDay = agentUsageDayIdentifier(for: reference, calendar: calendar)
+        let deltaDays = day - referenceDay
+        return calendar.date(byAdding: .day, value: deltaDays, to: reference) ?? reference
+    }
+
     private func approximateOpenCodeActivityDate(for day: Int, relativeTo reference: Date) -> Date {
         let calendar = Calendar.autoupdatingCurrent
         let referenceDay = agentUsageDayIdentifier(for: reference, calendar: calendar)
@@ -638,17 +712,19 @@ final class AgentUsageStore: ObservableObject {
 
     // MARK: - Derivation Helpers
 
-    private func buildProjectOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [SearchableSelectorOption] {
+    private func buildProjectOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot) -> [SearchableSelectorOption] {
         switch selection.source {
         case .all:
             let ocProjects = Dictionary(grouping: openCodeSnapshot.sessions, by: \.directory)
             let cxProjects = Dictionary(grouping: codexSnapshot.sessions.filter { $0.isSubagent == false }, by: \.cwd)
-            let allDirs = Set(ocProjects.keys).union(cxProjects.keys)
+            let ccProjects = Dictionary(grouping: claudeCodeSnapshot.sessions, by: \.cwd)
+            let allDirs = Set(ocProjects.keys).union(cxProjects.keys).union(ccProjects.keys)
             let sorted: [(option: SearchableSelectorOption, tokens: Int)] = allDirs.map { dir in
                 let ocSessions = ocProjects[dir] ?? []
                 let cxSessions = cxProjects[dir] ?? []
-                let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed }
-                let sessionsCount = ocSessions.count + cxSessions.count
+                let ccSessions = ccProjects[dir] ?? []
+                let totalTokens = ocSessions.reduce(0) { $0 + $1.totalTokens } + cxSessions.reduce(0) { $0 + $1.tokensUsed } + ccSessions.reduce(0) { $0 + $1.tokensUsed }
+                let sessionsCount = ocSessions.count + cxSessions.count + ccSessions.count
                 let option = SearchableSelectorOption(
                     id: dir,
                     title: URL(fileURLWithPath: dir).lastPathComponent,
@@ -680,11 +756,17 @@ final class AgentUsageStore: ObservableObject {
                 )
             }
         case .claudeCode:
-            return []
+            return claudeCodeSnapshot.projectOptions.map {
+                SearchableSelectorOption(
+                    id: $0.directory,
+                    title: $0.shortName,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \($0.summary.sessionsCount) sessions \u{2022} \($0.directory)"
+                )
+            }
         }
     }
 
-    private func buildSessionOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, ocLatestBySession: [String: Date], cxLatestBySession: [String: Date]) -> [SearchableSelectorOption] {
+    private func buildSessionOptions(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot, ocLatestBySession: [String: Date], cxLatestBySession: [String: Date], ccLatestBySession: [String: Date]) -> [SearchableSelectorOption] {
         switch selection.source {
         case .all:
             return []
@@ -710,13 +792,21 @@ final class AgentUsageStore: ObservableObject {
                 )
             }
         case .claudeCode:
-            return []
+            guard let projectDirectory = selection.projectDirectory else { return [] }
+            return claudeCodeSnapshot.sessionOptions(for: projectDirectory).map {
+                let updatedAt = ccLatestBySession[$0.id] ?? $0.updatedAt
+                return SearchableSelectorOption(
+                    id: $0.id,
+                    title: $0.title,
+                    subtitle: "\(compact($0.summary.totalTokens)) total tokens \u{2022} \(shortDateTime(updatedAt)) \u{2022} \($0.modelDisplayName)"
+                )
+            }
         }
     }
 
-    private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
+    private func buildTokenFlowData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot) -> [TokenUsageDataPoint] {
         guard selection.dateSelection == .preset(.allTime) else { return [] }
-        let totalsByDay = tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+        let totalsByDay = tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot)
 
         guard totalsByDay.isEmpty == false,
               let earliestDay = totalsByDay.keys.min(),
@@ -744,9 +834,9 @@ final class AgentUsageStore: ObservableObject {
         return buckets
     }
 
-    private func buildActivityCalendarData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [TokenUsageDataPoint] {
+    private func buildActivityCalendarData(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot) -> [TokenUsageDataPoint] {
         guard selection.dateSelection == .preset(.allTime) else { return [] }
-        return tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot)
+        return tokenFlowTotalsByDay(selection: selection, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot)
             .sorted { $0.key < $1.key }
             .map { day, totalTokens in
                 TokenUsageDataPoint(
@@ -757,16 +847,22 @@ final class AgentUsageStore: ObservableObject {
             }
     }
 
-    private func tokenFlowTotalsByDay(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot) -> [Int: Int] {
-        let openCodeTotals = selection.source != .codex
+    private func tokenFlowTotalsByDay(selection: AgentUsageSelection, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot) -> [Int: Int] {
+        let openCodeTotals = selection.source != .codex && selection.source != .claudeCode
             ? openCodeTokenFlowTotals(interval: nil, snapshot: openCodeSnapshot)
             : [:]
-        let codexTotals = selection.source != .openCode
+        let codexTotals = selection.source != .openCode && selection.source != .claudeCode
             ? codexTokenFlowTotals(interval: nil, snapshot: codexSnapshot)
+            : [:]
+        let claudeCodeTotals = selection.source == .all || selection.source == .claudeCode
+            ? claudeCodeTokenFlowTotals(interval: nil, snapshot: claudeCodeSnapshot)
             : [:]
 
         var totalsByDay = openCodeTotals
         for (day, value) in codexTotals {
+            totalsByDay[day, default: 0] += value
+        }
+        for (day, value) in claudeCodeTotals {
             totalsByDay[day, default: 0] += value
         }
         return totalsByDay
@@ -801,6 +897,27 @@ final class AgentUsageStore: ObservableObject {
         if state.codexDailyBuckets.isEmpty == false && snapshot.sessions.isEmpty == false {
             var totals: [Int: Int] = [:]
             for (_, buckets) in codexBucketsBySession {
+                for bucket in buckets {
+                    guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
+                    totals[bucket.day, default: 0] += bucket.totalTokens
+                }
+            }
+            return totals
+        }
+
+        return snapshot.sessions.reduce(into: [:]) { totals, session in
+            let day = agentUsageDayIdentifier(for: session.updatedAt)
+            totals[day, default: 0] += session.tokensUsed
+        }
+    }
+
+    private func claudeCodeTokenFlowTotals(
+        interval: Range<Int>?,
+        snapshot: ClaudeCodeUsageSnapshot
+    ) -> [Int: Int] {
+        if state.claudeCodeDailyBuckets.isEmpty == false && snapshot.sessions.isEmpty == false {
+            var totals: [Int: Int] = [:]
+            for (_, buckets) in ccBucketsBySession {
                 for bucket in buckets {
                     guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                     totals[bucket.day, default: 0] += bucket.totalTokens
@@ -856,7 +973,7 @@ final class AgentUsageStore: ObservableObject {
         return pills
     }
 
-    private func buildContextRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, ocScopeSummary: AgentUsageSummary, cxScopeSummary: AgentUsageSummary, ocProjectCount: Int, cxProjectCount: Int, openCodeSessionsByID: [String: OpenCodeSessionRecord], codexSessionsByID: [String: CodexSessionRecord], ocLatestBySession: [String: Date], cxLatestBySession: [String: Date]) -> [AgentUsageDetailRow] {
+    private func buildContextRows(selection: AgentUsageSelection, scope: AgentScope, openCodeSnapshot: OpenCodeUsageSnapshot, codexSnapshot: CodexUsageSnapshot, claudeCodeSnapshot: ClaudeCodeUsageSnapshot, ocScopeSummary: AgentUsageSummary, cxScopeSummary: AgentUsageSummary, ccScopeSummary: AgentUsageSummary, ocProjectCount: Int, cxProjectCount: Int, ccProjectCount: Int, openCodeSessionsByID: [String: OpenCodeSessionRecord], codexSessionsByID: [String: CodexSessionRecord], claudeCodeSessionsByID: [String: ClaudeCodeSessionRecord], ocLatestBySession: [String: Date], cxLatestBySession: [String: Date], ccLatestBySession: [String: Date]) -> [AgentUsageDetailRow] {
         guard selection.source != .all else { return [] }
 
         var rows: [AgentUsageDetailRow] = []
@@ -873,8 +990,10 @@ final class AgentUsageStore: ObservableObject {
                     interval: dayInterval(for: selection.dateSelection),
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
+                    claudeCodeSnapshot: claudeCodeSnapshot,
                     ocLatestBySession: ocLatestBySession,
-                    cxLatestBySession: cxLatestBySession
+                    cxLatestBySession: cxLatestBySession,
+                    ccLatestBySession: ccLatestBySession
                 )
             )
             switch scope {
@@ -907,8 +1026,10 @@ final class AgentUsageStore: ObservableObject {
                     interval: dayInterval(for: selection.dateSelection),
                     openCodeSnapshot: openCodeSnapshot,
                     codexSnapshot: codexSnapshot,
+                    claudeCodeSnapshot: claudeCodeSnapshot,
                     ocLatestBySession: ocLatestBySession,
-                    cxLatestBySession: cxLatestBySession
+                    cxLatestBySession: cxLatestBySession,
+                    ccLatestBySession: ccLatestBySession
                 )
             )
             switch scope {
@@ -934,7 +1055,39 @@ final class AgentUsageStore: ObservableObject {
                 rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: updatedAt.map(shortDateTime) ?? "-", secondaryText: nil))
             }
         case .claudeCode:
-            return []
+            let summary = replacingLastUpdated(
+                in: ccScopeSummary,
+                with: latestActivityDate(
+                    for: .claudeCode,
+                    scope: scope,
+                    interval: dayInterval(for: selection.dateSelection),
+                    openCodeSnapshot: openCodeSnapshot,
+                    codexSnapshot: codexSnapshot,
+                    claudeCodeSnapshot: claudeCodeSnapshot,
+                    ocLatestBySession: ocLatestBySession,
+                    cxLatestBySession: cxLatestBySession,
+                    ccLatestBySession: ccLatestBySession
+                )
+            )
+            switch scope {
+            case .allProjects:
+                rows.append(AgentUsageDetailRow(id: "projectsCount", title: "Projects Count", valueText: "\(ccProjectCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .project(let directory):
+                rows.append(AgentUsageDetailRow(id: "projectName", title: "Project Name", valueText: URL(fileURLWithPath: directory).lastPathComponent, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: directory, secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "sessionsCount", title: "Sessions Count", valueText: "\(summary.sessionsCount)", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: summary.lastUpdated.map(shortDateTime) ?? "-", secondaryText: nil))
+            case .session:
+                let session = selection.sessionID.flatMap { claudeCodeSessionsByID[$0] }
+                let updatedAt = selection.sessionID.flatMap { ccLatestBySession[$0] } ?? session?.updatedAt
+                rows.append(AgentUsageDetailRow(id: "title", title: "Title", valueText: session?.title ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "fullPath", title: "Full Path", valueText: session?.cwd ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "model", title: "Model", valueText: session.map { "\($0.modelProvider) / \($0.model)" } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "created", title: "Created", valueText: session.map { shortDateTime($0.createdAt) } ?? "-", secondaryText: nil))
+                rows.append(AgentUsageDetailRow(id: "lastUpdated", title: "Last Updated", valueText: updatedAt.map(shortDateTime) ?? "-", secondaryText: nil))
+            }
         }
         return rows
     }
@@ -992,6 +1145,42 @@ final class AgentUsageStore: ObservableObject {
         }
     }
 
+    private func claudeRequestCountFromBuckets(
+        for selection: AgentUsageSelection,
+        scope: AgentScope
+    ) -> Int {
+        guard selection.source == .claudeCode || selection.source == .all else { return 0 }
+        let interval = dayInterval(for: selection.dateSelection)
+
+        switch scope {
+        case .allProjects:
+            return ccBucketsBySession.reduce(0) { total, entry in
+                var requestCount = 0
+                for bucket in entry.value where interval.map({ $0.contains(bucket.day) }) ?? true {
+                    requestCount += bucket.requestCount
+                }
+                return total + requestCount
+            }
+        case .project(let directory):
+            let sessionIDs = Set(ccSessionsByDirectory[directory] ?? [])
+            return ccBucketsBySession.reduce(0) { total, entry in
+                guard sessionIDs.contains(entry.key) else { return total }
+                var requestCount = 0
+                for bucket in entry.value where interval.map({ $0.contains(bucket.day) }) ?? true {
+                    requestCount += bucket.requestCount
+                }
+                return total + requestCount
+            }
+        case .session(_, let sessionID):
+            guard let buckets = ccBucketsBySession[sessionID] else { return 0 }
+            var requestCount = 0
+            for bucket in buckets where interval.map({ $0.contains(bucket.day) }) ?? true {
+                requestCount += bucket.requestCount
+            }
+            return requestCount
+        }
+    }
+
     private func replacingLastUpdated(in summary: AgentUsageSummary, with lastUpdated: Date?) -> AgentUsageSummary {
         AgentUsageSummary(
             totalTokens: summary.totalTokens,
@@ -1018,14 +1207,17 @@ final class AgentUsageStore: ObservableObject {
         interval: Range<Int>?,
         openCodeSnapshot: OpenCodeUsageSnapshot,
         codexSnapshot: CodexUsageSnapshot,
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot,
         ocLatestBySession: [String: Date],
-        cxLatestBySession: [String: Date]
+        cxLatestBySession: [String: Date],
+        ccLatestBySession: [String: Date]
     ) -> Date? {
         switch source {
         case .all:
             return [
-                latestActivityDate(for: .openCode, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession),
-                latestActivityDate(for: .codex, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession)
+                latestActivityDate(for: .openCode, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession, ccLatestBySession: ccLatestBySession),
+                latestActivityDate(for: .codex, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession, ccLatestBySession: ccLatestBySession),
+                latestActivityDate(for: .claudeCode, scope: scope, interval: interval, openCodeSnapshot: openCodeSnapshot, codexSnapshot: codexSnapshot, claudeCodeSnapshot: claudeCodeSnapshot, ocLatestBySession: ocLatestBySession, cxLatestBySession: cxLatestBySession, ccLatestBySession: ccLatestBySession)
             ].compactMap { $0 }.max()
         case .openCode:
             switch scope {
@@ -1061,7 +1253,23 @@ final class AgentUsageStore: ObservableObject {
                 return cxLatestBySession[sessionID] ?? codexSnapshot.summary(for: scope).lastUpdated
             }
         case .claudeCode:
-            return nil
+            switch scope {
+            case .allProjects:
+                var maxDate: Date?
+                for (_, activityAt) in ccLatestBySession {
+                    if maxDate == nil || activityAt > maxDate! { maxDate = activityAt }
+                }
+                return maxDate ?? claudeCodeSnapshot.summary(for: scope).lastUpdated
+            case .project(let directory):
+                var maxDate: Date?
+                for sessionID in ccSessionsByDirectory[directory] ?? [] {
+                    let activityAt = ccLatestBySession[sessionID] ?? ccMetadataBySession[sessionID]?.updatedAt ?? .distantPast
+                    if maxDate == nil || activityAt > maxDate! { maxDate = activityAt }
+                }
+                return maxDate ?? claudeCodeSnapshot.summary(for: scope).lastUpdated
+            case .session(_, let sessionID):
+                return ccLatestBySession[sessionID] ?? claudeCodeSnapshot.summary(for: scope).lastUpdated
+            }
         }
     }
 
@@ -1091,6 +1299,22 @@ final class AgentUsageStore: ObservableObject {
             for bucket in buckets {
                 guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
                 let activityAt = bucket.latestActivityAt ?? approximateCodexActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
+                result[sessionID] = max(result[sessionID] ?? .distantPast, activityAt)
+            }
+        }
+        return result
+    }
+
+    private func claudeCodeLatestActivityBySession(
+        interval: Range<Int>?,
+        snapshot: ClaudeCodeUsageSnapshot
+    ) -> [String: Date] {
+        var result: [String: Date] = [:]
+        for (sessionID, buckets) in ccBucketsBySession {
+            guard let metadata = ccMetadataBySession[sessionID] else { continue }
+            for bucket in buckets {
+                guard interval.map({ $0.contains(bucket.day) }) ?? true else { continue }
+                let activityAt = bucket.latestActivityAt ?? approximateClaudeCodeActivityDate(for: bucket.day, relativeTo: metadata.updatedAt)
                 result[sessionID] = max(result[sessionID] ?? .distantPast, activityAt)
             }
         }
@@ -1158,6 +1382,7 @@ final class AgentUsageStore: ObservableObject {
         scope: AgentScope,
         openCodeSnapshot: OpenCodeUsageSnapshot,
         codexSnapshot: CodexUsageSnapshot,
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot,
         allProviderCandidates: [AgentUsageProviderMappingCandidate]
     ) -> [ProviderBreakdown] {
         switch selection.source {
@@ -1169,7 +1394,7 @@ final class AgentUsageStore: ObservableObject {
             }
             return openCodeProviderBreakdown(for: scope, interval: dayInterval(for: selection.dateSelection))
         case .codex: return codexSnapshot.providerBreakdown(for: scope)
-        case .claudeCode: return []
+        case .claudeCode: return claudeCodeSnapshot.providerBreakdown(for: scope)
         }
     }
 
@@ -1178,6 +1403,7 @@ final class AgentUsageStore: ObservableObject {
         scope: AgentScope,
         openCodeSnapshot: OpenCodeUsageSnapshot,
         codexSnapshot: CodexUsageSnapshot,
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot,
         allModelCandidates: [AgentUsageModelMappingCandidate]
     ) -> [AgentUsageDetailRow] {
         switch selection.source {
@@ -1208,7 +1434,14 @@ final class AgentUsageStore: ObservableObject {
                 )
             }
         case .claudeCode:
-            return []
+            return claudeCodeSnapshot.modelBreakdown(for: scope).map {
+                AgentUsageDetailRow(
+                    id: "\($0.modelProvider)/\($0.model)",
+                    title: "\($0.modelProvider) / \($0.model)",
+                    valueText: compact($0.summary.totalTokens),
+                    secondaryText: nil
+                )
+            }
         }
     }
 
@@ -1216,7 +1449,8 @@ final class AgentUsageStore: ObservableObject {
         selection: AgentUsageSelection,
         scope: AgentScope,
         openCodeSnapshot: OpenCodeUsageSnapshot,
-        codexSnapshot: CodexUsageSnapshot
+        codexSnapshot: CodexUsageSnapshot,
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot
     ) -> [AgentUsageProviderMappingCandidate] {
         var candidates: [AgentUsageProviderMappingCandidate] = []
 
@@ -1248,6 +1482,17 @@ final class AgentUsageStore: ObservableObject {
             )
         })
 
+        candidates.append(contentsOf: claudeCodeSnapshot.providerBreakdown(for: scope).map {
+            AgentUsageProviderMappingCandidate(
+                identity: AgentUsageProviderRawIdentity(
+                    source: .claudeCode,
+                    rawProviderID: $0.provider,
+                    rawProviderName: $0.provider
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
         return candidates.sorted { lhs, rhs in
             if lhs.totalTokens == rhs.totalTokens {
                 return lhs.identity.sourceQualifiedDisplayName.localizedCaseInsensitiveCompare(rhs.identity.sourceQualifiedDisplayName) == .orderedAscending
@@ -1260,7 +1505,8 @@ final class AgentUsageStore: ObservableObject {
         selection: AgentUsageSelection,
         scope: AgentScope,
         openCodeSnapshot: OpenCodeUsageSnapshot,
-        codexSnapshot: CodexUsageSnapshot
+        codexSnapshot: CodexUsageSnapshot,
+        claudeCodeSnapshot: ClaudeCodeUsageSnapshot
     ) -> [AgentUsageModelMappingCandidate] {
         var candidates: [AgentUsageModelMappingCandidate] = []
 
@@ -1288,6 +1534,20 @@ final class AgentUsageStore: ObservableObject {
             AgentUsageModelMappingCandidate(
                 identity: AgentUsageModelRawIdentity(
                     source: .codex,
+                    rawProviderID: $0.modelProvider,
+                    rawProviderName: $0.modelProvider,
+                    rawModelID: $0.model,
+                    rawModelName: $0.model,
+                    rawModelVariant: nil
+                ),
+                totalTokens: $0.summary.totalTokens
+            )
+        })
+
+        candidates.append(contentsOf: claudeCodeSnapshot.modelBreakdown(for: scope).map {
+            AgentUsageModelMappingCandidate(
+                identity: AgentUsageModelRawIdentity(
+                    source: .claudeCode,
                     rawProviderID: $0.modelProvider,
                     rawProviderName: $0.modelProvider,
                     rawModelID: $0.model,
