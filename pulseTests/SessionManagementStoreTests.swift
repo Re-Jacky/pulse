@@ -101,7 +101,7 @@ final class SessionManagementStoreTests: XCTestCase {
 
         XCTAssertEqual(store.sessionListState, .loading)
         XCTAssertEqual(store.sessions.map(\.id), ["opencode::1"])
-        XCTAssertEqual(store.loadingSources, [.codex, .claudeCode])
+        XCTAssertEqual(store.loadingSources, [.codex])
 
         allowRefreshToFinish.fulfill()
         await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
@@ -986,7 +986,7 @@ private final class StubSessionManagementRepository: SessionManagementRepository
         case .all:
             return .codex(command: "")
         case .claudeCode:
-            return .codex(command: "")
+            return .claudeCode(command: "claude resume \(session.rawSessionID)")
         }
     }
 

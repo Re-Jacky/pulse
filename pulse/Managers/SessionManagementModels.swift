@@ -61,4 +61,5 @@ enum SessionListLoadState: Equatable {
 enum ResumeAction: Equatable {
     case openCode(command: String)
     case codex(command: String)
+    case claudeCode(command: String)
 }

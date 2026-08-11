@@ -53,21 +53,25 @@ final class SessionManagementStore: ObservableObject {
     func refresh(enabledSources: Set<AgentSource> = Set(AgentSource.selectableCases)) {
         guard isLoadingSessions == false else { return }
 
+        // Session Management supports OpenCode and Codex only; `.claudeCode` is
+        // scoped to the Agent Usage tab and must not leak into this surface.
+        let managedSources = enabledSources.subtracting([.claudeCode])
+
         selectSession(id: nil)
         isLoadingSessions = true
         sessionListState = .loading
-        loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
+        loadingSources = managedSources.intersection(Set(AgentSource.selectableCases))
 
         let repository = self.repository
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result {
-                try repository.loadManagedSessions(enabledSources: enabledSources) { update in
+                try repository.loadManagedSessions(enabledSources: managedSources) { update in
                     DispatchQueue.main.async {
                         self.sessions = update.sessions
                         self.refreshProjectOptionsForCurrentSource()
                         self.reconcileSelectionWithVisibleSessions()
                         self.sessionListState = .loading
-                        self.loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
+                        self.loadingSources = managedSources.intersection(Set(AgentSource.selectableCases))
                             .subtracting(update.loadedSources)
                     }
                 }

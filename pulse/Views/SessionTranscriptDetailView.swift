@@ -251,7 +251,7 @@ struct SessionTranscriptDetailView: View {
 
     private func resumeCommand(from action: ResumeAction) -> String {
         switch action {
-        case .openCode(let command), .codex(let command):
+        case .openCode(let command), .codex(let command), .claudeCode(let command):
             return command
         }
     }
