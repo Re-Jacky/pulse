@@ -149,8 +149,12 @@ struct AgentUsageView: View {
     private var databasePath: String {
         switch selection.source {
         case .all:
-            let paths = [agentStore.repository.openCodeDatabaseURL.path, agentStore.repository.codexDatabaseURL?.path].compactMap { $0 }
-            return paths.joined(separator: " + ")
+            let paths: [String?] = [
+                agentStore.repository.openCodeDatabaseURL.path,
+                agentStore.repository.codexDatabaseURL?.path,
+                agentStore.repository.claudeCodeProjectsURL.path
+            ]
+            return paths.compactMap { $0 }.joined(separator: " + ")
         case .openCode: return agentStore.repository.openCodeDatabaseURL.path
         case .codex: return agentStore.repository.codexDatabaseURL?.path ?? "Codex database not found"
         case .claudeCode: return agentStore.repository.claudeCodeProjectsURL.path
