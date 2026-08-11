@@ -173,7 +173,10 @@ enum ClaudeCodeUsageQuery {
             let resolvedTitle = title?.isEmpty == false
                 ? title!
                 : (lastPrompt?.isEmpty == false ? lastPrompt! : URL(fileURLWithPath: cwd).lastPathComponent)
-            let resolvedModel = modelCounts.max { $0.value < $1.value }?.key ?? ""
+            let resolvedModel = modelCounts.max { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key > rhs.key }
+                return lhs.value < rhs.value
+            }?.key ?? ""
             let createdAt = createdAt ?? .distantPast
             return ClaudeCodeSessionRecord(
                 id: id,
@@ -214,7 +217,8 @@ enum ClaudeCodeUsageQuery {
                 continue
             }
 
-            if let lineSessionID = (object["sessionId"] as? String) ?? (object["session_id"] as? String) {
+            if let lineSessionID = (object["sessionId"] as? String) ?? (object["session_id"] as? String),
+               lineSessionID.isEmpty == false {
                 sessionID = lineSessionID
             }
 
@@ -250,6 +254,9 @@ enum ClaudeCodeUsageQuery {
                 continue
             }
 
+            // Assistant counting is gated on a parseable timestamp intentionally:
+            // real transcripts always carry parseable ISO8601 timestamps, and the
+            // fractional-seconds + plain ISO8601 formatters below cover them.
             guard type == "assistant",
                   let message = object["message"] as? [String: Any],
                   let usage = message["usage"] as? [String: Any],
@@ -295,7 +302,7 @@ enum ClaudeCodeUsageQuery {
             bucketsByKey[key] = existing.merging(deltaBucket)
         }
 
-        guard let sessionID else { return nil }
+        guard let sessionID, !sessionID.isEmpty else { return nil }
         return ParsedTranscript(
             sessionID: sessionID,
             accumulator: accumulator,

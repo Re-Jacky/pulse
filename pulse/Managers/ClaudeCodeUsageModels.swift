@@ -194,6 +194,8 @@ struct ClaudeCodeUsageSnapshot: Equatable {
     }
 
     static func makeSummary(from sessions: [ClaudeCodeSessionRecord]) -> AgentUsageSummary {
+        // requestCount is intentionally 0 here: the store enriches request counts
+        // from daily buckets (one per assistant message carrying a usage dict).
         let inputTokens = reduceOptional(\.inputTokens, sessions: sessions)
         let cacheReadTokens = reduceOptional(\.cacheReadTokens, sessions: sessions)
         let totalTokens = sessions.reduce(0) { $0 + $1.tokensUsed }
