@@ -146,9 +146,11 @@ enum ClaudeCodeUsageQuery {
         var cacheReadTokens = 0
         var cacheWriteTokens = 0
         var hasConversation = false
+        var transcriptURL: URL?
 
         mutating func merge(_ other: SessionAccumulator) {
             if cwd.isEmpty { cwd = other.cwd }
+            if transcriptURL == nil { transcriptURL = other.transcriptURL }
             if other.title?.isEmpty == false { title = other.title }
             if other.lastPrompt?.isEmpty == false { lastPrompt = other.lastPrompt }
             for (model, count) in other.modelCounts {
@@ -190,7 +192,8 @@ enum ClaudeCodeUsageQuery {
                 cacheReadTokens: cacheReadTokens,
                 cacheWriteTokens: cacheWriteTokens,
                 createdAt: createdAt,
-                updatedAt: updatedAt ?? createdAt
+                updatedAt: updatedAt ?? createdAt,
+                transcriptURL: transcriptURL
             )
         }
     }
@@ -303,6 +306,11 @@ enum ClaudeCodeUsageQuery {
         }
 
         guard let sessionID, !sessionID.isEmpty else { return nil }
+        // main transcript lives at <dir>/<sessionID>.jsonl; subagent files are
+        // agent-*.jsonl under a subagents/ dir and must NOT claim the URL
+        if transcriptURL.lastPathComponent == "\(sessionID).jsonl" {
+            accumulator.transcriptURL = transcriptURL
+        }
         return ParsedTranscript(
             sessionID: sessionID,
             accumulator: accumulator,

@@ -645,7 +645,8 @@ final class AgentUsageStore: ObservableObject {
                 cacheReadTokens: cacheRead,
                 cacheWriteTokens: cacheWrite,
                 createdAt: session.createdAt,
-                updatedAt: updatedAt
+                updatedAt: updatedAt,
+                transcriptURL: session.transcriptURL
             )
         }
 

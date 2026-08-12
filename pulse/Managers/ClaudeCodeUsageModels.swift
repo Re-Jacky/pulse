@@ -13,6 +13,37 @@ struct ClaudeCodeSessionRecord: Identifiable, Equatable {
     let cacheWriteTokens: Int?
     let createdAt: Date
     let updatedAt: Date
+    let transcriptURL: URL?
+
+    init(
+        id: String,
+        title: String,
+        cwd: String,
+        model: String,
+        modelProvider: String,
+        tokensUsed: Int,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cacheReadTokens: Int?,
+        cacheWriteTokens: Int?,
+        createdAt: Date,
+        updatedAt: Date,
+        transcriptURL: URL? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.cwd = cwd
+        self.model = model
+        self.modelProvider = modelProvider
+        self.tokensUsed = tokensUsed
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.cacheWriteTokens = cacheWriteTokens
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.transcriptURL = transcriptURL
+    }
 
     var shortProjectName: String {
         URL(fileURLWithPath: cwd).lastPathComponent

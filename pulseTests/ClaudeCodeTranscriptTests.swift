@@ -213,4 +213,26 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         XCTAssertEqual(bucket.outputTokens, 30)
         XCTAssertEqual(bucket.totalTokens, 180)
     }
+
+    func testLoadSnapshotResolvesMainTranscriptURLNotSubagent() throws {
+        let mainURL = projectsDir.appendingPathComponent("ses_url.jsonl")
+        let mainTranscript = """
+        {"type":"user","message":{"role":"user","content":"hi"},"uuid":"u1","timestamp":"2026-07-22T09:00:00.000Z","cwd":"/tmp/project","sessionId":"ses_url"}
+        {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":10,"output_tokens":2}},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_url"}
+        """
+        try mainTranscript.write(to: mainURL, atomically: true, encoding: .utf8)
+
+        let sessionDir = projectsDir.appendingPathComponent("ses_url")
+        let subagentsDir = sessionDir.appendingPathComponent("subagents")
+        try FileManager.default.createDirectory(at: subagentsDir, withIntermediateDirectories: true)
+        let subagent = """
+        {"type":"assistant","isSidechain":true,"agentId":"agent-x","message":{"id":"m2","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":5,"output_tokens":1}},"uuid":"a2","timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_url"}
+        """
+        try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
+
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let session = try XCTUnwrap(snapshot.sessions.first)
+        XCTAssertEqual(session.transcriptURL?.standardizedFileURL, mainURL.standardizedFileURL)
+        XCTAssertEqual(session.tokensUsed, 18)
+    }
 }
