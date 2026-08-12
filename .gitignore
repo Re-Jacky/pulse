@@ -23,7 +23,7 @@ build/
 
 # Local worktrees
 .worktrees/
-
+.superpowers/
 
 # Distribution
 dist/*.dmg
