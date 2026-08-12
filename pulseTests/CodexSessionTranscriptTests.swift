@@ -218,7 +218,7 @@ final class CodexSessionTranscriptTests: XCTestCase {
             }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
         XCTAssertEqual(sessions.map(\.id), ["codex::thread_1"])
         XCTAssertEqual(sessions.first?.transcriptURL, expectedTranscriptURL)
         _ = try repository.loadTranscript(for: sessions[0])
@@ -261,7 +261,7 @@ final class CodexSessionTranscriptTests: XCTestCase {
             loadCodexTranscriptProgressively: { _, _, _ in [] }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
 
         XCTAssertEqual(sessions.map(\.id), ["codex::thread_1"])
         XCTAssertEqual(sessions.first?.transcriptURL, expectedTranscriptURL)
@@ -317,7 +317,7 @@ final class CodexSessionTranscriptTests: XCTestCase {
             loadCodexTranscriptProgressively: { _, _, _ in [] }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
 
         XCTAssertEqual(sessions.map(\.id), ["codex::thread_2", "opencode::oc_1"])
         XCTAssertEqual(sessions.map(\.updatedAt), [

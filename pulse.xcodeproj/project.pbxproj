@@ -17,6 +17,7 @@
 		1000000000000000000000E2 /* ClaudeCodeUsageQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */; };
 		1000000000000000000000E4 /* ClaudeCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */; };
 		1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */; };
+		1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
@@ -137,6 +138,7 @@
 		1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/ClaudeCodeUsageQuery.swift; sourceTree = "<group>"; };
 		1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeUsageModelsTests.swift; sourceTree = "<group>"; };
 		1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeTranscriptTests.swift; sourceTree = "<group>"; };
+		1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeSessionManagementTests.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -267,6 +269,7 @@
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
 				1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */,
 				1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */,
+				1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */,
 				DB1D0EB5B4E39865F22CB1D2 /* AgentUsageMappingStoreTests.swift */,
 			);
 			path = pulseTests;
@@ -548,6 +551,7 @@
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
 				1000000000000000000000E4 /* ClaudeCodeUsageModelsTests.swift in Sources */,
 				1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */,
+				1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */,
 				BD5B6F66D3EDB59A868549F4 /* AgentUsageMappingStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

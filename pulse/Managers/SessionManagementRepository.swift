@@ -22,6 +22,9 @@ final class SessionManagementRepository: SessionManagementRepositorying {
     private let loadCodexSnapshot: () throws -> CodexUsageSnapshot
     private let loadCodexTranscript: (String, URL?) throws -> [TranscriptTurn]
     private let loadCodexTranscriptProgressively: (String, URL?, @escaping @Sendable ([TranscriptTurn]) -> Void) throws -> [TranscriptTurn]
+    private let loadClaudeCodeSnapshot: () throws -> ClaudeCodeUsageSnapshot
+    private let loadClaudeCodeTranscript: (String, URL?) throws -> [TranscriptTurn]
+    private let loadClaudeCodeTranscriptProgressively: (String, URL?, @escaping @Sendable ([TranscriptTurn]) -> Void) throws -> [TranscriptTurn]
 
     private var discoveredOpenCodeDatabaseURL: URL?
     private var openCodeDatabaseURLByManagedSessionID: [String: URL] = [:]
@@ -41,6 +44,15 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         },
         loadCodexTranscriptProgressively: @escaping (String, URL?, @escaping @Sendable ([TranscriptTurn]) -> Void) throws -> [TranscriptTurn] = {
             try CodexUsageQuery.loadTranscript(threadID: $0, transcriptURL: $1, onPartialUpdate: $2)
+        },
+        loadClaudeCodeSnapshot: @escaping () throws -> ClaudeCodeUsageSnapshot = {
+            try ClaudeCodeUsageQuery.loadSnapshot()
+        },
+        loadClaudeCodeTranscript: @escaping (String, URL?) throws -> [TranscriptTurn] = {
+            try ClaudeCodeUsageQuery.loadTranscript(sessionID: $0, transcriptURL: $1)
+        },
+        loadClaudeCodeTranscriptProgressively: @escaping (String, URL?, @escaping @Sendable ([TranscriptTurn]) -> Void) throws -> [TranscriptTurn] = {
+            try ClaudeCodeUsageQuery.loadTranscript(sessionID: $0, transcriptURL: $1, onPartialUpdate: $2)
         }
     ) {
         self.resolveOpenCodeDatabaseURL = resolveOpenCodeDatabaseURL
@@ -50,6 +62,9 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         self.loadCodexSnapshot = loadCodexSnapshot
         self.loadCodexTranscript = loadCodexTranscript
         self.loadCodexTranscriptProgressively = loadCodexTranscriptProgressively
+        self.loadClaudeCodeSnapshot = loadClaudeCodeSnapshot
+        self.loadClaudeCodeTranscript = loadClaudeCodeTranscript
+        self.loadClaudeCodeTranscriptProgressively = loadClaudeCodeTranscriptProgressively
     }
 
     convenience init(
@@ -83,10 +98,13 @@ final class SessionManagementRepository: SessionManagementRepositorying {
     ) throws -> [ManagedSessionSummary] {
         var openCodeSessions: [ManagedSessionSummary] = []
         var codexSessions: [ManagedSessionSummary] = []
+        var claudeCodeSessions: [ManagedSessionSummary] = []
         var openCodeLoaded = false
         var codexLoaded = false
+        var claudeCodeLoaded = false
         var openCodeError: Error?
         var codexError: Error?
+        var claudeCodeError: Error?
 
         if enabledSources.contains(.openCode) {
             do {
@@ -168,15 +186,51 @@ final class SessionManagementRepository: SessionManagementRepositorying {
             }
         }
 
-        guard openCodeLoaded || codexLoaded else {
-            throw codexError ?? openCodeError ?? NSError(
+        if enabledSources.contains(.claudeCode) {
+            do {
+                claudeCodeSessions = try loadClaudeCodeSnapshot().sessions.map { session in
+                    ManagedSessionSummary(
+                        id: "claudeCode::\(session.id)",
+                        source: .claudeCode,
+                        rawSessionID: session.id,
+                        title: session.title,
+                        projectPath: session.cwd,
+                        projectName: session.shortProjectName,
+                        subtitle: "\(session.modelProvider) / \(session.model)",
+                        updatedAt: session.updatedAt,
+                        transcriptURL: session.transcriptURL
+                    )
+                }
+                claudeCodeLoaded = true
+                onPartialUpdate(
+                    ManagedSessionsPartialUpdate(
+                        sessions: (openCodeSessions + codexSessions + claudeCodeSessions).sorted { lhs, rhs in
+                            if lhs.updatedAt == rhs.updatedAt {
+                                return lhs.id < rhs.id
+                            }
+                            return lhs.updatedAt > rhs.updatedAt
+                        },
+                        loadedSources: Set([
+                            openCodeLoaded ? AgentSource.openCode : nil,
+                            codexLoaded ? .codex : nil,
+                            .claudeCode
+                        ].compactMap { $0 })
+                    )
+                )
+            } catch {
+                claudeCodeError = error
+            }
+        }
+
+        guard openCodeLoaded || codexLoaded || claudeCodeLoaded else {
+            throw claudeCodeError ?? codexError ?? openCodeError ?? NSError(
                 domain: "SessionManagementRepository",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to load session sources."]
             )
         }
 
-        return (openCodeSessions + codexSessions).sorted { lhs, rhs in
+        return (openCodeSessions + codexSessions + claudeCodeSessions).sorted { lhs, rhs in
             if lhs.updatedAt == rhs.updatedAt {
                 return lhs.id < rhs.id
             }
@@ -196,10 +250,7 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         case .all:
             return []
         case .claudeCode:
-            // Unreachable: `.claudeCode` is filtered out of session-management
-            // enabled sources. A claude transcript loader would live here if it
-            // ever becomes part of this surface.
-            return []
+            return try loadClaudeCodeTranscript(session.rawSessionID, session.transcriptURL)
         }
     }
 
@@ -218,10 +269,7 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         case .all:
             return []
         case .claudeCode:
-            // Unreachable: `.claudeCode` is filtered out of session-management
-            // enabled sources. A claude transcript loader would live here if it
-            // ever becomes part of this surface.
-            return []
+            return try loadClaudeCodeTranscriptProgressively(session.rawSessionID, session.transcriptURL, onPartialUpdate)
         }
     }
 

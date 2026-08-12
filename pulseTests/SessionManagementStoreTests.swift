@@ -101,7 +101,7 @@ final class SessionManagementStoreTests: XCTestCase {
 
         XCTAssertEqual(store.sessionListState, .loading)
         XCTAssertEqual(store.sessions.map(\.id), ["opencode::1"])
-        XCTAssertEqual(store.loadingSources, [.codex])
+        XCTAssertEqual(store.loadingSources, [.codex, .claudeCode])
 
         allowRefreshToFinish.fulfill()
         await fulfillment(of: [repository.loadManagedSessionsExpectation], timeout: 1.0)
@@ -665,7 +665,7 @@ final class SessionManagementStoreTests: XCTestCase {
             }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
 
         XCTAssertEqual(sessions.map(\.id), ["codex::thread_1"])
     }
@@ -698,7 +698,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexSnapshot: { throw CodexUsageQuery.QueryError.databaseNotFound(path: "/tmp/.codex") }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
 
         XCTAssertEqual(sessions.map(\.id), ["opencode::ses_1::openai::gpt-5.4::default"])
         XCTAssertEqual(sessions.first?.rawSessionID, "ses_1")
@@ -747,7 +747,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexSnapshot: { CodexUsageSnapshot(sessions: []) }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
         _ = try repository.loadTranscript(for: sessions[0])
 
         XCTAssertEqual(transcriptDatabasePaths, [expectedDatabaseURL.path])
@@ -796,7 +796,7 @@ final class SessionManagementStoreTests: XCTestCase {
             loadCodexTranscriptProgressively: { _, _, _ in [] }
         )
 
-        let sessions = try repository.loadManagedSessions(enabledSources: Set(AgentSource.selectableCases))
+        let sessions = try repository.loadManagedSessions(enabledSources: [.openCode, .codex])
         var publishedBatches: [[TranscriptTurn]] = []
         let transcript = try repository.loadTranscript(for: sessions[0]) { turns in
             publishedBatches.append(turns)

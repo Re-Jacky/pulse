@@ -4,6 +4,7 @@ enum SessionManagerSourceFilter: String, CaseIterable, Identifiable {
     case all = "all"
     case openCode = "opencode"
     case codex = "codex"
+    case claudeCode = "claudecode"
 
     var id: String { rawValue }
 }

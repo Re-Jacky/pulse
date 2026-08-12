@@ -12,6 +12,7 @@ struct SessionListSidebarView: View {
                 case .all: return enabledSources.count >= 2
                 case .openCode: return enabledSources.contains(.openCode)
                 case .codex: return enabledSources.contains(.codex)
+                case .claudeCode: return enabledSources.contains(.claudeCode)
                 }
             }
 
@@ -158,6 +159,8 @@ struct SessionListSidebarView: View {
             return "Loading OpenCode sessions..."
         case .codex:
             return "Loading Codex sessions..."
+        case .claudeCode:
+            return "Loading Claude sessions..."
         }
     }
 
@@ -176,6 +179,8 @@ struct SessionListSidebarView: View {
             return "No OpenCode sessions found."
         case .codex:
             return "No Codex sessions found."
+        case .claudeCode:
+            return "No Claude sessions found."
         }
     }
 
@@ -187,6 +192,8 @@ struct SessionListSidebarView: View {
             return "OpenCode"
         case .codex:
             return "Codex"
+        case .claudeCode:
+            return "Claude"
         }
     }
 

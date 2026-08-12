@@ -53,9 +53,7 @@ final class SessionManagementStore: ObservableObject {
     func refresh(enabledSources: Set<AgentSource> = Set(AgentSource.selectableCases)) {
         guard isLoadingSessions == false else { return }
 
-        // Session Management supports OpenCode and Codex only; `.claudeCode` is
-        // scoped to the Agent Usage tab and must not leak into this surface.
-        let managedSources = enabledSources.subtracting([.claudeCode])
+        let managedSources = enabledSources
 
         selectSession(id: nil)
         isLoadingSessions = true
@@ -216,6 +214,8 @@ final class SessionManagementStore: ObservableObject {
             return loadingSources.contains(.openCode)
         case .codex:
             return loadingSources.contains(.codex)
+        case .claudeCode:
+            return loadingSources.contains(.claudeCode)
         }
     }
 
