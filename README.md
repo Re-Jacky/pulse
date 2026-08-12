@@ -1,6 +1,6 @@
 # Pulse
 
-A macOS menu bar app for system monitoring, process management, local agent usage analysis, and live Agent Light session status for OpenCode and Codex.
+A macOS menu bar app for system monitoring, process management, local agent usage analysis for OpenCode, Codex, and Claude Code, and live Agent Light session status for OpenCode and Codex.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Language](https://img.shields.io/badge/language-Swift-orange)
@@ -57,7 +57,7 @@ Download the latest `.dmg` from the [Releases](https://github.com/Re-Jacky/pulse
 - **Overview tab** — animated gradient bars for CPU, Memory, and GPU with chip name and core count
 - **Processes tab** — live process list with CPU%, memory, and listening ports; search by **name, working directory, or port**; sort by name, CPU, or memory; kill any process
 - **Theme switching** — choose **System**, **Dark**, or **Light** in Settings; the preference is persisted in `UserDefaults`
-- **Agent Usage tab** — optional OpenCode and Codex CLI token analysis with **All**, **OpenCode**, and **Codex** source picker; global, project, and session scopes; searchable selectors; `All Time`, `Today`, `7 Days`, and `30 Days` filters; model breakdown at global/project scope (not available in All mode)
+- **Agent Usage tab** — optional OpenCode, Codex, and Claude Code token analysis with **All**, **OpenCode**, **Codex**, and **Claude** source picker; global, project, and session scopes; searchable selectors; `All Time`, `Today`, `7 Days`, and `30 Days` filters; model breakdown at global/project scope (not available in All mode). Claude Code usage is read from local transcripts under `~/.claude/projects` (including Task-tool subagent transcripts)
 - **Integration install flow** — install or remove the Pulse-managed OpenCode plugin and Codex hook directly from the Agent Light panel
 - **Settings window** — reusable native macOS settings window, available from the menu or `Cmd+,`
 - **Agent Usage toggle** — disabled by default in Settings; enabling it adds the `Agent` tab and expands the panel for the denser layout
@@ -142,7 +142,7 @@ If the release tag already exists, the workflow fails and requires a new version
 3. **Overview tab** — CPU / Memory / GPU bars refresh every 2 seconds
 4. **Processes tab** — type in the search box to filter by name, path, or port; click column headers to sort; right-click any row to kill it
 5. Open **Settings** to switch between System, Dark, and Light themes, and optionally enable **Agent Usage**
-6. If enabled, use the **Agent tab** to inspect agent usage across **All** sources or a specific source (OpenCode / Codex) by time range, project, and session, or refresh the local DB snapshot manually
+6. If enabled, use the **Agent tab** to inspect agent usage across **All** sources or a specific source (OpenCode / Codex / Claude) by time range, project, and session, or refresh the local snapshot manually
 7. If enabled, use **Agent Light** to install integrations, monitor live OpenCode and Codex session state, and inspect active sessions in the dedicated per-agent panel
 8. **Click anywhere outside** the panel to dismiss it
 9. **Right-click** the menu bar icon for Open/Close, Settings, and Quit
@@ -175,6 +175,8 @@ pulse/
 │   ├── PulseAgentStatusServer.swift  # Local loopback server for live agent events
 │   ├── CodexUsageModels.swift        # Codex-specific session records, snapshot, subagent edges, goals
 │   ├── CodexUsageQuery.swift         # Codex SQLite queries + DB path detection (scans state_*.sqlite)
+│   ├── ClaudeCodeUsageModels.swift   # Claude Code session records and daily token buckets
+│   ├── ClaudeCodeUsageQuery.swift    # Claude Code transcript discovery, snapshot, daily buckets, turn loading
 │   └── ThemeManager.swift            # AppTheme enum + persisted theme preference
 ├── Monitors/
 │   ├── SystemMonitor.swift     # ObservableObject, 2s timer, coordinates all monitors
@@ -186,9 +188,9 @@ pulse/
 │   ├── Colors.swift            # Color(hex:) extension + palette
 │   ├── MetricRowView.swift     # Animated gradient bar component
 │   ├── OverviewView.swift      # CPU / Memory / GPU overview
-│   ├── AgentUsageView.swift          # OpenCode + Codex usage UI, filters, cards, model breakdown
+│   ├── AgentUsageView.swift          # OpenCode / Codex / Claude usage UI, filters, cards, model breakdown
 │   ├── AgentStatusManagementView.swift # Agent Light management and session detail panel
-│   ├── AgentSourcePicker.swift       # Three-way capsule toggle (All / OpenCode / Codex)
+│   ├── AgentSourcePicker.swift       # Source capsule toggle (All / OpenCode / Codex / Claude)
 │   ├── CodexSessionDetailView.swift  # Subagent edges + goals for a Codex session
 │   ├── MenuBarStatusItemView.swift   # Agent Light menu bar item with grouped agent hit regions
 │   ├── PopoverView.swift             # Root view, tab switcher, NSVisualEffectView
