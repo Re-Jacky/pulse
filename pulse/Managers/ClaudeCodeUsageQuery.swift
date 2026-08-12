@@ -337,8 +337,6 @@ enum ClaudeCodeUsageQuery {
         collectTranscriptURLs(
             in: resolveProjectsDirectory(homeDirectoryURL: homeDirectoryURL),
             fileManager: fileManager,
-            depth: 0,
-            maxDepth: 2,
             into: &urls
         )
         return urls
@@ -347,8 +345,6 @@ enum ClaudeCodeUsageQuery {
     private static func collectTranscriptURLs(
         in directory: URL,
         fileManager: FileManager,
-        depth: Int,
-        maxDepth: Int,
         into urls: inout [URL]
     ) {
         guard let contents = try? fileManager.contentsOfDirectory(
@@ -362,8 +358,10 @@ enum ClaudeCodeUsageQuery {
             var isDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
             if isDirectory.boolValue {
-                guard depth < maxDepth else { continue }
-                collectTranscriptURLs(in: url, fileManager: fileManager, depth: depth + 1, maxDepth: maxDepth, into: &urls)
+                // Claude Code nests subagent (Task-tool) transcripts under
+                // <encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl; recurse
+                // without a depth cap so those are scanned too.
+                collectTranscriptURLs(in: url, fileManager: fileManager, into: &urls)
                 continue
             }
             if url.pathExtension == "jsonl" {

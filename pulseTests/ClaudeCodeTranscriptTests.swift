@@ -162,4 +162,55 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
         XCTAssertEqual(snapshot.sessions.map(\.id), ["ses_9"])
     }
+
+    func testLoadSnapshotIncludesSubagentTranscriptsUnderSubagentsDirectory() throws {
+        // Real Claude Code writes Task-tool (subagent) transcripts sharing the parent
+        // sessionId under <encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl. They
+        // must be scanned and merged into the parent session.
+        try writeTranscript("""
+        {"type":"user","message":{"role":"user","content":"delegate"},"uuid":"u1","timestamp":"2026-07-22T09:00:00.000Z","cwd":"/tmp/project","sessionId":"ses_10"}
+        {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":100,"output_tokens":20}},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_10"}
+        """, id: "ses_10")
+
+        let sessionDir = projectsDir.appendingPathComponent("ses_10")
+        let subagentsDir = sessionDir.appendingPathComponent("subagents")
+        try FileManager.default.createDirectory(at: subagentsDir, withIntermediateDirectories: true)
+        let subagent = """
+        {"type":"user","message":{"role":"user","content":"subtask"},"uuid":"u2","timestamp":"2026-07-22T09:01:00.000Z","cwd":"/tmp/project","sessionId":"ses_10"}
+        {"type":"assistant","isSidechain":true,"agentId":"agent-x","message":{"id":"m2","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":50,"output_tokens":10}},"uuid":"a2","timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_10"}
+        """
+        try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
+
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        let session = try XCTUnwrap(snapshot.sessions.first)
+        XCTAssertEqual(session.id, "ses_10")
+        XCTAssertEqual(session.tokensUsed, 180)
+        XCTAssertEqual(session.inputTokens, 150)
+        XCTAssertEqual(session.outputTokens, 30)
+    }
+
+    func testLoadDailyBucketsIncludesSubagentTranscriptsUnderSubagentsDirectory() throws {
+        try writeTranscript("""
+        {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":100,"output_tokens":20}},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_11"}
+        """, id: "ses_11")
+
+        let sessionDir = projectsDir.appendingPathComponent("ses_11")
+        let subagentsDir = sessionDir.appendingPathComponent("subagents")
+        try FileManager.default.createDirectory(at: subagentsDir, withIntermediateDirectories: true)
+        let subagent = """
+        {"type":"assistant","isSidechain":true,"agentId":"agent-x","message":{"id":"m2","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":50,"output_tokens":10}},"uuid":"a2","timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_11"}
+        """
+        try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
+
+        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
+
+        let day = agentUsageDayIdentifier(for: ISO8601DateFormatter().date(from: "2026-07-22T00:00:00Z")!)
+        let bucket = try XCTUnwrap(buckets.first { $0.sessionID == "ses_11" && $0.day == day })
+        XCTAssertEqual(bucket.requestCount, 2)
+        XCTAssertEqual(bucket.inputTokens, 150)
+        XCTAssertEqual(bucket.outputTokens, 30)
+        XCTAssertEqual(bucket.totalTokens, 180)
+    }
 }
