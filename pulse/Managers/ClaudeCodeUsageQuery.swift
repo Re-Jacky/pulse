@@ -422,8 +422,14 @@ enum ClaudeCodeUsageQuery {
     private static func collectTranscriptURLs(
         in directory: URL,
         fileManager: FileManager,
-        into urls: inout [URL]
+        into urls: inout [URL],
+        depth: Int = 0
     ) {
+        // Real transcripts sit at depth 4 (`projects`(0)/`<encoded-cwd>`(1)/
+        // `<sessionId>`(2)/`subagents`(3)/`agent-*.jsonl`(4)). Bound descent so a
+        // symlinked directory pointing at an ancestor cannot recurse forever,
+        // since fileExists(atPath:isDirectory:) follows symlinks.
+        guard depth < 5 else { return }
         guard let contents = try? fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
@@ -435,10 +441,7 @@ enum ClaudeCodeUsageQuery {
             var isDirectory: ObjCBool = false
             guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { continue }
             if isDirectory.boolValue {
-                // Claude Code nests subagent (Task-tool) transcripts under
-                // <encoded-cwd>/<sessionId>/subagents/agent-<id>.jsonl; recurse
-                // without a depth cap so those are scanned too.
-                collectTranscriptURLs(in: url, fileManager: fileManager, into: &urls)
+                collectTranscriptURLs(in: url, fileManager: fileManager, into: &urls, depth: depth + 1)
                 continue
             }
             if url.pathExtension == "jsonl" {
@@ -507,6 +510,10 @@ enum ClaudeCodeUsageQuery {
             guard let data = try? JSONEncoder().encode(self) else { return }
             try? fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: url, options: [.atomic])
+            // Sweep the legacy -v1 cache for the same hash so stale files from
+            // before the version-1→2 bump never linger.
+            let v1URL = URL(fileURLWithPath: url.path.replacingOccurrences(of: "-v\(version).json", with: "-v1.json"))
+            try? fileManager.removeItem(at: v1URL)
         }
 
         private static func cacheURL(homeDirectoryURL: URL, fileManager: FileManager) -> URL {

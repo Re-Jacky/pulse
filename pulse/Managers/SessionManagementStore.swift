@@ -53,23 +53,21 @@ final class SessionManagementStore: ObservableObject {
     func refresh(enabledSources: Set<AgentSource> = Set(AgentSource.selectableCases)) {
         guard isLoadingSessions == false else { return }
 
-        let managedSources = enabledSources
-
         selectSession(id: nil)
         isLoadingSessions = true
         sessionListState = .loading
-        loadingSources = managedSources.intersection(Set(AgentSource.selectableCases))
+        loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
 
         let repository = self.repository
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result {
-                try repository.loadManagedSessions(enabledSources: managedSources) { update in
+                try repository.loadManagedSessions(enabledSources: enabledSources) { update in
                     DispatchQueue.main.async {
                         self.sessions = update.sessions
                         self.refreshProjectOptionsForCurrentSource()
                         self.reconcileSelectionWithVisibleSessions()
                         self.sessionListState = .loading
-                        self.loadingSources = managedSources.intersection(Set(AgentSource.selectableCases))
+                        self.loadingSources = enabledSources.intersection(Set(AgentSource.selectableCases))
                             .subtracting(update.loadedSources)
                     }
                 }

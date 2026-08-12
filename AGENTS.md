@@ -64,6 +64,9 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - `pulse/Managers/AgentUsageStore.swift` - refresh logic and derived agent-usage view data
 - `pulse/Managers/OpenCodeUsageStore.swift` - OpenCode SQLite discovery and reads
 - `pulse/Managers/CodexUsageQuery.swift` - Codex mixed data loading: SQLite state DB for session/detail metadata, transcript `.jsonl` files under `~/.codex` for daily token buckets
+- `pulse/Managers/ClaudeCodeUsageQuery.swift` - Claude Code transcript discovery, session snapshot, daily buckets, and transcript turn loading
+- `pulse/Managers/ClaudeCodeUsageModels.swift` - Claude Code session/daily-bucket models
+- `pulse/Managers/SessionManagementRepository.swift` - session manager source loading (OpenCode, Codex, Claude) and transcript/resume actions
 - `scripts/build-dmg.sh` - release packaging
 - `pulseUpdater/` - updater helper target
 

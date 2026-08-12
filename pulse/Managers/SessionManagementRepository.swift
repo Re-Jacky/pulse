@@ -282,9 +282,6 @@ final class SessionManagementRepository: SessionManagementRepositorying {
         case .all:
             return .codex(command: "")
         case .claudeCode:
-            // Unreachable: `.claudeCode` is filtered out of session-management
-            // enabled sources. Kept as an explicit claude resume command so this
-            // branch can never silently fall through to a codex launch.
             return .claudeCode(command: "claude --resume \(session.rawSessionID)")
         }
     }
