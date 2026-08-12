@@ -70,4 +70,9 @@ final class ClaudeCodeUsageModelsTests: XCTestCase {
         XCTAssertEqual(merged.requestCount, 1)
         XCTAssertEqual(merged.latestActivityAt, Date(timeIntervalSince1970: 5_000))
     }
+
+    func testClaudeCodeSourceDisplayNameIsClaude() {
+        XCTAssertEqual(AgentSource.claudeCode.displayName, "Claude")
+        XCTAssertTrue(AgentSource.selectableCases.contains(.claudeCode))
+    }
 }

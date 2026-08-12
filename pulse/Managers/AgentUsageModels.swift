@@ -15,7 +15,7 @@ enum AgentSource: String, CaseIterable, Identifiable, Hashable, Codable {
         case .all: return "All"
         case .openCode: return "OpenCode"
         case .codex: return "Codex"
-        case .claudeCode: return "Claude Code"
+        case .claudeCode: return "Claude"
         }
     }
 }
