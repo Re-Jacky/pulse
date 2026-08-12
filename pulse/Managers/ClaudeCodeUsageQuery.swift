@@ -405,7 +405,7 @@ enum ClaudeCodeUsageQuery {
             let session: SessionAccumulator?
         }
 
-        private static let version = 1
+        private static let version = 2
         private var version: Int
         private var entriesByPath: [String: Entry]
 

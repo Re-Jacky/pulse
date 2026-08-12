@@ -27,7 +27,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
             ?? FileManager.default.temporaryDirectory
         return baseURL
             .appendingPathComponent("Pulse", isDirectory: true)
-            .appendingPathComponent("claude-code-transcript-cache-\(stableHash(home.path))-v1.json")
+            .appendingPathComponent("claude-code-transcript-cache-\(stableHash(home.path))-v2.json")
     }
 
     private func stableHash(_ value: String) -> String {
