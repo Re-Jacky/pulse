@@ -235,4 +235,30 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         XCTAssertEqual(session.transcriptURL?.standardizedFileURL, mainURL.standardizedFileURL)
         XCTAssertEqual(session.tokensUsed, 18)
     }
+
+    func testLoadTranscriptExtractsUserAndAssistantTextTurns() throws {
+        let transcriptURL = projectsDir.appendingPathComponent("ses_turns.jsonl")
+        let transcript = """
+        {"type":"user","message":{"role":"user","content":"fix the crash"},"uuid":"u1","timestamp":"2026-07-22T09:00:00.000Z","cwd":"/tmp/project","sessionId":"ses_turns"}
+        {"type":"user","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>meta</local-command-caveat>"},"uuid":"u2","timestamp":"2026-07-22T09:00:01.000Z","cwd":"/tmp/project","sessionId":"ses_turns"}
+        {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","content":[{"type":"thinking","thinking":"plan"},{"type":"text","text":"I found it"},{"type":"tool_use","id":"t1","name":"grep"}]},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_turns"}
+        """
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let turns = try ClaudeCodeUsageQuery.loadTranscript(
+            sessionID: "ses_turns",
+            transcriptURL: transcriptURL,
+            homeDirectoryURL: home,
+            fileManager: .default
+        )
+
+        XCTAssertEqual(turns.map(\.role), [.user, .assistant])
+        XCTAssertEqual(turns.map(\.text), ["fix the crash", "I found it"])
+    }
+
+    func testLoadTranscriptThrowsWhenFileMissing() {
+        XCTAssertThrowsError(
+            try ClaudeCodeUsageQuery.loadTranscript(sessionID: "missing", transcriptURL: nil, homeDirectoryURL: home, fileManager: .default)
+        )
+    }
 }

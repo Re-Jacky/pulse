@@ -72,6 +72,75 @@ enum ClaudeCodeUsageQuery {
             }
     }
 
+    static func loadTranscript(
+        sessionID: String,
+        transcriptURL: URL? = nil,
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default,
+        onPartialUpdate: (@Sendable ([TranscriptTurn]) -> Void)? = nil
+    ) throws -> [TranscriptTurn] {
+        let url: URL
+        if let transcriptURL {
+            url = transcriptURL
+        } else {
+            guard let found = candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+                .first(where: { $0.lastPathComponent == "\(sessionID).jsonl" }) else {
+                throw QueryError.queryStepFailed(message: "No transcript found for session \(sessionID)")
+            }
+            url = found
+        }
+
+        guard let handle = try? FileHandle(forReadingFrom: url) else {
+            throw QueryError.queryStepFailed(message: "Failed to read transcript at \(url.path)")
+        }
+        defer { try? handle.close() }
+        guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
+            return []
+        }
+
+        var turns: [TranscriptTurn] = []
+        var publishedCount = 0
+        let partialBatchSize = 24
+
+        for line in contents.split(whereSeparator: \.isNewline) {
+            guard let data = line.data(using: .utf8),
+                  let rawObject = try? JSONSerialization.jsonObject(with: data),
+                  let object = rawObject as? [String: Any],
+                  let type = object["type"] as? String else {
+                continue
+            }
+
+            let timestamp = (object["timestamp"] as? String).flatMap(parseTimestamp)
+
+            if type == "user",
+               (object["isMeta"] as? Bool) != true,
+               let message = object["message"] as? [String: Any],
+               let content = message["content"] as? String,
+               content.isEmpty == false {
+                turns.append(TranscriptTurn(id: (object["uuid"] as? String) ?? UUID().uuidString, role: .user, text: content, timestamp: timestamp))
+            } else if type == "assistant",
+                      let message = object["message"] as? [String: Any],
+                      let content = message["content"] as? [[String: Any]] {
+                let text = content.compactMap { $0["type"] as? String == "text" ? ($0["text"] as? String) : nil }
+                    .joined(separator: "\n")
+                guard text.isEmpty == false else { continue }
+                turns.append(TranscriptTurn(id: (object["uuid"] as? String) ?? UUID().uuidString, role: .assistant, text: text, timestamp: timestamp))
+            } else {
+                continue
+            }
+
+            if let onPartialUpdate, turns.count - publishedCount >= partialBatchSize {
+                publishedCount = turns.count
+                onPartialUpdate(turns)
+            }
+        }
+
+        if let onPartialUpdate, turns.count > publishedCount {
+            onPartialUpdate(turns)
+        }
+        return turns
+    }
+
     // MARK: - Cached transcript loading
 
     private struct ParsedTranscript {
