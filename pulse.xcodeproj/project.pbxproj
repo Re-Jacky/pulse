@@ -13,11 +13,6 @@
 		100000000000000000000012 /* OpenCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* OpenCodeUsageModelsTests.swift */; };
 		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
-		1000000000000000000000E0 /* ClaudeCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E1 /* ClaudeCodeUsageModels.swift */; };
-		1000000000000000000000E2 /* ClaudeCodeUsageQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */; };
-		1000000000000000000000E4 /* ClaudeCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */; };
-		1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */; };
-		1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
@@ -56,6 +51,11 @@
 		100000000000000000000082 /* SessionListSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000083 /* SessionListSidebarView.swift */; };
 		100000000000000000000084 /* SessionTranscriptDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000085 /* SessionTranscriptDetailView.swift */; };
 		100000000000000000000086 /* SessionListSidebarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000087 /* SessionListSidebarViewTests.swift */; };
+		1000000000000000000000E0 /* ClaudeCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E1 /* ClaudeCodeUsageModels.swift */; };
+		1000000000000000000000E2 /* ClaudeCodeUsageQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */; };
+		1000000000000000000000E4 /* ClaudeCodeUsageModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */; };
+		1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */; };
+		1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */; };
 		1973B49A560C06F0A73DD0D8 /* OpenCodeDailyBucket.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */; };
 		1E8C3E43906EADF24F9049D7 /* AgentUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */; };
 		229BCC11D5ADFBEF23559033 /* AgentUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */; };
@@ -93,7 +93,9 @@
 		D1E000000000000000000003 /* AgentStatusManagementViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E000000000000000000004 /* AgentStatusManagementViewTests.swift */; };
 		D98CBA8351C60215F3CA2407 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */; };
 		E2A11C4B6D8F90A1B2C3D4E6 /* AgentSessionLightColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A11C4B6D8F90A1B2C3D4E5 /* AgentSessionLightColor.swift */; };
+		E41827B083389D3AF108273F /* LaunchAtLoginSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */; };
 		E438E81E9BAE8B8861BFD985 /* AgentUsageMappingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */; };
+		F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
 
@@ -134,11 +136,6 @@
 		100000000000000000000013 /* OpenCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageModelsTests.swift; sourceTree = "<group>"; };
 		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
-		1000000000000000000000E1 /* ClaudeCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/ClaudeCodeUsageModels.swift; sourceTree = "<group>"; };
-		1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/ClaudeCodeUsageQuery.swift; sourceTree = "<group>"; };
-		1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeUsageModelsTests.swift; sourceTree = "<group>"; };
-		1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeTranscriptTests.swift; sourceTree = "<group>"; };
-		1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeSessionManagementTests.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
@@ -176,7 +173,13 @@
 		100000000000000000000083 /* SessionListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListSidebarView.swift; sourceTree = "<group>"; };
 		100000000000000000000085 /* SessionTranscriptDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTranscriptDetailView.swift; sourceTree = "<group>"; };
 		100000000000000000000087 /* SessionListSidebarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListSidebarViewTests.swift; sourceTree = "<group>"; };
+		1000000000000000000000E1 /* ClaudeCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/ClaudeCodeUsageModels.swift; sourceTree = "<group>"; };
+		1000000000000000000000E3 /* ClaudeCodeUsageQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/ClaudeCodeUsageQuery.swift; sourceTree = "<group>"; };
+		1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeUsageModelsTests.swift; sourceTree = "<group>"; };
+		1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeTranscriptTests.swift; sourceTree = "<group>"; };
+		1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeSessionManagementTests.swift; sourceTree = "<group>"; };
 		12BD773DAB18A3F2CBAFDF1E /* CodexUsageQuery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageQuery.swift; sourceTree = "<group>"; };
+		2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/LaunchAtLoginSettings.swift; sourceTree = "<group>"; };
 		2E19C8A7C53EE76424F8261D /* AgentUsageFlowChartView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentUsageFlowChartView.swift; sourceTree = "<group>"; };
 		301784F7059433DCC99F2522 /* AgentSourcePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentSourcePicker.swift; sourceTree = "<group>"; };
 		30A5571579E44068B38E1FA2 /* AgentStatusManagementView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentStatusManagementView.swift; sourceTree = "<group>"; };
@@ -218,6 +221,7 @@
 		EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageMappingStore.swift; sourceTree = "<group>"; };
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
+		F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -271,6 +275,7 @@
 				1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */,
 				1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */,
 				DB1D0EB5B4E39865F22CB1D2 /* AgentUsageMappingStoreTests.swift */,
+				F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */,
 			);
 			path = pulseTests;
 			sourceTree = "<group>";
@@ -322,6 +327,7 @@
 				B8465560B5DB3FEC12B986BF /* OpenCodeDailyBucket.swift */,
 				810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */,
 				EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */,
+				2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */,
 			);
 			name = Managers;
 			sourceTree = "<group>";
@@ -553,6 +559,7 @@
 				1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */,
 				1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */,
 				BD5B6F66D3EDB59A868549F4 /* AgentUsageMappingStoreTests.swift in Sources */,
+				F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -630,6 +637,7 @@
 				4796E0D77356525AA0A8791F /* AgentDateSelectionPicker.swift in Sources */,
 				E438E81E9BAE8B8861BFD985 /* AgentUsageMappingStore.swift in Sources */,
 				771043AB7AD1A8D23C4BDBCA /* AgentUsageMappingPanel.swift in Sources */,
+				E41827B083389D3AF108273F /* LaunchAtLoginSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
