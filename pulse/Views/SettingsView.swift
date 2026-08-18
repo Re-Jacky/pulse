@@ -6,11 +6,12 @@ struct SettingsView: View {
     @EnvironmentObject var agentLightsSettings: AgentLightsSettings
     @EnvironmentObject var agentStatusStore: AgentStatusStore
     @EnvironmentObject var updateManager: UpdateManager
-    @State private var selectedSection: Section = .theme
+    @EnvironmentObject var launchAtLoginSettings: LaunchAtLoginSettings
+    @State private var selectedSection: Section = .general
     private let versionInfo = AppVersionInfo()
 
     private enum Section: Hashable {
-        case theme
+        case general
         case agentUsage
         case agentLights
         case updates
@@ -23,7 +24,7 @@ struct SettingsView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.appSecondaryText)
 
-                sidebarButton(title: "Theme", systemImage: "circle.lefthalf.filled", section: .theme)
+                sidebarButton(title: "General", systemImage: "gearshape", section: .general)
                 sidebarButton(title: "Agent Usage", systemImage: "person.2.wave.2", section: .agentUsage)
                 sidebarButton(title: "Agent Lights", systemImage: "dot.radiowaves.left.and.right", section: .agentLights)
                 sidebarButton(title: "Updates", systemImage: "arrow.triangle.2.circlepath", section: .updates)
@@ -41,8 +42,8 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Group {
                             switch selectedSection {
-                            case .theme:
-                                themeContent
+                            case .general:
+                                generalContent
                             case .agentUsage:
                                 agentUsageContent
                             case .agentLights:
@@ -84,10 +85,32 @@ struct SettingsView: View {
         .id(themeManager.currentTheme)
     }
 
-    private var themeContent: some View {
+    private var generalContent: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Theme")
+            Text("General")
                 .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Launch at Login", isOn: launchAtLoginBinding)
+                    .toggleStyle(.switch)
+
+                Text("Start Pulse automatically when you log in to your Mac.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let errorMessage = launchAtLoginSettings.errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                }
+            }
+
+            Divider()
+
+            Text("Theme")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.appPrimaryText)
 
             Text("Choose whether Pulse follows the system appearance or always uses a specific theme.")
@@ -310,6 +333,17 @@ struct SettingsView: View {
                     next.remove(agent)
                 }
                 agentLightsSettings.selectedAgents = next
+            }
+        )
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: {
+                launchAtLoginSettings.isEnabled
+            },
+            set: {
+                launchAtLoginSettings.setEnabled($0)
             }
         )
     }

@@ -94,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let agentLightsSettings = AgentLightsSettings()
     private let agentStatusStore = AgentStatusStore(enabledAgents: AgentStatusAgent.allCases)
     private let agentStatusPanelSelection = AgentStatusPanelSelection()
+    private let launchAtLoginSettings = LaunchAtLoginSettings()
     private let agentIntegrationManager = AgentIntegrationManager()
     private lazy var agentStatusServer = PulseAgentStatusServer(store: agentStatusStore)
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "pulse"))
@@ -104,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupMainMenu()
         setupThemeObservation()
         setupFeatureObservation()
+        launchAtLoginSettings.refresh()
         setupPanelObservation()
 
         Task { @MainActor [weak self] in
@@ -611,6 +613,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func showSettings() {
+        launchAtLoginSettings.refresh()
         let window = settingsWindow ?? makeSettingsWindow()
         settingsWindow = window
         window.appearance = themeManager.currentTheme.nsAppearance
@@ -707,6 +710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(agentLightsSettings)
                 .environmentObject(agentStatusStore)
                 .environmentObject(updateManager)
+                .environmentObject(launchAtLoginSettings)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller
