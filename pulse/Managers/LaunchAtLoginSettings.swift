@@ -49,8 +49,9 @@ final class LaunchAtLoginSettings: ObservableObject {
             userDefaults.set(enabled, forKey: Self.userDefaultsKey)
             errorMessage = nil
         } catch {
-            isEnabled = service.isEnabled
-            userDefaults.set(service.isEnabled, forKey: Self.userDefaultsKey)
+            let actual = service.isEnabled
+            isEnabled = actual
+            userDefaults.set(actual, forKey: Self.userDefaultsKey)
             errorMessage = "Pulse could not be updated in Login Items. Open System Settings > General > Login Items and add Pulse manually."
         }
     }
