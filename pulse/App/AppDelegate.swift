@@ -95,6 +95,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let agentStatusStore = AgentStatusStore(enabledAgents: AgentStatusAgent.allCases)
     private let agentStatusPanelSelection = AgentStatusPanelSelection()
     private let launchAtLoginSettings = LaunchAtLoginSettings()
+    private lazy var keepAwakeSettings = KeepAwakeSettings(
+        agentLightsEnabled: { [weak self] in self?.agentLightsSettings.isEnabled ?? false },
+        hasInstalledAgent: { [weak self] in
+            guard let self else { return false }
+            return agentIntegrationManager.status(for: .openCode).state == .installedNeedsRestart
+                || agentIntegrationManager.status(for: .openCode).state == .installedNeedsActivation
+                || agentIntegrationManager.status(for: .codex).state == .installedNeedsRestart
+                || agentIntegrationManager.status(for: .codex).state == .installedNeedsActivation
+        }
+    )
     private let agentIntegrationManager = AgentIntegrationManager()
     private lazy var agentStatusServer = PulseAgentStatusServer(store: agentStatusStore)
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "pulse"))
@@ -119,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupStatusItem()
         setupAgentStatusItem()
         agentStatusServer.start()
+        keepAwakeSettings.restoreIfNeeded()
 
         // Pre-build the panel so the first open is instant.
         panel = makePanel()
@@ -412,6 +423,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             .store(in: &cancellables)
+
+        keepAwakeSettings.onIsActiveChange = { [weak self] isActive in
+            guard let button = self?.statusItem.button else { return }
+            let symbolName = isActive ? "cpu.fill" : "cpu"
+            button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "System Monitor")
+            button.image?.isTemplate = true
+        }
+
+        agentLightsSettings.$isEnabled
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isEnabled in
+                guard let self else { return }
+                if isEnabled && keepAwakeSettings.mode == .smart {
+                    keepAwakeSettings.startSmartMonitoring(store: agentStatusStore)
+                } else {
+                    keepAwakeSettings.stopSmartMonitoring()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func setupPanelObservation() {
@@ -604,6 +634,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
         menu.addItem(.separator())
+        let keepAwakeItem = NSMenuItem(title: "Keep Awake", action: #selector(toggleKeepAwake), keyEquivalent: "")
+        keepAwakeItem.target = self
+        keepAwakeItem.state = keepAwakeSettings.isActive ? .on : .off
+        menu.addItem(keepAwakeItem)
+        menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit Pulse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quitItem.target = NSApp
         menu.addItem(quitItem)
@@ -636,6 +671,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.arrangeInFront(nil)
         hasPresentedSettingsWindow = true
+    }
+
+    @objc private func toggleKeepAwake() {
+        keepAwakeSettings.setEnabled(!keepAwakeSettings.isActive)
+        if keepAwakeSettings.mode == .smart && keepAwakeSettings.isActive {
+            keepAwakeSettings.startSmartMonitoring(store: agentStatusStore)
+        }
     }
 
     @objc private func showSessionManagementWindow() {
