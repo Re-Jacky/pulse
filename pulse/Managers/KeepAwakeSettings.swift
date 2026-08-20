@@ -138,7 +138,16 @@ final class KeepAwakeSettings: ObservableObject {
         guard isActive else { return }
         if mode == .manual {
             createAssertion()
-            scheduleTimerIfNeeded()
+            if let storedEndTimestamp = userDefaults.object(forKey: Keys.timerEndDate) as? TimeInterval {
+                let remaining = storedEndTimestamp - Date().timeIntervalSince1970
+                if remaining > 0 {
+                    scheduleTimer(with: remaining)
+                } else {
+                    deactivate()
+                }
+            } else {
+                scheduleTimerIfNeeded()
+            }
         }
         // Smart mode: observation will be started by AppDelegate
     }
@@ -260,14 +269,17 @@ final class KeepAwakeSettings: ObservableObject {
         guard let interval = timerDuration.interval else { return }
         let endDate = Date().addingTimeInterval(interval)
         userDefaults.set(endDate.timeIntervalSince1970, forKey: Keys.timerEndDate)
+        scheduleTimer(with: interval)
+    }
 
+    private func scheduleTimer(with remaining: TimeInterval) {
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 self?.deactivate()
             }
         }
         timerWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: work)
     }
 
     private func cancelTimer() {

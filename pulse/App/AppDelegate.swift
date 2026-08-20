@@ -130,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupAgentStatusItem()
         agentStatusServer.start()
         keepAwakeSettings.restoreIfNeeded()
+        keepAwakeSettings.onIsActiveChange?(keepAwakeSettings.isActive)
 
         // Pre-build the panel so the first open is instant.
         panel = makePanel()
