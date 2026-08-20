@@ -753,6 +753,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .environmentObject(agentStatusStore)
                 .environmentObject(updateManager)
                 .environmentObject(launchAtLoginSettings)
+                .environmentObject(keepAwakeSettings)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller

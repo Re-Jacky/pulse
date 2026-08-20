@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject var agentStatusStore: AgentStatusStore
     @EnvironmentObject var updateManager: UpdateManager
     @EnvironmentObject var launchAtLoginSettings: LaunchAtLoginSettings
+    @EnvironmentObject var keepAwakeSettings: KeepAwakeSettings
     @State private var selectedSection: Section = .general
     private let versionInfo = AppVersionInfo()
 
@@ -125,6 +126,64 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 320)
+
+            Divider()
+
+            Text("Keep Awake")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
+
+            Text("Prevent your Mac from going to sleep.")
+                .font(.system(size: 13))
+                .foregroundColor(.appSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker("Mode", selection: Binding(
+                get: { keepAwakeSettings.mode },
+                set: { keepAwakeSettings.setMode($0) }
+            )) {
+                ForEach(KeepAwakeSettings.Mode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 320)
+            .disabled(keepAwakeSettings.mode == .smart && !keepAwakeSettings.isSmartAvailable)
+
+            if keepAwakeSettings.mode == .smart && !keepAwakeSettings.isSmartAvailable {
+                Text("Smart mode requires Agent Lights to be enabled with at least one agent installed.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Toggle("Allow display to sleep", isOn: $keepAwakeSettings.displaySleepOnly)
+                .toggleStyle(.switch)
+
+            Text("Keep system awake but allow the screen to dim.")
+                .font(.system(size: 12))
+                .foregroundColor(.appSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if keepAwakeSettings.mode == .manual {
+                Picker("Timer", selection: $keepAwakeSettings.timerDuration) {
+                    ForEach(KeepAwakeSettings.TimerDuration.allCases) { duration in
+                        Text(duration.label).tag(duration)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 400)
+            }
+
+            if keepAwakeSettings.mode == .smart && keepAwakeSettings.isActive {
+                Text("Monitoring agents...")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            } else if keepAwakeSettings.mode == .smart && !keepAwakeSettings.isActive {
+                Text("Waiting for agent activity...")
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            }
         }
     }
 
