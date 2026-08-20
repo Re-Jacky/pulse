@@ -96,6 +96,8 @@
 		E41827B083389D3AF108273F /* LaunchAtLoginSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */; };
 		E438E81E9BAE8B8861BFD985 /* AgentUsageMappingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */; };
 		F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */; };
+		K001A0010000000000000001 /* KeepAwakeSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = K001A0010000000000000000 /* KeepAwakeSettings.swift */; };
+		K001A0010000000000000003 /* KeepAwakeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */; };
 		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
 
@@ -222,6 +224,8 @@
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
 		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 		F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsTests.swift; sourceTree = "<group>"; };
+		K001A0010000000000000000 /* KeepAwakeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/KeepAwakeSettings.swift; sourceTree = "<group>"; };
+		K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepAwakeSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -276,6 +280,7 @@
 				1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */,
 				DB1D0EB5B4E39865F22CB1D2 /* AgentUsageMappingStoreTests.swift */,
 				F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */,
+				K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */,
 			);
 			path = pulseTests;
 			sourceTree = "<group>";
@@ -328,6 +333,7 @@
 				810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */,
 				EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */,
 				2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */,
+				K001A0010000000000000000 /* KeepAwakeSettings.swift */,
 			);
 			name = Managers;
 			sourceTree = "<group>";
@@ -560,6 +566,7 @@
 				1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */,
 				BD5B6F66D3EDB59A868549F4 /* AgentUsageMappingStoreTests.swift in Sources */,
 				F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */,
+				K001A0010000000000000003 /* KeepAwakeSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -638,6 +645,7 @@
 				E438E81E9BAE8B8861BFD985 /* AgentUsageMappingStore.swift in Sources */,
 				771043AB7AD1A8D23C4BDBCA /* AgentUsageMappingPanel.swift in Sources */,
 				E41827B083389D3AF108273F /* LaunchAtLoginSettings.swift in Sources */,
+				K001A0010000000000000001 /* KeepAwakeSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
