@@ -50,4 +50,38 @@ final class KeepAwakeSettingsTests: XCTestCase {
         sut.restoreIfNeeded()
         XCTAssertTrue(sut.isActive)
     }
+
+    func test_smartMode_isSmartAvailable_trueWhenAgentLightsEnabledAndInstalled() {
+        let sut = KeepAwakeSettings(
+            agentLightsEnabled: { true },
+            hasInstalledAgent: { true }
+        )
+        XCTAssertTrue(sut.isSmartAvailable)
+    }
+
+    func test_smartMode_isSmartAvailable_falseWhenAgentLightsDisabled() {
+        let sut = KeepAwakeSettings(
+            agentLightsEnabled: { false },
+            hasInstalledAgent: { true }
+        )
+        XCTAssertFalse(sut.isSmartAvailable)
+    }
+
+    func test_smartMode_isSmartAvailable_falseWhenNoInstalledAgent() {
+        let sut = KeepAwakeSettings(
+            agentLightsEnabled: { true },
+            hasInstalledAgent: { false }
+        )
+        XCTAssertFalse(sut.isSmartAvailable)
+    }
+
+    func test_smartMode_switchesToManualWhenNotAvailable() {
+        let sut = KeepAwakeSettings(
+            agentLightsEnabled: { false },
+            hasInstalledAgent: { false }
+        )
+        sut.setMode(.smart)
+        // Should fall back to manual since smart is not available
+        XCTAssertEqual(sut.mode, .manual)
+    }
 }

@@ -47,9 +47,12 @@ final class KeepAwakeSettings: ObservableObject {
         static let timerEndDate = "general.keepAwake.timerEndDate"
     }
 
-    @Published var mode: Mode {
+    @Published private(set) var mode: Mode {
         didSet {
             userDefaults.set(mode.rawValue, forKey: Keys.mode)
+            if mode != .smart {
+                stopSmartMonitoring()
+            }
             apply()
         }
     }
@@ -93,6 +96,10 @@ final class KeepAwakeSettings: ObservableObject {
 
     private var assertionID: IOPMAssertionID = 0
     private var timerWorkItem: DispatchWorkItem?
+    private let idleCooldown: TimeInterval = 300
+    private var smartIdleWorkItem: DispatchWorkItem?
+    private var groupsObservation: AnyCancellable?
+    private var isSmartAsserted = false
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -119,18 +126,81 @@ final class KeepAwakeSettings: ObservableObject {
         }
     }
 
+    func setMode(_ newMode: Mode) {
+        if newMode == .smart && !isSmartAvailable {
+            mode = .manual
+        } else {
+            mode = newMode
+        }
+    }
+
     func restoreIfNeeded() {
         guard isActive else { return }
         if mode == .manual {
             createAssertion()
             scheduleTimerIfNeeded()
         }
+        // Smart mode: observation will be started by AppDelegate
     }
 
     func deactivate() {
         cancelTimer()
+        stopSmartMonitoring()
         releaseAssertion()
+        isSmartAsserted = false
         isActive = false
+    }
+
+    // MARK: - Smart Mode
+
+    func startSmartMonitoring(store: AgentStatusStore) {
+        stopSmartMonitoring()
+        groupsObservation = store.$groups
+            .receive(on: RunLoop.main)
+            .sink { [weak self] groups in
+                self?.handleAgentGroups(groups)
+            }
+    }
+
+    func stopSmartMonitoring() {
+        groupsObservation?.cancel()
+        groupsObservation = nil
+        smartIdleWorkItem?.cancel()
+        smartIdleWorkItem = nil
+        if isSmartAsserted {
+            releaseAssertion()
+            isSmartAsserted = false
+        }
+    }
+
+    private func handleAgentGroups(_ groups: [AgentStatusGroup]) {
+        guard mode == .smart else { return }
+
+        let hasWorking = groups.flatMap(\.slots).contains { $0.state == .working }
+
+        if hasWorking {
+            smartIdleWorkItem?.cancel()
+            smartIdleWorkItem = nil
+
+            if !isSmartAsserted {
+                createAssertion()
+                isSmartAsserted = true
+                isActive = true
+            }
+        } else if isSmartAsserted {
+            if smartIdleWorkItem == nil {
+                let work = DispatchWorkItem { [weak self] in
+                    Task { @MainActor in
+                        self?.releaseAssertion()
+                        self?.isSmartAsserted = false
+                        self?.isActive = false
+                        self?.smartIdleWorkItem = nil
+                    }
+                }
+                smartIdleWorkItem = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + idleCooldown, execute: work)
+            }
+        }
     }
 
     // MARK: - Private
@@ -138,7 +208,12 @@ final class KeepAwakeSettings: ObservableObject {
     private func apply() {
         if isActive {
             releaseAssertion()
-            if mode == .manual {
+            if mode == .smart {
+                if !isSmartAvailable {
+                    mode = .manual
+                    return
+                }
+            } else {
                 createAssertion()
                 cancelTimer()
                 scheduleTimerIfNeeded()
