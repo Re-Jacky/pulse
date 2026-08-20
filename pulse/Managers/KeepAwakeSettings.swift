@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import IOKit.pwr_mgt
+import os
 
 @MainActor
 final class KeepAwakeSettings: ObservableObject {
@@ -94,6 +95,7 @@ final class KeepAwakeSettings: ObservableObject {
     private let agentLightsEnabled: () -> Bool
     private let installedAgentCheck: () -> Bool
 
+    private let logger = Logger(subsystem: "com.example.pulse", category: "KeepAwake")
     private var assertionID: IOPMAssertionID = 0
     private var timerWorkItem: DispatchWorkItem?
     private let idleCooldown: TimeInterval = 300
@@ -148,8 +150,13 @@ final class KeepAwakeSettings: ObservableObject {
             } else {
                 scheduleTimerIfNeeded()
             }
+        } else if mode == .smart {
+            if !isSmartAvailable {
+                deactivate()
+                return
+            }
+            // Smart mode: observation will be started by AppDelegate
         }
-        // Smart mode: observation will be started by AppDelegate
     }
 
     func deactivate() {
@@ -158,6 +165,7 @@ final class KeepAwakeSettings: ObservableObject {
         releaseAssertion()
         isSmartAsserted = false
         isActive = false
+        logger.info("KeepAwake deactivated")
     }
 
     // MARK: - Smart Mode
@@ -195,6 +203,7 @@ final class KeepAwakeSettings: ObservableObject {
                 createAssertion()
                 isSmartAsserted = true
                 isActive = true
+                logger.info("Smart mode: assertion created (agent working)")
             }
         } else if isSmartAsserted {
             if smartIdleWorkItem == nil {
@@ -204,10 +213,12 @@ final class KeepAwakeSettings: ObservableObject {
                         self?.isSmartAsserted = false
                         self?.isActive = false
                         self?.smartIdleWorkItem = nil
+                        self?.logger.info("Smart mode: assertion released (agents idle)")
                     }
                 }
                 smartIdleWorkItem = work
                 DispatchQueue.main.asyncAfter(deadline: .now() + idleCooldown, execute: work)
+                logger.info("Smart mode: idle timer started (5 min cooldown)")
             }
         }
     }
@@ -237,6 +248,7 @@ final class KeepAwakeSettings: ObservableObject {
         createAssertion()
         isActive = true
         scheduleTimerIfNeeded()
+        logger.info("KeepAwake activated (mode: \(self.mode.rawValue))")
     }
 
     private func createAssertion() {
@@ -255,6 +267,7 @@ final class KeepAwakeSettings: ObservableObject {
             &assertionID
         )
         if result != kIOReturnSuccess {
+            logger.error("IOPMAssertionCreateWithName failed: \(result)")
             assertionID = 0
         }
     }
@@ -270,6 +283,7 @@ final class KeepAwakeSettings: ObservableObject {
         let endDate = Date().addingTimeInterval(interval)
         userDefaults.set(endDate.timeIntervalSince1970, forKey: Keys.timerEndDate)
         scheduleTimer(with: interval)
+        logger.info("Timer scheduled for \(self.timerDuration.label)")
     }
 
     private func scheduleTimer(with remaining: TimeInterval) {

@@ -635,7 +635,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
         menu.addItem(.separator())
-        let keepAwakeItem = NSMenuItem(title: "Keep Awake", action: #selector(toggleKeepAwake), keyEquivalent: "")
+        let keepAwakeItem: NSMenuItem
+        if keepAwakeSettings.isActive {
+            let modeLabel = keepAwakeSettings.mode == .smart ? "Smart" : "Manual"
+            var title = "Keep Awake (\(modeLabel)"
+            if keepAwakeSettings.mode == .manual, keepAwakeSettings.timerDuration != .indefinite {
+                title += " · \(keepAwakeSettings.timerDuration.label)"
+            }
+            title += ")"
+            keepAwakeItem = NSMenuItem(title: title, action: #selector(toggleKeepAwake), keyEquivalent: "")
+        } else {
+            keepAwakeItem = NSMenuItem(title: "Keep Awake", action: #selector(toggleKeepAwake), keyEquivalent: "")
+        }
         keepAwakeItem.target = self
         keepAwakeItem.state = keepAwakeSettings.isActive ? .on : .off
         menu.addItem(keepAwakeItem)

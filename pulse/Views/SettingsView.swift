@@ -176,7 +176,7 @@ struct SettingsView: View {
             }
 
             if keepAwakeSettings.mode == .smart && keepAwakeSettings.isActive {
-                Text("Monitoring agents...")
+                Text("Keep Awake active — monitoring agents")
                     .font(.system(size: 12))
                     .foregroundColor(.appSecondaryText)
             } else if keepAwakeSettings.mode == .smart && !keepAwakeSettings.isActive {
