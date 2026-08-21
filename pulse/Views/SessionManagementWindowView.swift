@@ -64,6 +64,9 @@ struct SessionManagementWindowView: View {
         .onReceive(NotificationCenter.default.publisher(for: .pulseSessionManagementWindowDidOpen)) { _ in
             store.refresh(enabledSources: agentUsageSettings.enabledSources)
         }
+        .onDisappear {
+            store.clearSessions()
+        }
     }
 
     private var header: some View {

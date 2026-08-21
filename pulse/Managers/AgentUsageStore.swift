@@ -60,6 +60,8 @@ final class AgentUsageStore: ObservableObject {
     private var ccBucketsBySession: [String: [ClaudeCodeDailyBucket]] = [:]
     private var ccMetadataBySession: [String: ClaudeCodeSessionRecord] = [:]
     private var ccSessionsByDirectory: [String: [String]] = [:]
+    private static let maxCodexDetailCacheSize = 200
+    private var codexDetailAccessOrder: [String] = []
     private let supportedSources: [AgentSource]
     private var enabledSources: Set<AgentSource>
 
@@ -94,6 +96,54 @@ final class AgentUsageStore: ObservableObject {
             enabledSources: enabledSources
         )
         derivedDataCache = nil
+
+        if enabledSources.contains(.openCode) == false {
+            state = AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: OpenCodeUsageSnapshot(sessions: []),
+                openCodeDailyBuckets: [],
+                codexSnapshot: state.codexSnapshot,
+                codexDailyBuckets: state.codexDailyBuckets,
+                claudeCodeSnapshot: state.claudeCodeSnapshot,
+                claudeCodeDailyBuckets: state.claudeCodeDailyBuckets,
+                refreshGeneration: state.refreshGeneration,
+                codexDetailCache: [:]
+            )
+            openCodeBucketsByModelKey = [:]
+            ocMetadataByRawID = [:]
+            ocSessionsByDirectory = [:]
+        }
+
+        if enabledSources.contains(.codex) == false {
+            state = AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
+                openCodeDailyBuckets: state.openCodeDailyBuckets,
+                codexSnapshot: CodexUsageSnapshot(sessions: []),
+                codexDailyBuckets: [],
+                claudeCodeSnapshot: state.claudeCodeSnapshot,
+                claudeCodeDailyBuckets: state.claudeCodeDailyBuckets,
+                refreshGeneration: state.refreshGeneration,
+                codexDetailCache: [:]
+            )
+            codexBucketsBySession = [:]
+            cxMetadataBySession = [:]
+            cxCSessionsByDirectory = [:]
+        }
+
+        if enabledSources.contains(.claudeCode) == false {
+            state = AgentUsageLoadedState(
+                openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
+                openCodeDailyBuckets: state.openCodeDailyBuckets,
+                codexSnapshot: state.codexSnapshot,
+                codexDailyBuckets: state.codexDailyBuckets,
+                claudeCodeSnapshot: ClaudeCodeUsageSnapshot(sessions: []),
+                claudeCodeDailyBuckets: [],
+                refreshGeneration: state.refreshGeneration,
+                codexDetailCache: [:]
+            )
+            ccBucketsBySession = [:]
+            ccMetadataBySession = [:]
+            ccSessionsByDirectory = [:]
+        }
     }
 
     func refreshIfNeeded() {
@@ -125,14 +175,22 @@ final class AgentUsageStore: ObservableObject {
     }
 
     func codexDetail(for threadID: String) -> CodexSessionDetailState {
-        state.codexDetailCache[threadID] ?? .idle
+        if state.codexDetailCache[threadID] != nil {
+            codexDetailAccessOrder.removeAll { $0 == threadID }
+            codexDetailAccessOrder.append(threadID)
+        }
+        return state.codexDetailCache[threadID] ?? .idle
     }
 
     func ensureCodexDetailLoaded(for threadID: String) {
         guard state.codexDetailCache[threadID] == nil || state.codexDetailCache[threadID] == .idle else { return }
 
+        codexDetailAccessOrder.removeAll { $0 == threadID }
+        codexDetailAccessOrder.append(threadID)
+
         var nextCache = state.codexDetailCache
         nextCache[threadID] = .loading
+        evictOldestCodexDetailIfNeeded(from: &nextCache)
         state = AgentUsageLoadedState(
             openCodeCumulativeSnapshot: state.openCodeCumulativeSnapshot,
             openCodeDailyBuckets: state.openCodeDailyBuckets,
@@ -165,6 +223,13 @@ final class AgentUsageStore: ObservableObject {
             refreshGeneration: state.refreshGeneration,
             codexDetailCache: nextCache
         )
+    }
+
+    private func evictOldestCodexDetailIfNeeded(from cache: inout [String: CodexSessionDetailState]) {
+        while cache.count > Self.maxCodexDetailCacheSize, let oldest = codexDetailAccessOrder.first {
+            codexDetailAccessOrder.removeFirst()
+            cache.removeValue(forKey: oldest)
+        }
     }
 
     func reconcile(_ selection: AgentUsageSelection) -> AgentUsageSelection {
@@ -201,6 +266,7 @@ final class AgentUsageStore: ObservableObject {
     func replaceStateForTesting(_ state: AgentUsageLoadedState) {
         self.state = state
         derivedDataCache = nil
+        codexDetailAccessOrder = []
         openCodeBucketsByModelKey = Dictionary(grouping: state.openCodeDailyBuckets) {
             OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)
         }
@@ -490,6 +556,7 @@ final class AgentUsageStore: ObservableObject {
             refreshGeneration: result.refreshGeneration,
             codexDetailCache: [:]
         )
+        codexDetailAccessOrder = []
         derivedDataCache = nil
         openCodeBucketsByModelKey = Dictionary(grouping: result.dailyBuckets) {
             OpenCodeModelKey(sessionID: $0.sessionID, providerID: $0.modelProviderID, modelID: $0.modelID, variant: $0.modelVariant)

@@ -94,17 +94,14 @@ enum ClaudeCodeUsageQuery {
             throw QueryError.queryStepFailed(message: "Failed to read transcript at \(url.path)")
         }
         defer { try? handle.close() }
-        guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
-            return []
-        }
+        let fileData = handle.readDataToEndOfFile()
 
         var turns: [TranscriptTurn] = []
         var publishedCount = 0
         let partialBatchSize = 24
 
-        for line in contents.split(whereSeparator: \.isNewline) {
-            guard let data = line.data(using: .utf8),
-                  let rawObject = try? JSONSerialization.jsonObject(with: data),
+        for lineData in fileData.split(separator: UInt8(ascii: "\n")) {
+            guard let rawObject = try? JSONSerialization.jsonObject(with: lineData),
                   let object = rawObject as? [String: Any],
                   let type = object["type"] as? String else {
                 continue
@@ -273,17 +270,14 @@ enum ClaudeCodeUsageQuery {
         }
         defer { try? handle.close() }
 
-        guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
-            return nil
-        }
+        let fileData = handle.readDataToEndOfFile()
 
         var sessionID: String?
         var accumulator = SessionAccumulator()
         var bucketsByKey: [String: ClaudeCodeDailyBucket] = [:]
 
-        for line in contents.split(whereSeparator: \.isNewline) {
-            guard let data = line.data(using: .utf8),
-                  let rawObject = try? JSONSerialization.jsonObject(with: data),
+        for lineData in fileData.split(separator: UInt8(ascii: "\n")) {
+            guard let rawObject = try? JSONSerialization.jsonObject(with: lineData),
                   let object = rawObject as? [String: Any],
                   let type = object["type"] as? String else {
                 continue

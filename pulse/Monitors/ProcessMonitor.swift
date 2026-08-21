@@ -74,7 +74,15 @@ final class ProcessMonitor {
         }
 
         previousSampleTime = now
+
+        let livePIDs = Set(result.map(\.id))
+        for deadPID in Set(previousCPUTimes.keys).subtracting(livePIDs) {
+            previousCPUTimes.removeValue(forKey: deadPID)
+        }
+
         let sorted = result.sorted { $0.cpuPercent > $1.cpuPercent }
+        let top50 = Array(sorted.prefix(50))
+        let portsByPID = listeningPortsBatch(for: top50.map(\.id))
         return sorted.enumerated().map { idx, proc in
             guard idx < 50 else { return proc }
             return ProcessInfo2(
@@ -82,10 +90,18 @@ final class ProcessMonitor {
                 name: proc.name,
                 cpuPercent: proc.cpuPercent,
                 memoryMB: proc.memoryMB,
-                ports: listeningPorts(for: proc.id),
+                ports: portsByPID[proc.id] ?? [],
                 workingDir: proc.workingDir
             )
         }
+    }
+
+    private func listeningPortsBatch(for pids: [Int32]) -> [Int32: [UInt16]] {
+        var result: [Int32: [UInt16]] = [:]
+        for pid in pids {
+            result[pid] = listeningPorts(for: pid)
+        }
+        return result
     }
 
     func pidsListening(on port: UInt16) -> Set<Int32> {

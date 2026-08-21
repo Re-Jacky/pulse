@@ -31,6 +31,16 @@ final class SessionManagementStore: ObservableObject {
         refresh(enabledSources: enabledSources)
     }
 
+    func clearSessions() {
+        sessions = []
+        selectedSessionID = nil
+        transcriptState = .idle
+        projectOptions = []
+        selectedProjectPath = nil
+        sessionListState = .idle
+        loadingSources = []
+    }
+
     func setSelectedSourceFilter(_ sourceFilter: SessionManagerSourceFilter) {
         guard selectedSourceFilter != sourceFilter else { return }
         selectedSourceFilter = sourceFilter
