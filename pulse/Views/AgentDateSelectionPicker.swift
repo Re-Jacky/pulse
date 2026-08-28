@@ -401,6 +401,7 @@ private struct AgentDateSelectionPopover: View {
             )
             startDate = dates.startDate
             endDate = dates.endDate
+            onApply(resolvedSelection)
         } label: {
             Text(title)
                 .lineLimit(1)
