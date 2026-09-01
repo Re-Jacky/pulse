@@ -254,9 +254,9 @@ final class KeepAwakeSettings: ObservableObject {
     private func createAssertion() {
         let type: String
         if displaySleepOnly {
-            type = kIOPMAssertionTypePreventUserIdleSystemSleep as String
-        } else {
             type = kIOPMAssertionTypePreventUserIdleDisplaySleep as String
+        } else {
+            type = kIOPMAssertionTypePreventUserIdleSystemSleep as String
         }
 
         let reason = "Pulse Keep Awake" as CFString
