@@ -13,6 +13,11 @@ struct ProcessRowView: View {
         }
     }
 
+    private var commandLineText: String? {
+        guard let commandLine = process.commandLine, !commandLine.isEmpty else { return nil }
+        return commandLine
+    }
+
     private var memText: String {
         let mb = process.memoryMB
         if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
@@ -20,8 +25,9 @@ struct ProcessRowView: View {
     }
 
     private var pidText: String {
-        let portStr = process.ports.isEmpty ? "" : " · :\(process.ports.first!)"
-        return "PID \(process.id)\(portStr)"
+        guard !process.ports.isEmpty else { return "PID \(process.id)" }
+        let portStr = process.ports.map { ":\($0)" }.joined(separator: " ")
+        return "PID \(process.id) · \(portStr)"
     }
 
     private var cwdText: String? {
@@ -41,6 +47,13 @@ struct ProcessRowView: View {
                     .foregroundColor(.appPrimaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if let commandLine = commandLineText {
+                    Text(commandLine)
+                        .font(.system(size: 10))
+                        .foregroundColor(.appSecondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
                 HStack(spacing: 4) {
                     Text(pidText)
                         .font(.system(size: 10))
@@ -69,7 +82,7 @@ struct ProcessRowView: View {
             }
             .frame(width: 60, alignment: .trailing)
         }
-        .frame(height: 36)
+        .frame(height: 52)
         .padding(.horizontal, 4)
         .background(Color.clear)
         .contentShape(Rectangle())

@@ -5,26 +5,32 @@ struct ProcessListView: View {
     @AppStorage("processSearchText") private var searchText = ""
     @State private var sortByColumn: SortColumn = .cpu
     @State private var sortAscending = false
-    @State private var processToKill: ProcessInfo2? = nil
     @State private var killError: String? = nil
-    @State private var showKillConfirm = false
+    @State private var serversOnly = false
 
     private let processMonitor = ProcessMonitor()
 
     enum SortColumn { case name, cpu, mem }
 
+    private var serverCount: Int {
+        monitor.processes.filter { !$0.ports.isEmpty }.count
+    }
+
     private var filtered: [ProcessInfo2] {
         let trimmed = searchText.trimmingCharacters(in: .whitespaces)
-        let base: [ProcessInfo2]
-        if trimmed.isEmpty {
-            base = monitor.processes
-        } else if let port = UInt16(trimmed) {
-            let matchingPids = processMonitor.pidsListening(on: port)
-            base = monitor.processes.filter { matchingPids.contains($0.id) }
-        } else {
-            base = monitor.processes.filter {
-                $0.name.localizedCaseInsensitiveContains(trimmed) ||
-                $0.workingDir.localizedCaseInsensitiveContains(trimmed)
+        var base = monitor.processes
+        if serversOnly {
+            base = base.filter { !$0.ports.isEmpty }
+        }
+        if !trimmed.isEmpty {
+            if let port = UInt16(trimmed) {
+                base = base.filter { $0.ports.contains(port) }
+            } else {
+                base = base.filter {
+                    $0.name.localizedCaseInsensitiveContains(trimmed) ||
+                    $0.workingDir.localizedCaseInsensitiveContains(trimmed) ||
+                    ($0.commandLine?.localizedCaseInsensitiveContains(trimmed) ?? false)
+                }
             }
         }
 
@@ -48,7 +54,20 @@ struct ProcessListView: View {
                 .background(Color.appFieldBackground)
                 .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.appFieldBorder, lineWidth: 1))
                 .cornerRadius(7)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
+
+            HStack {
+                Toggle("Servers only", isOn: $serversOnly)
+                    .font(.system(size: 11))
+                    .foregroundColor(.appSecondaryText)
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                Spacer()
+                Text(serverCount == 1 ? "1 server" : "\(serverCount) servers")
+                    .font(.system(size: 10))
+                    .foregroundColor(.appTertiaryText)
+            }
+            .padding(.bottom, 10)
 
             HStack(spacing: 0) {
                 sortHeader("NAME", column: .name, alignment: .leading)
@@ -67,8 +86,10 @@ struct ProcessListView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(filtered) { process in
                         ProcessRowView(process: process) {
-                            processToKill = process
-                            showKillConfirm = true
+                            let result = processMonitor.kill(pid: process.id)
+                            if case .failure(let error) = result {
+                                killError = error.description
+                            }
                         }
                         Divider().background(Color.appDivider)
                     }
@@ -81,17 +102,6 @@ struct ProcessListView: View {
                 .padding(.top, 8)
         }
         .padding(16)
-        .alert("Kill Process?", isPresented: $showKillConfirm, presenting: processToKill) { p in
-            Button("Cancel", role: .cancel) {}
-            Button("Kill \(p.name)", role: .destructive) {
-                let result = processMonitor.kill(pid: p.id)
-                if case .failure(let error) = result {
-                    killError = error.description
-                }
-            }
-        } message: { p in
-            Text("Kill \(p.name) (PID \(p.id))?")
-        }
         .alert("Error", isPresented: .init(get: { killError != nil }, set: { if !$0 { killError = nil } })) {
             Button("OK") { killError = nil }
         } message: {

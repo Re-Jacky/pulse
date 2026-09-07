@@ -65,6 +65,7 @@
 		4796E0D77356525AA0A8791F /* AgentDateSelectionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */; };
 		525A1EB1F76074255369A695 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA980FBEA1D307BF1D9029C4 /* PopoverView.swift */; };
 		5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB397EBE240C8353EC016DA /* ThemeManager.swift */; };
+		7450780867439DA46E87C080 /* ProcessMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C6AB8D5FACCDB794140819 /* ProcessMonitorTests.swift */; };
 		771043AB7AD1A8D23C4BDBCA /* AgentUsageMappingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BE256A8B154067F97191692 /* AgentUsageMappingPanel.swift */; };
 		7AADA80822F93F3D5868C183 /* ProcessRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B8E428856D7EE94F023A57 /* ProcessRowView.swift */; };
 		87775D63AF62B6C3FD26CC5E /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E13F313BF0BF6C9AB4FEED /* ProcessListView.swift */; };
@@ -96,9 +97,9 @@
 		E41827B083389D3AF108273F /* LaunchAtLoginSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF229A008E3056DA1FF0982 /* LaunchAtLoginSettings.swift */; };
 		E438E81E9BAE8B8861BFD985 /* AgentUsageMappingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */; };
 		F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */; };
+		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 		K001A0010000000000000001 /* KeepAwakeSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = K001A0010000000000000000 /* KeepAwakeSettings.swift */; };
 		K001A0010000000000000003 /* KeepAwakeSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */; };
-		F748EE5CBA34548DA18832EA /* MetricRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2862347E446D893F932051E /* MetricRowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -190,6 +191,7 @@
 		3FB397EBE240C8353EC016DA /* ThemeManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/ThemeManager.swift; sourceTree = "<group>"; };
 		7F0AF3A5FD812F2D9B5A56FA /* Colors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		810C2EF5B53EBC1A1737D93F /* CodexHooksManifest.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexHooksManifest.swift; sourceTree = "<group>"; };
+		84C6AB8D5FACCDB794140819 /* ProcessMonitorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcessMonitorTests.swift; sourceTree = "<group>"; };
 		8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageModels.swift; sourceTree = "<group>"; };
 		9C8E5F1A2D4B6C3E7F9A1B2C /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A555DA5BBA52686079843F84 /* CodexUsageModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/CodexUsageModels.swift; sourceTree = "<group>"; };
@@ -222,8 +224,8 @@
 		E49844807D5D6B214DE6796D /* AgentDateSelectionPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentDateSelectionPicker.swift; sourceTree = "<group>"; };
 		EA7F850A5369EC16A6E4A6B0 /* AgentUsageMappingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageMappingStore.swift; sourceTree = "<group>"; };
 		F0C6D449A8DD3CE9D9E29DD1 /* AgentUsageStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageStore.swift; sourceTree = "<group>"; };
-		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 		F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsTests.swift; sourceTree = "<group>"; };
+		F2862347E446D893F932051E /* MetricRowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricRowView.swift; sourceTree = "<group>"; };
 		K001A0010000000000000000 /* KeepAwakeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/KeepAwakeSettings.swift; sourceTree = "<group>"; };
 		K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepAwakeSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -281,6 +283,7 @@
 				DB1D0EB5B4E39865F22CB1D2 /* AgentUsageMappingStoreTests.swift */,
 				F1A4E2C9B3D80716 /* LaunchAtLoginSettingsTests.swift */,
 				K001A0010000000000000002 /* KeepAwakeSettingsTests.swift */,
+				84C6AB8D5FACCDB794140819 /* ProcessMonitorTests.swift */,
 			);
 			path = pulseTests;
 			sourceTree = "<group>";
@@ -567,6 +570,7 @@
 				BD5B6F66D3EDB59A868549F4 /* AgentUsageMappingStoreTests.swift in Sources */,
 				F1A4E2C9B3D80715 /* LaunchAtLoginSettingsTests.swift in Sources */,
 				K001A0010000000000000003 /* KeepAwakeSettingsTests.swift in Sources */,
+				7450780867439DA46E87C080 /* ProcessMonitorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -716,7 +720,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -734,7 +738,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulseUpdater;
 				PRODUCT_NAME = PulseUpdater;
 				SWIFT_VERSION = 5.0;
@@ -874,7 +878,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -898,7 +902,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.4.3;
+				MARKETING_VERSION = 2.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.pulse;
 				PRODUCT_NAME = Pulse;
 				SWIFT_EMIT_LOC_STRINGS = YES;
