@@ -310,10 +310,23 @@ private struct AgentDateSelectionPopover: View {
     }
 
     private var shortcutTags: some View {
-        HStack(spacing: 8) {
-            popupShortcutTag(title: "Yesterday", selection: .preset(.today), nowOffsetDays: -1)
-            popupShortcutTag(title: "Last 7 Days", selection: .preset(.last7Days))
-            popupShortcutTag(title: "Last 30 Days", selection: .preset(.last30Days))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                popupShortcutTag(title: "Yesterday", selection: .preset(.today), nowOffsetDays: -1)
+                popupShortcutTag(title: "Last 7 Days", selection: .preset(.last7Days))
+            }
+            HStack(spacing: 8) {
+                popupShortcutTag(title: "Last 30 Days", selection: .preset(.last30Days))
+                shortcutTagButton(title: "This Month") {
+                    let dates = agentDateSelectionMonthToDateDates(
+                        calendar: calendar,
+                        now: Date()
+                    )
+                    startDate = dates.startDate
+                    endDate = dates.endDate
+                    onApply(resolvedSelection)
+                }
+            }
         }
     }
 
@@ -392,7 +405,7 @@ private struct AgentDateSelectionPopover: View {
         selection: AgentDateSelection,
         nowOffsetDays: Int = 0
     ) -> some View {
-        Button {
+        shortcutTagButton(title: title) {
             let referenceNow = calendar.date(byAdding: .day, value: nowOffsetDays, to: Date()) ?? Date()
             let dates = agentDateSelectionCalendarDates(
                 for: selection,
@@ -402,7 +415,14 @@ private struct AgentDateSelectionPopover: View {
             startDate = dates.startDate
             endDate = dates.endDate
             onApply(resolvedSelection)
-        } label: {
+        }
+    }
+
+    private func shortcutTagButton(
+        title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             Text(title)
                 .lineLimit(1)
                 .font(.system(size: 12, weight: .medium))
@@ -699,6 +719,18 @@ func agentDateSelectionCalendarDates(
             AgentDateSelectionTriggerLabel.date(for: upperDay, calendar: calendar)
         )
     }
+}
+
+func agentDateSelectionMonthToDateDates(
+    calendar: Calendar = .autoupdatingCurrent,
+    now: Date = Date()
+) -> (startDate: Date, endDate: Date) {
+    let endDate = calendar.startOfDay(for: now)
+    let monthComponents = calendar.dateComponents([.year, .month], from: now)
+    guard let monthStart = calendar.date(from: monthComponents) else {
+        return (endDate, endDate)
+    }
+    return (calendar.startOfDay(for: monthStart), endDate)
 }
 
 func agentDateSelectionDates(
