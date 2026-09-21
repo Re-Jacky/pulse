@@ -269,6 +269,7 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
   - `~/.local/share/opencode/opencode.db`
   - `~/Library/Application Support/opencode/opencode.db`
   - Uses the most recently modified existing candidate
+- **OpenCode** schema support: reads both the v1 storage tables (`session` / `message` / `part`) and the v2 storage tables (`session_v2` / `session_message`, where the message role lives in the `type` column and tokens, model, and content are embedded in the `data` JSON). The v2 schema is detected automatically and preferred when present, so migrated and unmigrated installs both work
 - **Codex** DB auto-detection (in order):
   - `CODEX_DB_PATH` (must exist)
   - Scans `~/.codex/` for `state_*.sqlite` files — picks the highest version number, ties broken by most recently modified
@@ -297,6 +298,7 @@ The main window is an `InputPanel` (custom `NSPanel` subclass) rather than the s
 
 - Supports **OpenCode** and **Codex** live session lights in the menu bar
 - Uses a Pulse-managed OpenCode plugin at `~/.config/opencode/plugins/pulse-agent-lights.ts`
+- The OpenCode plugin is a single local file with no imports: it supports both the V2 plugin API (`setup(ctx)` streaming events through `ctx.event.subscribe()`) and the V1 plugin API (`server(input)` returning an `event` hook). It maps V2 lifecycle events (`session.execution.*`, `session.inbox.*`, `session.created`, `session.renamed`) and legacy V1 events onto the same light states
 - Uses a Pulse-managed Codex hook at `~/.codex/hooks/pulse-agent-lights-hook.sh` with merged entries in `~/.codex/hooks.json`
 - Stores independent revision markers in the generated plugin, hook, and shared sender files; revisions change only when that integration’s generated code changes, not on every Pulse app release
 - Checks those markers at startup and automatically reinstalls stale Pulse-managed integrations while leaving missing integrations and user-owned files untouched
