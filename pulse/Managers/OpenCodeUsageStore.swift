@@ -106,41 +106,57 @@ defer { sqlite3_close(db) }
 let usesV2Schema = tableExists(db: db, table: "session_v2")
 let sessionTable = usesV2Schema ? "session_v2" : "session"
 let messageTable = usesV2Schema ? "session_message" : "message"
-let roleExpr = usesV2Schema ? "m.type" : "json_extract(m.data, '$.role')"
-let providerExpr = usesV2Schema
-? "coalesce(nullif(json_extract(m.data, '$.model.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
-: "coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
-let modelExpr = usesV2Schema
-? "coalesce(nullif(json_extract(m.data, '$.model.id'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
-: "coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
-let variantExpr = usesV2Schema
-? "nullif(coalesce(json_extract(m.data, '$.model.variant'), json_extract(s.model, '$.variant')), '')"
-: "nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')"
+
+// The model/token fields live inside the message `data` JSON. When those
+// json_extract() expressions are used directly as GROUP BY keys, SQLite
+// re-evaluates them while sorting the group keys, which re-parses the (usually
+// large) message blob many times per row. Extracting them once into a
+// materialized CTE keeps the grouped scan roughly 4x faster on multi-GB DBs.
+let messageFilter = usesV2Schema ? "type = 'assistant'" : "json_extract(data, '$.role') = 'assistant'"
+let messageProviderExpr = usesV2Schema
+? "coalesce(nullif(json_extract(data, '$.model.providerID'), ''), '')"
+: "coalesce(nullif(json_extract(data, '$.providerID'), ''), '')"
+let messageModelExpr = usesV2Schema
+? "coalesce(nullif(json_extract(data, '$.model.id'), ''), '')"
+: "coalesce(nullif(json_extract(data, '$.modelID'), ''), '')"
+let messageVariantExpr = usesV2Schema
+? "coalesce(nullif(json_extract(data, '$.model.variant'), ''), '')"
+: "coalesce(nullif(json_extract(data, '$.variant'), ''), '')"
 
 let hasAgentColumn = tableHasColumn(db: db, table: sessionTable, column: "agent")
 let agentExpr = hasAgentColumn ? "coalesce(s.agent, '')" : "''"
 
 let sql = """
+WITH msg AS MATERIALIZED (
+SELECT session_id,
+\(messageProviderExpr) AS provider_id,
+\(messageModelExpr) AS model_id,
+\(messageVariantExpr) AS model_variant,
+json_extract(data, '$.tokens') AS tokens_json,
+json_extract(data, '$.cost') AS cost
+FROM \(messageTable)
+WHERE \(messageFilter)
+)
 select
 s.id,
 s.title,
 s.directory,
 \(agentExpr),
-\(providerExpr),
-\(modelExpr),
-\(variantExpr),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.input') END, 0)),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.output') END, 0)),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.reasoning') END, 0)),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') END, 0)),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') END, 0)),
-SUM(CASE WHEN m.id IS NOT NULL AND \(roleExpr) = 'assistant' THEN 1 ELSE 0 END),
-SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.cost') END, 0)),
+coalesce(nullif(m.provider_id, ''), coalesce(json_extract(s.model, '$.providerID'), '')),
+coalesce(nullif(m.model_id, ''), coalesce(json_extract(s.model, '$.id'), '')),
+nullif(coalesce(nullif(m.model_variant, ''), json_extract(s.model, '$.variant')), ''),
+SUM(coalesce(json_extract(m.tokens_json, '$.input'), 0)),
+SUM(coalesce(json_extract(m.tokens_json, '$.output'), 0)),
+SUM(coalesce(json_extract(m.tokens_json, '$.reasoning'), 0)),
+SUM(coalesce(json_extract(m.tokens_json, '$.cache.read'), 0)),
+SUM(coalesce(json_extract(m.tokens_json, '$.cache.write'), 0)),
+SUM(CASE WHEN m.session_id IS NOT NULL THEN 1 ELSE 0 END),
+SUM(coalesce(m.cost, 0)),
 MIN(s.time_created),
 MAX(s.time_updated)
 FROM \(sessionTable) s
-LEFT JOIN \(messageTable) m ON m.session_id = s.id AND \(roleExpr) = 'assistant'
-GROUP BY s.id, \(providerExpr), \(modelExpr), \(variantExpr)
+LEFT JOIN msg m ON m.session_id = s.id
+GROUP BY s.id, 5, 6, 7
 ORDER BY MAX(s.time_updated) DESC
 """
 

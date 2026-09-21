@@ -24,6 +24,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 ## AgentUsageStore Performance (DO NOT REGRESS)
 
 - SQL queries only run in `loadRefreshResult`; **range switching is purely in-memory** — no database access
+- `OpenCodeUsageQuery.loadSnapshot` must keep its per-message JSON extraction in a `WITH msg AS MATERIALIZED (...)` CTE. Using inline `json_extract(m.data, '$.model...')` expressions as `GROUP BY` keys makes SQLite re-parse the message `data` blobs while sorting the group keys (measured ~4x slower on a multi-GB OpenCode DB); the materialized CTE must stay for both v1 and v2 schemas
 - `derivedDataCache` keyed by `selection + refreshGeneration` — same range twice hits cache; different range recomputes everything
 - Pre-computed dictionaries built once in `applyRefreshResult`/`replaceStateForTesting` and shared across all derived-data paths:
   - `openCodeBucketsByModelKey` / `codexBucketsBySession` — per-model/per-session bucket groupings
