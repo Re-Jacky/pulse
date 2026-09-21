@@ -16,7 +16,7 @@ The install and uninstall flow for those adapters is owned by `AgentIntegrationM
 
 Each generated integration file carries an independent revision marker in its header:
 
-- OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1`
+- OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2`
 - Codex hook: `PULSE_CODEX_HOOK_VERSION=codex-hook-v3`
 - Shared sender: `PULSE_AGENT_SENDER_VERSION=sender-v1`
 
@@ -33,7 +33,7 @@ At app startup, Pulse automatically reinstalls integrations reported as outdated
 - Plugin: `~/.config/opencode/plugins/pulse-agent-lights.ts`
 - Shared sender: `~/.pulse-agent-lights/pulse-agent-event-sender.sh`
 
-The OpenCode plugin listens to OpenCode runtime events, resolves missing metadata through `client.session.get(...)`, normalizes parent lineage, and sends JSON payloads to Pulse.
+The OpenCode plugin is built with the OpenCode V2 plugin API (`Plugin.define` + `ctx.event.subscribe`). It listens to the OpenCode runtime event stream, resolves missing metadata through `ctx.session.get(...)`, normalizes parent lineage, and sends JSON payloads to Pulse.
 
 ### Codex
 
@@ -54,14 +54,18 @@ Pulse merges its Codex entries into the shared `hooks.json` file instead of owni
    - `title`
    - `parentSessionID`
 3. The plugin treats only `ses_*` parent IDs as true parent sessions.
-4. The plugin maps supported events into Pulse kinds:
+4. The plugin maps supported OpenCode V2 events into Pulse kinds:
    - `session.created` -> `session.working`
-   - `session.status(idle)` -> `session.idle`
-   - `session.status(other)` -> `session.working`
+   - `session.inbox.enqueued` / `session.inbox.delivered` -> `session.working`
+   - `session.execution.started` -> `session.working`
+   - `session.step.started` -> `session.working`
+   - `session.tool.called` -> `session.working`
+   - `session.execution.succeeded` -> `session.idle`
    - `session.idle` -> `session.idle`
-   - `session.error` -> `session.error`
-   - `session.deleted` -> `session.closed`
-5. Metadata-only events such as `session.updated` and `message.updated` are ignored for state transitions.
+   - `session.execution.failed` / `session.error` -> `session.error`
+   - `session.closed` / `session.deleted` -> `session.closed`
+   - `session.renamed` -> re-emits the session's last known kind with the new title
+5. Metadata-only events such as `session.updated` and `message.updated`, and deltas such as `session.text.delta`, are ignored for state transitions.
 6. The plugin sends one newline-delimited JSON payload to the shared sender.
 
 ### Codex path

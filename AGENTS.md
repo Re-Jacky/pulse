@@ -19,6 +19,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 - Agent Usage is optional and off by default; `All` mode merges OpenCode and Codex summaries in memory and hides session/model sections
 - Agent usage refresh is intentionally event-driven, not scheduled: refresh when the panel opens onto the Agent tab, and when switching onto the Agent tab during an open session; do not refresh just because the source picker changes between `OpenCode`, `Codex`, and `All`
 - `pulseUpdater` is a separate helper app bundled into `Contents/Helpers/PulseUpdater.app` for installs
+- The OpenCode agent-light plugin is a local file with NO imports; it exports `{ id, server, setup }` (V2 `setup(ctx)` via `ctx.event.subscribe`, V1 `server(input)`). Local plugin files cannot resolve `@opencode/plugin`, so never add that import. V2 lifecycle events map to light kinds through `session.execution.*`, `session.inbox.*`, `session.created`, and `session.renamed`; metadata/usage/text/reasoning delta events are intentionally ignored
 
 ## AgentUsageStore Performance (DO NOT REGRESS)
 
@@ -62,7 +63,8 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - `pulse/App/AppDelegate.swift` - status item, panel lifecycle, settings window, theme/app activation, updater wiring
 - `pulse/Views/PopoverView.swift` - main tab switcher and panel sizing trigger
 - `pulse/Managers/AgentUsageStore.swift` - refresh logic and derived agent-usage view data
-- `pulse/Managers/OpenCodeUsageStore.swift` - OpenCode SQLite discovery and reads
+- `pulse/Managers/OpenCodeUsageStore.swift` - OpenCode SQLite discovery and reads (supports both v1 and v2 storage schemas)
+- `pulse/Managers/OpenCodeIntegrationInstaller.swift` - generates the OpenCode agent-light plugin (V1 `server` + V2 `setup` entrypoints)
 - `pulse/Managers/CodexUsageQuery.swift` - Codex mixed data loading: SQLite state DB for session/detail metadata, transcript `.jsonl` files under `~/.codex` for daily token buckets
 - `pulse/Managers/ClaudeCodeUsageQuery.swift` - Claude Code transcript discovery, session snapshot, daily buckets, and transcript turn loading
 - `pulse/Managers/ClaudeCodeUsageModels.swift` - Claude Code session/daily-bucket models
@@ -79,6 +81,8 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
   - `$XDG_DATA_HOME/opencode/opencode.db`
   - `~/.local/share/opencode/opencode.db`
   - `~/Library/Application Support/opencode/opencode.db`
+- OpenCode storage is schema-versioned in place: v2 writes sessions to `session_v2` and messages to `session_message` (assistant tokens/model/content embedded as JSON in `data`, message role in the `type` column), while v1 wrote `session`/`message`/`part`. `OpenCodeUsageQuery` detects the `session_v2` table and prefers it, falling back to v1 tables for unmigrated DBs
+- The OpenCode snapshot query joins only `type='assistant'` rows (`LEFT JOIN ... AND type='assistant'`); without that filter, non-assistant rows with no model fall into their own zero-token model group when `session_v2.model` omits the variant
 - OpenCode should normally have one real database file plus SQLite sidecars (`-wal`, `-shm`); do not treat sidecars as separate history sources
 - Codex is different: it may have multiple `state_*.sqlite` files with overlapping but non-identical thread history
 - Codex can also have invalid higher-version files that exist on disk but do not contain a `threads` table; those must be ignored

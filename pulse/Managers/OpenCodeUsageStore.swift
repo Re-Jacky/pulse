@@ -103,7 +103,21 @@ throw QueryError.databaseOpenFailed(message: message)
 }
 defer { sqlite3_close(db) }
 
-let hasAgentColumn = tableHasColumn(db: db, table: "session", column: "agent")
+let usesV2Schema = tableExists(db: db, table: "session_v2")
+let sessionTable = usesV2Schema ? "session_v2" : "session"
+let messageTable = usesV2Schema ? "session_message" : "message"
+let roleExpr = usesV2Schema ? "m.type" : "json_extract(m.data, '$.role')"
+let providerExpr = usesV2Schema
+? "coalesce(nullif(json_extract(m.data, '$.model.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
+: "coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
+let modelExpr = usesV2Schema
+? "coalesce(nullif(json_extract(m.data, '$.model.id'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
+: "coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
+let variantExpr = usesV2Schema
+? "nullif(coalesce(json_extract(m.data, '$.model.variant'), json_extract(s.model, '$.variant')), '')"
+: "nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')"
+
+let hasAgentColumn = tableHasColumn(db: db, table: sessionTable, column: "agent")
 let agentExpr = hasAgentColumn ? "coalesce(s.agent, '')" : "''"
 
 let sql = """
@@ -112,21 +126,21 @@ s.id,
 s.title,
 s.directory,
 \(agentExpr),
-coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
-coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
-nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.input') END, 0)),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.output') END, 0)),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.reasoning') END, 0)),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') END, 0)),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') END, 0)),
-SUM(CASE WHEN m.id IS NOT NULL AND json_extract(m.data, '$.role') = 'assistant' THEN 1 ELSE 0 END),
-SUM(coalesce(CASE WHEN json_extract(m.data, '$.role') = 'assistant' THEN json_extract(m.data, '$.cost') END, 0)),
+\(providerExpr),
+\(modelExpr),
+\(variantExpr),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.input') END, 0)),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.output') END, 0)),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.reasoning') END, 0)),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.cache.read') END, 0)),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.tokens.cache.write') END, 0)),
+SUM(CASE WHEN m.id IS NOT NULL AND \(roleExpr) = 'assistant' THEN 1 ELSE 0 END),
+SUM(coalesce(CASE WHEN \(roleExpr) = 'assistant' THEN json_extract(m.data, '$.cost') END, 0)),
 MIN(s.time_created),
 MAX(s.time_updated)
-FROM session s
-LEFT JOIN message m ON m.session_id = s.id
-GROUP BY s.id, coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')), coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')), nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')
+FROM \(sessionTable) s
+LEFT JOIN \(messageTable) m ON m.session_id = s.id AND \(roleExpr) = 'assistant'
+GROUP BY s.id, \(providerExpr), \(modelExpr), \(variantExpr)
 ORDER BY MAX(s.time_updated) DESC
 """
 
@@ -196,21 +210,35 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
     }
     defer { sqlite3_close(db) }
 
+    let usesV2Schema = tableExists(db: db, table: "session_v2")
+    let sessionTable = usesV2Schema ? "session_v2" : "session"
+    let messageTable = usesV2Schema ? "session_message" : "message"
+    let roleWhereExpr = usesV2Schema ? "m.type = 'assistant'" : "json_extract(m.data, '$.role') = 'assistant'"
+    let providerExpr = usesV2Schema
+        ? "coalesce(nullif(json_extract(m.data, '$.model.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
+        : "coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
+    let modelExpr = usesV2Schema
+        ? "coalesce(nullif(json_extract(m.data, '$.model.id'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
+        : "coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
+    let variantExpr = usesV2Schema
+        ? "nullif(coalesce(json_extract(m.data, '$.model.variant'), json_extract(s.model, '$.variant')), '')"
+        : "nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')"
+
     let sql = """
     SELECT m.session_id,
            m.time_created,
-           coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), '')),
-           coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), '')),
-           nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), ''),
+           \(providerExpr),
+           \(modelExpr),
+           \(variantExpr),
            coalesce(json_extract(m.data, '$.tokens.input'), 0),
            coalesce(json_extract(m.data, '$.tokens.output'), 0),
            coalesce(json_extract(m.data, '$.tokens.reasoning'), 0),
            coalesce(json_extract(m.data, '$.tokens.cache.read'), 0),
            coalesce(json_extract(m.data, '$.tokens.cache.write'), 0),
            coalesce(json_extract(m.data, '$.cost'), 0)
-    FROM message m
-    JOIN session s ON s.id = m.session_id
-    WHERE json_extract(m.data, '$.role') = 'assistant'
+    FROM \(messageTable) m
+    JOIN \(sessionTable) s ON s.id = m.session_id
+    WHERE \(roleWhereExpr)
     ORDER BY m.session_id, m.time_created
     """
 
@@ -315,6 +343,15 @@ static func loadTranscript(
     }
     defer { sqlite3_close(db) }
 
+    if tableExists(db: db, table: "session_v2") {
+        return try loadV2Transcript(
+            db: db,
+            sessionID: sessionID,
+            partialBatchSize: partialBatchSize,
+            onPartialUpdate: onPartialUpdate
+        )
+    }
+
     let sql = """
     SELECT m.id,
            m.time_created,
@@ -415,6 +452,76 @@ static func loadTranscript(
 
     return turns
 }
+
+private static func loadV2Transcript(
+    db: OpaquePointer?,
+    sessionID: String,
+    partialBatchSize: Int,
+    onPartialUpdate: (@Sendable ([TranscriptTurn]) -> Void)?
+) throws -> [TranscriptTurn] {
+    let sql = """
+    SELECT m.id,
+           m.time_created,
+           m.data,
+           m.type
+    FROM session_message m
+    WHERE m.session_id = ?
+    ORDER BY m.time_created ASC, m.seq ASC
+    """
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw QueryError.queryPrepareFailed(message: String(cString: sqlite3_errmsg(db)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    sqlite3_bind_text(statement, 1, (sessionID as NSString).utf8String, -1, nil)
+
+    var turns: [TranscriptTurn] = []
+    var publishedCount = 0
+
+    while true {
+        let stepResult = sqlite3_step(statement)
+        if stepResult == SQLITE_DONE { break }
+        guard stepResult == SQLITE_ROW else {
+            throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+        }
+
+        let id = stringColumn(statement, index: 0)
+        let timestampMilliseconds = sqlite3_column_int64(statement, 1)
+        let payload = stringColumn(statement, index: 2)
+        let type = stringColumn(statement, index: 3)
+
+        guard
+            let data = payload.data(using: .utf8),
+            let jsonObject = try? JSONSerialization.jsonObject(with: data),
+            let object = jsonObject as? [String: Any],
+            let turn = transcriptTurnFromOpenCodeV2Message(
+                id: id,
+                timestampMilliseconds: timestampMilliseconds,
+                type: type,
+                object: object
+            )
+        else {
+            continue
+        }
+
+        turns.append(turn)
+
+        if let onPartialUpdate,
+           partialBatchSize > 0,
+           turns.count - publishedCount >= partialBatchSize {
+            publishedCount = turns.count
+            onPartialUpdate(turns)
+        }
+    }
+
+    if let onPartialUpdate, turns.count > publishedCount {
+        onPartialUpdate(turns)
+    }
+
+    return turns
+}
 }
 
 private func openCodeTranscriptDatabaseURI(for databaseURL: URL) -> String {
@@ -434,6 +541,15 @@ return String(cString: value)
 private func optionalStringColumn(_ statement: OpaquePointer?, index: Int32) -> String? {
 let value = stringColumn(statement, index: index)
 return value.isEmpty ? nil : value
+}
+
+private func tableExists(db: OpaquePointer?, table: String) -> Bool {
+    let sql = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1"
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return false }
+    defer { sqlite3_finalize(statement) }
+    sqlite3_bind_text(statement, 1, (table as NSString).utf8String, -1, nil)
+    return sqlite3_step(statement) == SQLITE_ROW
 }
 
 private func tableHasColumn(db: OpaquePointer?, table: String, column: String) -> Bool {
@@ -471,6 +587,54 @@ private func transcriptTurnFromOpenCodeMessage(
         : nil
 
     return TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp)
+}
+
+private func transcriptTurnFromOpenCodeV2Message(
+    id: String,
+    timestampMilliseconds: Int64,
+    type: String,
+    object: [String: Any]
+) -> TranscriptTurn? {
+    let role: TranscriptTurnRole
+    switch type {
+    case "user": role = .user
+    case "assistant": role = .assistant
+    case "system": role = .system
+    default: return nil
+    }
+
+    let text: String?
+    if role == .assistant {
+        text = openCodeV2AssistantText(from: object)
+    } else {
+        text = transcriptTextValue(from: object["text"])
+    }
+
+    guard let text, text.isEmpty == false else {
+        return nil
+    }
+
+    let timestamp = timestampMilliseconds > 0
+        ? Date(timeIntervalSince1970: Double(timestampMilliseconds) / 1000)
+        : nil
+
+    return TranscriptTurn(id: id, role: role, text: text, timestamp: timestamp)
+}
+
+private func openCodeV2AssistantText(from object: [String: Any]) -> String? {
+    guard let content = object["content"] as? [[String: Any]] else {
+        return transcriptTextValue(from: object["text"])
+    }
+
+    let joined = content
+        .compactMap { part -> String? in
+            guard part["type"] as? String == "text" else { return nil }
+            return transcriptTextValue(from: part["text"])
+        }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return joined.isEmpty ? nil : joined
 }
 
 private func transcriptRole(from value: String?) -> TranscriptTurnRole {
