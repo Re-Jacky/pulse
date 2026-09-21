@@ -369,6 +369,209 @@ final class OpenCodeUsageQueryTests: XCTestCase {
     }
     }
 
+    // MARK: - OpenCode v2 schema (session_v2 + session_message)
+
+    func testLoadSnapshotReadsV2SessionAndSessionMessageRows() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeV2SnapshotTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createV2Schema(in: db)
+
+        try execute(db, sql: """
+        insert into session_v2 (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values (
+            'ses_v2', 'project_1', 'Pulse agent work (v2)', '/Users/zyao/Desktop/pulse', 'build',
+            '{"id":"gpt-5.4","providerID":"codex-gpt","variant":"default"}',
+            1.25, 100, 50, 10, 1000, 4, 1000, 2000
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+        ('msg_1', 'ses_v2', 'user', 0, 500, 500, '{"text":"hi","time":{"created":500}}'),
+        ('msg_2', 'ses_v2', 'assistant', 1, 1000, 2000,
+         '{"model":{"id":"gpt-5.4","providerID":"codex-gpt","variant":"default"},"tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":1.25,"time":{"created":1000}}');
+        """)
+
+        let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertEqual(snapshot.sessions[0].modelProviderID, "codex-gpt")
+        XCTAssertEqual(snapshot.sessions[0].modelID, "gpt-5.4")
+        XCTAssertEqual(snapshot.sessions[0].modelVariant, "default")
+        XCTAssertEqual(snapshot.sessions[0].requestCount, 1)
+        XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 1164)
+    }
+
+    func testLoadSnapshotV2FallsBackToSessionModelWhenMessageOmitsIt() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeV2SnapshotFallbackTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createV2Schema(in: db)
+
+        try execute(db, sql: """
+        insert into session_v2 (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values (
+            'ses_v2', 'project_1', 'Fallback', '/tmp/project', 'build',
+            '{"id":"step-3.7-flash","providerID":"stepfun"}',
+            0, 0, 0, 0, 0, 0, 1000, 2000
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+        ('msg_1', 'ses_v2', 'assistant', 0, 1000, 1000,
+         '{"tokens":{"input":10,"output":5,"reasoning":1,"cache":{"read":2,"write":0}},"cost":0.01}');
+        """)
+
+        let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertEqual(snapshot.sessions[0].modelProviderID, "stepfun")
+        XCTAssertEqual(snapshot.sessions[0].modelID, "step-3.7-flash")
+    }
+
+    func testLoadDailyBucketsReadsV2SessionMessages() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeV2DailyBucketTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createV2Schema(in: db)
+
+        try execute(db, sql: """
+        insert into session_v2 (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values (
+            'ses_v2', 'p1', 'Test', '/tmp/test', 'build',
+            '{"id":"step-3.7-flash","providerID":"stepfun"}',
+            0, 0, 0, 0, 0, 0, 1000, 2000
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+        ('msg_1', 'ses_v2', 'user', 0, 172800000, 172800000, '{"text":"prompt"}'),
+        ('msg_2', 'ses_v2', 'assistant', 1, 172800000, 172800000,
+         '{"model":{"id":"gpt-5.4","providerID":"codex-gpt"},"tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":0.02,"time":{"created":172800000}}'),
+        ('msg_3', 'ses_v2', 'assistant', 2, 172800000, 172800000,
+         '{"model":{"id":"gpt-5.4","providerID":"codex-gpt"},"tokens":{"input":200,"output":30,"reasoning":5,"cache":{"read":500,"write":2}},"cost":0.01,"time":{"created":172800000}}'),
+        ('msg_4', 'ses_v2', 'assistant', 3, 259200000, 259200000,
+         '{"model":{"id":"gpt-5.4","providerID":"codex-gpt"},"tokens":{"input":50,"output":20,"reasoning":0,"cache":{"read":200,"write":0}},"cost":0.005,"time":{"created":259200000}}');
+        """)
+
+        let buckets = try OpenCodeUsageQuery.loadDailyBuckets(databaseURL: databaseURL)
+
+        XCTAssertEqual(buckets.count, 2)
+
+        let day1Date = Date(timeIntervalSince1970: 172800000.0 / 1000)
+        let day2Date = Date(timeIntervalSince1970: 259200000.0 / 1000)
+        let day1 = buckets.first { $0.day == agentUsageDayIdentifier(for: day1Date) }
+        let day2 = buckets.first { $0.day == agentUsageDayIdentifier(for: day2Date) }
+
+        XCTAssertNotNil(day1)
+        XCTAssertEqual(day1?.sessionID, "ses_v2")
+        XCTAssertEqual(day1?.modelProviderID, "codex-gpt")
+        XCTAssertEqual(day1?.modelID, "gpt-5.4")
+        XCTAssertEqual(day1?.inputTokens, 300)
+        XCTAssertEqual(day1?.outputTokens, 80)
+        XCTAssertEqual(day1?.reasoningTokens, 15)
+        XCTAssertEqual(day1?.cacheReadTokens, 1500)
+        XCTAssertEqual(day1?.cacheWriteTokens, 6)
+        XCTAssertEqual(day1?.requestCount, 2)
+        XCTAssertEqual(day1?.cost ?? 0, 0.03, accuracy: 0.001)
+
+        XCTAssertNotNil(day2)
+        XCTAssertEqual(day2?.inputTokens, 50)
+        XCTAssertEqual(day2?.requestCount, 1)
+    }
+
+    func testLoadSnapshotV2DoesNotSplitNonAssistantMessagesIntoZeroTokenGroups() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeV2SnapshotNoZeroGroupTests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createV2Schema(in: db)
+
+        // session_v2.model has no variant (as real v2 data does), while the assistant
+        // message carries variant "default". Non-assistant rows must not form their own group.
+        try execute(db, sql: """
+        insert into session_v2 (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values (
+            'ses_v2', 'project_1', 'No zero group', '/tmp/project', 'build',
+            '{"id":"deepseek-v4.1-flash","providerID":"opencode-go"}',
+            0, 0, 0, 0, 0, 0, 1000, 2000
+        );
+        """)
+
+        try execute(db, sql: """
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+        ('msg_1', 'ses_v2', 'user', 0, 500, 500, '{"text":"hi","time":{"created":500}}'),
+        ('msg_2', 'ses_v2', 'assistant', 1, 1000, 2000,
+         '{"model":{"id":"deepseek-v4.1-flash","providerID":"opencode-go","variant":"default"},"tokens":{"input":100,"output":50,"reasoning":10,"cache":{"read":1000,"write":4}},"cost":0.01,"time":{"created":1000}}');
+        """)
+
+        let snapshot = try OpenCodeUsageQuery.loadSnapshot(databaseURL: databaseURL)
+
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertEqual(snapshot.sessions[0].modelVariant, "default")
+        XCTAssertEqual(snapshot.sessions[0].inputTokens, 100)
+        XCTAssertEqual(snapshot.sessions[0].requestCount, 1)
+    }
+
+    private func createV2Schema(in db: OpaquePointer?) throws {
+        try execute(db, sql: """
+        create table session_v2 (
+            id text primary key,
+            project_id text not null,
+            title text not null,
+            directory text not null,
+            agent text,
+            model text,
+            cost real default 0 not null,
+            tokens_input integer default 0 not null,
+            tokens_output integer default 0 not null,
+            tokens_reasoning integer default 0 not null,
+            tokens_cache_read integer default 0 not null,
+            tokens_cache_write integer default 0 not null,
+            time_created integer not null,
+            time_updated integer not null
+        );
+        """)
+
+        try execute(db, sql: """
+        create table session_message (
+            id text primary key,
+            session_id text not null,
+            type text not null,
+            seq integer not null,
+            time_created integer not null,
+            time_updated integer not null,
+            data text not null
+        );
+        """)
+    }
+
     private func makeDatabase(named name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         if FileManager.default.fileExists(atPath: url.path) {

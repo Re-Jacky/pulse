@@ -40,6 +40,12 @@ struct OpenCodeIntegrationInstaller {
         // pulse-agent-lights
         // pulse-agent-event-sender
         // opencode
+        //
+        // Supports both plugin APIs from one local file:
+        //   * OpenCode V2 invokes `setup(ctx)` and streams events via `ctx.event.subscribe`.
+        //   * OpenCode V1 (>= 1.18.29) invokes `server(input)` and returns an `event` hook.
+        // It intentionally does not import "@opencode/plugin": a local plugin file cannot
+        // resolve that package, and V2 only requires `default.{ id, setup }`.
         import { spawn } from "node:child_process";
         import { appendFileSync, existsSync, mkdirSync } from "node:fs";
         import { homedir } from "node:os";
@@ -47,7 +53,6 @@ struct OpenCodeIntegrationInstaller {
 
         const sender = "\(senderURL.path)";
         const agent = "opencode";
-        const sessionInfoByID = new Map();
         const debugEnabledPath = `${homedir()}/.pulse-agent-lights/debug-enabled`;
         const debugLogPath = `${homedir()}/.pulse-agent-lights/logs/opencode-plugin.log`;
 
@@ -63,126 +68,8 @@ struct OpenCodeIntegrationInstaller {
           try {
             mkdirSync(`${homedir()}/.pulse-agent-lights/logs`, { recursive: true });
             const payload = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-            appendFileSync(debugLogPath, `[${new Date().toISOString()}] ${message}${payload}\\n`);
+            appendFileSync(debugLogPath, `[${new Date().toISOString()}] ${message}${payload}\n`);
           } catch {}
-        }
-
-        function readSessionID(properties) {
-          if (typeof properties?.sessionID === "string" && properties.sessionID.length > 0) {
-            return properties.sessionID;
-          }
-
-          if (typeof properties?.id === "string" && properties.id.length > 0) {
-            return properties.id;
-          }
-
-          if (typeof properties?.info?.id === "string" && properties.info.id.length > 0) {
-            return properties.info.id;
-          }
-
-          return "";
-        }
-
-        function rememberSessionInfo(sessionID, info) {
-          if (typeof sessionID !== "string" || sessionID.length === 0) {
-            return;
-          }
-
-          const existing = sessionInfoByID.get(sessionID) ?? {};
-          sessionInfoByID.set(sessionID, {
-            parentSessionID: info.parentSessionID ?? existing.parentSessionID ?? "",
-            projectPath: info.projectPath ?? existing.projectPath ?? "",
-            title: info.title ?? existing.title ?? "",
-          });
-        }
-
-        function readParentSessionID(properties, sessionID) {
-          if (typeof properties?.parentID === "string" && properties.parentID.length > 0) {
-            return properties.parentID;
-          }
-
-          if (typeof properties?.parentId === "string" && properties.parentId.length > 0) {
-            return properties.parentId;
-          }
-
-          if (typeof properties?.info?.parentID === "string" && properties.info.parentID.length > 0) {
-            return properties.info.parentID;
-          }
-
-          if (typeof properties?.info?.parentId === "string" && properties.info.parentId.length > 0) {
-            return properties.info.parentId;
-          }
-
-          const cached = sessionInfoByID.get(sessionID);
-          if (typeof cached?.parentSessionID === "string" && cached.parentSessionID.length > 0) {
-            return cached.parentSessionID;
-          }
-
-          return "";
-        }
-
-        function normalizeParentSessionID(parentSessionID) {
-          if (typeof parentSessionID !== "string") {
-            return "";
-          }
-
-          return parentSessionID.startsWith("ses_") ? parentSessionID : "";
-        }
-
-        async function loadSessionInfo(client, sessionID) {
-          if (typeof sessionID !== "string" || sessionID.length === 0) {
-            return {};
-          }
-
-          try {
-            const response = await client.session.get({
-              path: { id: sessionID },
-            });
-            const session = response?.data ?? response;
-            if (session && typeof session === "object") {
-              return {
-                parentSessionID: typeof session.parentID === "string" ? session.parentID : "",
-                projectPath: typeof session.directory === "string" ? session.directory : "",
-                title: typeof session.title === "string" ? session.title : "",
-              };
-            }
-          } catch {}
-
-          return {};
-        }
-
-        function readProjectPath(properties, fallbackProjectPath, sessionID) {
-          if (typeof properties?.directory === "string" && properties.directory.length > 0) {
-            return properties.directory;
-          }
-
-          if (typeof properties?.info?.directory === "string" && properties.info.directory.length > 0) {
-            return properties.info.directory;
-          }
-
-          const cached = sessionInfoByID.get(sessionID);
-          if (typeof cached?.projectPath === "string" && cached.projectPath.length > 0) {
-            return cached.projectPath;
-          }
-
-          return fallbackProjectPath;
-        }
-
-        function readTitle(properties, sessionID, projectPath) {
-          if (typeof properties?.title === "string" && properties.title.length > 0) {
-            return properties.title;
-          }
-
-          if (typeof properties?.info?.title === "string" && properties.info.title.length > 0) {
-            return properties.info.title;
-          }
-
-          const cached = sessionInfoByID.get(sessionID);
-          if (typeof cached?.title === "string" && cached.title.length > 0) {
-            return cached.title;
-          }
-
-          return defaultTitle(projectPath);
         }
 
         async function sendToPulse(payload) {
@@ -193,119 +80,357 @@ struct OpenCodeIntegrationInstaller {
           });
         }
 
-        export default async function pulseAgentLightsPlugin(input) {
-          const fallbackProjectPath = input.directory;
+        function normalizeParentSessionID(parentSessionID) {
+          if (typeof parentSessionID !== "string") {
+            return "";
+          }
+
+          return parentSessionID.startsWith("ses_") ? parentSessionID : "";
+        }
+
+        // Maps both OpenCode V2 lifecycle events and legacy V1 event names onto Pulse kinds.
+        function resolveKind(eventType, properties = undefined) {
+          switch (eventType) {
+          case "session.created":
+            return "session.working";
+          case "session.status":
+            return properties?.status?.type === "idle" ? "session.idle" : "session.working";
+          case "session.inbox.enqueued":
+          case "session.inbox.delivered":
+          case "session.execution.started":
+          case "session.step.started":
+          case "session.tool.called":
+            return "session.working";
+          case "session.execution.succeeded":
+          case "session.idle":
+            return "session.idle";
+          case "session.execution.failed":
+          case "session.error":
+            return "session.error";
+          case "session.closed":
+          case "session.deleted":
+            return "session.closed";
+          default:
+            return null;
+          }
+        }
+
+        // OpenCode V2 entrypoint.
+        async function setup(ctx) {
+          const fallbackProjectPath = ctx?.location?.directory ?? process.cwd();
+          const sessionInfoByID = new Map();
+          const lastKindBySession = new Map();
+
+          function readSessionID(event) {
+            const data = event?.data ?? {};
+            if (typeof data.sessionID === "string" && data.sessionID.length > 0) {
+              return data.sessionID;
+            }
+
+            if (typeof data.id === "string" && data.id.length > 0) {
+              return data.id;
+            }
+
+            return "";
+          }
+
+          function readInlineProjectPath(event) {
+            if (typeof event?.location?.directory === "string" && event.location.directory.length > 0) {
+              return event.location.directory;
+            }
+
+            if (typeof event?.data?.location?.directory === "string" && event.data.location.directory.length > 0) {
+              return event.data.location.directory;
+            }
+
+            return "";
+          }
+
+          function readInlineTitle(event) {
+            if (typeof event?.data?.title === "string" && event.data.title.length > 0) {
+              return event.data.title;
+            }
+
+            return "";
+          }
+
+          function rememberSessionInfo(sessionID, info) {
+            if (typeof sessionID !== "string" || sessionID.length === 0) {
+              return;
+            }
+
+            const existing = sessionInfoByID.get(sessionID) ?? {};
+            sessionInfoByID.set(sessionID, {
+              parentSessionID: info.parentSessionID ?? existing.parentSessionID ?? "",
+              projectPath: info.projectPath ?? existing.projectPath ?? "",
+              title: info.title ?? existing.title ?? "",
+            });
+          }
+
+          async function loadSessionInfo(sessionID) {
+            if (typeof sessionID !== "string" || sessionID.length === 0) {
+              return {};
+            }
+
+            try {
+              const session = await ctx.session.get({ sessionID });
+              if (session && typeof session === "object") {
+                return {
+                  parentSessionID: typeof session.parentID === "string" ? session.parentID : "",
+                  projectPath: typeof session.directory === "string" ? session.directory : "",
+                  title: typeof session.title === "string" ? session.title : "",
+                };
+              }
+            } catch {}
+
+            return {};
+          }
+
+          async function handleEvent(event) {
+            const type = typeof event?.type === "string" ? event.type : "";
+            const sessionID = readSessionID(event);
+
+            if (type === "session.updated" || type === "message.updated") {
+              writeDebugLog("ignored metadata-only event", { type, sessionID });
+              return;
+            }
+
+            if (sessionID.length === 0) {
+              writeDebugLog("skipped event without session id", { type });
+              return;
+            }
+
+            const cachedInfo = sessionInfoByID.get(sessionID);
+            const shouldLoadInfo = cachedInfo === undefined || type === "session.created" || type === "session.renamed";
+            const sessionInfo = shouldLoadInfo ? await loadSessionInfo(sessionID) : {};
+            const eventParentSessionID = typeof sessionInfo.parentSessionID === "string" ? sessionInfo.parentSessionID : "";
+            const parentSessionID = cachedInfo?.parentSessionID || eventParentSessionID;
+            const normalizedParentSessionID = normalizeParentSessionID(parentSessionID);
+            const isSubagent = normalizedParentSessionID.length > 0;
+            const projectPath = readInlineProjectPath(event) || sessionInfo.projectPath || cachedInfo?.projectPath || fallbackProjectPath;
+            const title = readInlineTitle(event) || sessionInfo.title || cachedInfo?.title || defaultTitle(projectPath);
+
+            rememberSessionInfo(sessionID, {
+              parentSessionID: normalizedParentSessionID,
+              projectPath,
+              title,
+            });
+
+            let kind = resolveKind(type);
+            if (kind === null && type === "session.renamed") {
+              kind = lastKindBySession.get(sessionID) ?? null;
+            }
+
+            if (kind === null) {
+              writeDebugLog("ignored unsupported event", { type, sessionID });
+              return;
+            }
+
+            lastKindBySession.set(sessionID, kind);
+
+            writeDebugLog("sending payload", {
+              type,
+              sessionID,
+              parentSessionID: normalizedParentSessionID,
+              isSubagent,
+              projectPath,
+              title,
+              kind,
+            });
+
+            await sendToPulse({
+              agent,
+              sessionID,
+              projectPath,
+              title,
+              timestamp: new Date().toISOString(),
+              kind,
+              parentSessionID: normalizedParentSessionID || undefined,
+              isSubagent,
+            });
+
+            if (type === "session.deleted" || type === "session.closed") {
+              sessionInfoByID.delete(sessionID);
+              lastKindBySession.delete(sessionID);
+            }
+          }
+
+          const controller = new AbortController();
+          void (async () => {
+            for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+              try {
+                await handleEvent(event);
+              } catch (error) {
+                writeDebugLog("event handling failed", { message: String(error) });
+              }
+            }
+          })();
+
+          return () => controller.abort();
+        }
+
+        // OpenCode V1 entrypoint. V1 passes plugin input once and returned hooks.
+        function server(input) {
+          const fallbackProjectPath = input?.directory ?? process.cwd();
+          const sessionInfoByID = new Map();
+          const lastKindBySession = new Map();
+
+          function readSessionID(properties) {
+            if (typeof properties?.sessionID === "string" && properties.sessionID.length > 0) {
+              return properties.sessionID;
+            }
+
+            if (typeof properties?.id === "string" && properties.id.length > 0) {
+              return properties.id;
+            }
+
+            if (typeof properties?.info?.id === "string" && properties.info.id.length > 0) {
+              return properties.info.id;
+            }
+
+            return "";
+          }
+
+          function readParentSessionID(properties, sessionID) {
+            if (typeof properties?.parentID === "string" && properties.parentID.length > 0) {
+              return properties.parentID;
+            }
+
+            if (typeof properties?.parentId === "string" && properties.parentId.length > 0) {
+              return properties.parentId;
+            }
+
+            if (typeof properties?.info?.parentID === "string" && properties.info.parentID.length > 0) {
+              return properties.info.parentID;
+            }
+
+            if (typeof properties?.info?.parentId === "string" && properties.info.parentId.length > 0) {
+              return properties.info.parentId;
+            }
+
+            const cached = sessionInfoByID.get(sessionID);
+            if (typeof cached?.parentSessionID === "string" && cached.parentSessionID.length > 0) {
+              return cached.parentSessionID;
+            }
+
+            return "";
+          }
+
+          function rememberSessionInfo(sessionID, info) {
+            if (typeof sessionID !== "string" || sessionID.length === 0) {
+              return;
+            }
+
+            const existing = sessionInfoByID.get(sessionID) ?? {};
+            sessionInfoByID.set(sessionID, {
+              parentSessionID: info.parentSessionID ?? existing.parentSessionID ?? "",
+              projectPath: info.projectPath ?? existing.projectPath ?? "",
+              title: info.title ?? existing.title ?? "",
+            });
+          }
+
+          async function loadSessionInfo(sessionID) {
+            if (typeof sessionID !== "string" || sessionID.length === 0) {
+              return {};
+            }
+
+            try {
+              const response = await input.client.session.get({ path: { id: sessionID } });
+              const session = response?.data ?? response;
+              if (session && typeof session === "object") {
+                return {
+                  parentSessionID: typeof session.parentID === "string" ? session.parentID : "",
+                  projectPath: typeof session.directory === "string" ? session.directory : "",
+                  title: typeof session.title === "string" ? session.title : "",
+                };
+              }
+            } catch {}
+
+            return {};
+          }
+
+          async function handleEvent(event) {
+            const properties = event?.properties ?? {};
+            const type = typeof event?.type === "string" ? event.type : "";
+            const sessionID = readSessionID(properties);
+
+            if (type === "session.updated" || type === "message.updated") {
+              writeDebugLog("ignored metadata-only event", { type, sessionID });
+              return;
+            }
+
+            if (sessionID.length === 0) {
+              writeDebugLog("skipped event without session id", { type });
+              return;
+            }
+
+            const cachedInfo = sessionInfoByID.get(sessionID);
+            const shouldLoadInfo = cachedInfo === undefined || type === "session.created";
+            const sessionInfo = shouldLoadInfo ? await loadSessionInfo(sessionID) : {};
+            const sessionParentSessionID = typeof sessionInfo.parentSessionID === "string" ? sessionInfo.parentSessionID : "";
+            const parentSessionID = readParentSessionID(properties, sessionID) || cachedInfo?.parentSessionID || sessionParentSessionID;
+            const normalizedParentSessionID = normalizeParentSessionID(parentSessionID);
+            const isSubagent = normalizedParentSessionID.length > 0;
+            const projectPath = sessionInfo.projectPath || cachedInfo?.projectPath || fallbackProjectPath;
+            const title = sessionInfo.title || cachedInfo?.title || defaultTitle(projectPath);
+
+            rememberSessionInfo(sessionID, {
+              parentSessionID: normalizedParentSessionID,
+              projectPath,
+              title,
+            });
+
+            let kind = resolveKind(type, properties);
+            if (kind === null && type === "session.updated") {
+              kind = lastKindBySession.get(sessionID) ?? null;
+            }
+
+            if (kind === null) {
+              writeDebugLog("ignored unsupported event", { type, sessionID });
+              return;
+            }
+
+            lastKindBySession.set(sessionID, kind);
+
+            writeDebugLog("sending payload", {
+              type,
+              sessionID,
+              parentSessionID: normalizedParentSessionID,
+              isSubagent,
+              projectPath,
+              title,
+              kind,
+            });
+
+            await sendToPulse({
+              agent,
+              sessionID,
+              projectPath,
+              title,
+              timestamp: new Date().toISOString(),
+              kind,
+              parentSessionID: normalizedParentSessionID || undefined,
+              isSubagent,
+            });
+
+            if (type === "session.deleted") {
+              sessionInfoByID.delete(sessionID);
+              lastKindBySession.delete(sessionID);
+            }
+          }
 
           return {
             event: async ({ event }) => {
-              const properties = event.properties ?? {};
-              const sessionID = readSessionID(properties);
-              const sessionInfo = await loadSessionInfo(input.client, sessionID);
-              const projectPath = readProjectPath({ ...properties, directory: sessionInfo.projectPath }, fallbackProjectPath, sessionID);
-              const parentSessionID = readParentSessionID({ ...properties, parentID: sessionInfo.parentSessionID }, sessionID);
-              const normalizedParentSessionID = normalizeParentSessionID(parentSessionID);
-              const isSubagent = normalizedParentSessionID.length > 0;
-              const title = readTitle({ ...properties, title: sessionInfo.title }, sessionID, projectPath);
-
-              rememberSessionInfo(sessionID, {
-                parentSessionID: parentSessionID || undefined,
-                projectPath,
-                title,
-              });
-
-              writeDebugLog("received event", {
-                type: event.type,
-                sessionID,
-                parentSessionID,
-                normalizedParentSessionID,
-                isSubagent,
-                title,
-                projectPath,
-                propertyKeys: Object.keys(properties),
-                infoKeys: typeof properties?.info === "object" && properties.info !== null ? Object.keys(properties.info) : [],
-              });
-
-              let kind = null;
-              let message;
-
-              switch (event.type) {
-              case "session.created":
-                kind = "session.working";
-                break;
-              case "session.updated":
-              case "message.updated":
-                writeDebugLog("ignored metadata-only event", {
-                  type: event.type,
-                  sessionID,
-                  parentSessionID,
-                  normalizedParentSessionID,
-                });
-                return;
-              case "session.status":
-                kind = properties?.status?.type === "idle" ? "session.idle" : "session.working";
-                if (properties?.status?.type === "retry" && typeof properties.status.message === "string") {
-                  message = properties.status.message;
-                }
-                break;
-              case "session.idle":
-                kind = "session.idle";
-                break;
-              case "session.error":
-                kind = "session.error";
-                if (typeof properties?.error?.data?.message === "string") {
-                  message = properties.error.data.message;
-                }
-                break;
-              case "session.deleted":
-                kind = "session.closed";
-                break;
-              default:
-                writeDebugLog("ignored unsupported event", { type: event.type });
-                return;
-              }
-
-              if (sessionID.length === 0 || kind === null) {
-                writeDebugLog("skipped event", {
-                  type: event.type,
-                  sessionID,
-                  kind,
-                  parentSessionID,
-                  title,
-                });
-                return;
-              }
-
-              const resolvedTitle = readTitle({ ...properties, title: sessionInfo.title }, sessionID, projectPath);
-
-              writeDebugLog("sending payload", {
-                type: event.type,
-                sessionID,
-                parentSessionID: normalizedParentSessionID,
-                isSubagent,
-                projectPath,
-                resolvedTitle,
-                kind,
-                message,
-              });
-
-              await sendToPulse({
-                agent,
-                sessionID,
-                projectPath,
-                title: resolvedTitle,
-                timestamp: new Date().toISOString(),
-                kind,
-                parentSessionID: normalizedParentSessionID || undefined,
-                isSubagent,
-                ...(message ? { message } : {}),
-              });
-
-              if (event.type === "session.deleted") {
-                sessionInfoByID.delete(sessionID);
-              }
+              await handleEvent(event);
             },
           };
         }
+
+        export default {
+          id: "pulse.agent-lights",
+          server,
+          setup,
+        };
         """
     }
 }

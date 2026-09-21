@@ -131,6 +131,30 @@ final class OpenCodeSessionTranscriptTests: XCTestCase {
         XCTAssertEqual(partialBatches[1].map(\.text), ["One", "Two", "Three"])
     }
 
+    func testOpenCodeTranscriptLoaderReadsV2SessionMessagesAndSkipsNonTextParts() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeTranscriptV2Tests.sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+
+        try createV2TranscriptSchema(in: db)
+        try insertV2TranscriptSession(into: db, sessionID: "ses_v2")
+
+        try execute(db, sql: """
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+        ('msg_1', 'ses_v2', 'user', 0, 1000, 1000, '{"text":"Fix the tests","time":{"created":1000}}'),
+        ('msg_2', 'ses_v2', 'assistant', 1, 2000, 2000,
+         '{"content":[{"type":"reasoning","text":"Thinking hard"},{"type":"text","text":"I updated the failing cases."},{"type":"tool","tool":"bash"}],"time":{"created":2000}}'),
+        ('msg_3', 'ses_v2', 'idle', 2, 3000, 3000, '{"outcome":"succeeded"}');
+        """)
+
+        let transcript = try OpenCodeUsageQuery.loadTranscript(databaseURL: databaseURL, sessionID: "ses_v2")
+
+        XCTAssertEqual(transcript.map(\.role), [.user, .assistant])
+        XCTAssertEqual(transcript.map(\.text), ["Fix the tests", "I updated the failing cases."])
+    }
+
     private func loadOpenCodeTranscriptFixture() throws -> [TranscriptTurn] {
         let databaseURL = try makeDatabase(named: "OpenCodeTranscriptTests.sqlite")
         defer { try? FileManager.default.removeItem(at: databaseURL) }
@@ -198,6 +222,53 @@ private func createTranscriptSchema(in db: OpaquePointer?) throws {
 private func insertTranscriptSession(into db: OpaquePointer?, sessionID: String) throws {
     try execute(db, sql: """
     insert into session (
+        id, project_id, title, directory, agent, model, cost,
+        tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+        time_created, time_updated
+    ) values (
+        '\(sessionID)', 'project_1', 'Transcript', '/tmp/project', 'build',
+        '{"id":"gpt-5.4","providerID":"openai"}',
+        0, 0, 0, 0, 0, 0, 1000, 2000
+    );
+    """)
+}
+
+private func createV2TranscriptSchema(in db: OpaquePointer?) throws {
+    try execute(db, sql: """
+    create table session_v2 (
+        id text primary key,
+        project_id text not null,
+        title text not null,
+        directory text not null,
+        agent text,
+        model text,
+        cost real default 0 not null,
+        tokens_input integer default 0 not null,
+        tokens_output integer default 0 not null,
+        tokens_reasoning integer default 0 not null,
+        tokens_cache_read integer default 0 not null,
+        tokens_cache_write integer default 0 not null,
+        time_created integer not null,
+        time_updated integer not null
+    );
+    """)
+
+    try execute(db, sql: """
+    create table session_message (
+        id text primary key,
+        session_id text not null,
+        type text not null,
+        seq integer not null,
+        time_created integer not null,
+        time_updated integer not null,
+        data text not null
+    );
+    """)
+}
+
+private func insertV2TranscriptSession(into db: OpaquePointer?, sessionID: String) throws {
+    try execute(db, sql: """
+    insert into session_v2 (
         id, project_id, title, directory, agent, model, cost,
         tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
         time_created, time_updated

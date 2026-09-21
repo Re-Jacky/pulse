@@ -101,7 +101,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         manager.updateOutdatedIntegrations()
 
         let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
         XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
         XCTAssertEqual(manager.status(for: .codex).state, .notInstalled)
     }
@@ -129,30 +129,32 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try installer.install()
 
         let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
-        XCTAssertTrue(plugin.contains("export default async function"))
-        XCTAssertTrue(plugin.contains("event: async"))
-        XCTAssertTrue(plugin.contains("session.status"))
-        XCTAssertTrue(plugin.contains("session.idle"))
-        XCTAssertTrue(plugin.contains("session.error"))
-        XCTAssertTrue(plugin.contains("session.updated"))
-        XCTAssertTrue(plugin.contains("message.updated"))
+        XCTAssertTrue(plugin.contains("export default {"))
+        XCTAssertTrue(plugin.contains("id: \"pulse.agent-lights\""))
+        XCTAssertTrue(plugin.contains("async function setup(ctx)"))
+        XCTAssertTrue(plugin.contains("function server(input)"))
+        XCTAssertTrue(plugin.contains("ctx.event.subscribe"))
+        XCTAssertTrue(plugin.contains("new AbortController()"))
+        XCTAssertTrue(plugin.contains("controller.abort()"))
+        XCTAssertTrue(plugin.contains("session.execution.started"))
+        XCTAssertTrue(plugin.contains("session.execution.succeeded"))
+        XCTAssertTrue(plugin.contains("session.execution.failed"))
+        XCTAssertTrue(plugin.contains("session.inbox.enqueued"))
+        XCTAssertTrue(plugin.contains("session.created"))
+        XCTAssertTrue(plugin.contains("session.renamed"))
+        XCTAssertTrue(plugin.contains("ctx.session.get({ sessionID })"))
+        XCTAssertTrue(plugin.contains("client.session.get({ path: { id: sessionID } })"))
+        XCTAssertTrue(plugin.contains("parentID"))
         XCTAssertTrue(plugin.contains("parentSessionID"))
         XCTAssertTrue(plugin.contains("isSubagent"))
         XCTAssertTrue(plugin.contains("sessionInfoByID"))
         XCTAssertTrue(plugin.contains("rememberSessionInfo"))
-        XCTAssertTrue(plugin.contains("client.session.get"))
-        XCTAssertTrue(plugin.contains("path: { id: sessionID }"))
-        XCTAssertTrue(plugin.contains("properties?.parentID"))
-        XCTAssertTrue(plugin.contains("properties?.parentId"))
-        XCTAssertTrue(plugin.contains("const cached = sessionInfoByID.get(sessionID)"))
-        XCTAssertTrue(plugin.contains("case \"session.deleted\""))
-        XCTAssertTrue(plugin.contains("sessionInfoByID.delete(sessionID)"))
-        XCTAssertTrue(plugin.contains("properties?.title"))
+        XCTAssertTrue(plugin.contains("event.data"))
+        XCTAssertTrue(plugin.contains("session.deleted"))
         XCTAssertTrue(plugin.contains(".pulse-agent-lights/debug-enabled"))
-        XCTAssertTrue(plugin.contains("existsSync(debugEnabledPath) === false"))
         XCTAssertTrue(plugin.contains("pulse-agent-event-sender"))
-        XCTAssertTrue(plugin.contains("opencode"))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
+        XCTAssertFalse(plugin.contains("from \"@opencode/plugin\""))
     }
 
     func testOpenCodePluginTreatsOnlySessionParentsAsSubagents() throws {
@@ -172,7 +174,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(plugin.contains("parentSessionID: normalizedParentSessionID || undefined"))
     }
 
-    func testOpenCodePluginDoesNotPromoteMetadataUpdatesToWorkingState() throws {
+    func testOpenCodePluginDoesNotPromoteMetadataOrDeltaEventsToWorkingState() throws {
         let fs = InMemoryAgentIntegrationFileSystem()
         let installer = OpenCodeIntegrationInstaller(
             fileSystem: fs,
@@ -182,11 +184,13 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try installer.install()
 
         let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
-        XCTAssertFalse(plugin.contains("case \"session.updated\":\n                kind = \"session.working\";"))
-        XCTAssertFalse(plugin.contains("case \"message.updated\":\n                kind = \"session.working\";"))
-        XCTAssertTrue(plugin.contains("case \"session.updated\":"))
-        XCTAssertTrue(plugin.contains("case \"message.updated\":"))
+        XCTAssertTrue(plugin.contains("function resolveKind(eventType, properties = undefined)"))
         XCTAssertTrue(plugin.contains("writeDebugLog(\"ignored metadata-only event\""))
+        XCTAssertTrue(plugin.contains("writeDebugLog(\"ignored unsupported event\""))
+        XCTAssertFalse(plugin.contains("case \"session.usage.updated\""))
+        XCTAssertFalse(plugin.contains("case \"session.text.delta\""))
+        XCTAssertFalse(plugin.contains("case \"session.reasoning.delta\""))
+        XCTAssertFalse(plugin.contains("case \"session.step.streamed\""))
     }
 
     func testSenderTemplateSupportsOptInDebugLog() {
@@ -415,7 +419,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try manager.reinstall(.openCode)
 
         let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v1"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
         XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
     }
 
@@ -792,7 +796,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         .appendingPathComponent("hooks.json")
 
     private static func makeOpenCodeInstall(
-        pluginVersion: String = "opencode-plugin-v1",
+        pluginVersion: String = "opencode-plugin-v2",
         senderVersion: String = "sender-v1"
     ) -> [URL: String] {
         [
