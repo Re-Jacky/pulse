@@ -16,7 +16,7 @@ The install and uninstall flow for those adapters is owned by `AgentIntegrationM
 
 Each generated integration file carries an independent revision marker in its header:
 
-- OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2`
+- OpenCode plugin: `PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v3`
 - Codex hook: `PULSE_CODEX_HOOK_VERSION=codex-hook-v3`
 - Shared sender: `PULSE_AGENT_SENDER_VERSION=sender-v1`
 

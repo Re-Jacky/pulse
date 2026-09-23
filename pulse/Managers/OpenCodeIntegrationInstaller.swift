@@ -90,6 +90,9 @@ struct OpenCodeIntegrationInstaller {
 
         // Maps both OpenCode V2 lifecycle events and legacy V1 event names onto Pulse kinds.
         function resolveKind(eventType, properties = undefined) {
+          const toolName = properties?.toolName ?? properties?.tool ?? properties?.name ?? properties?.part?.name ?? properties?.part?.tool;
+          const isQuestionToolCall = toolName === "question" || Array.isArray(properties?.input?.questions);
+
           switch (eventType) {
           case "session.created":
             return "session.working";
@@ -99,9 +102,13 @@ struct OpenCodeIntegrationInstaller {
           case "session.inbox.delivered":
           case "session.execution.started":
           case "session.step.started":
+            return "session.working";
           case "session.tool.called":
+            return isQuestionToolCall ? "session.idle" : "session.working";
+          case "session.tool.success":
             return "session.working";
           case "session.execution.succeeded":
+          case "session.execution.interrupted":
           case "session.idle":
             return "session.idle";
           case "session.execution.failed":
@@ -216,7 +223,7 @@ struct OpenCodeIntegrationInstaller {
               title,
             });
 
-            let kind = resolveKind(type);
+            let kind = resolveKind(type, event?.data);
             if (kind === null && type === "session.renamed") {
               kind = lastKindBySession.get(sessionID) ?? null;
             }

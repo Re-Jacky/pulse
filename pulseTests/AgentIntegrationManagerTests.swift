@@ -101,7 +101,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         manager.updateOutdatedIntegrations()
 
         let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v3"))
         XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
         XCTAssertEqual(manager.status(for: .codex).state, .notInstalled)
     }
@@ -153,7 +153,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(plugin.contains("session.deleted"))
         XCTAssertTrue(plugin.contains(".pulse-agent-lights/debug-enabled"))
         XCTAssertTrue(plugin.contains("pulse-agent-event-sender"))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v3"))
         XCTAssertFalse(plugin.contains("from \"@opencode/plugin\""))
     }
 
@@ -191,6 +191,38 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertFalse(plugin.contains("case \"session.text.delta\""))
         XCTAssertFalse(plugin.contains("case \"session.reasoning.delta\""))
         XCTAssertFalse(plugin.contains("case \"session.step.streamed\""))
+    }
+
+    func testOpenCodePluginMarksQuestionToolAsIdleAndResumesOnSuccess() throws {
+        let fs = InMemoryAgentIntegrationFileSystem()
+        let installer = OpenCodeIntegrationInstaller(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        try installer.install()
+
+        let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
+        XCTAssertTrue(plugin.contains("resolveKind(type, event?.data)"))
+        XCTAssertTrue(plugin.contains("properties?.toolName"))
+        XCTAssertTrue(plugin.contains("properties?.part?.name"))
+        XCTAssertTrue(plugin.contains("Array.isArray(properties?.input?.questions)"))
+        XCTAssertTrue(plugin.contains("isQuestionToolCall ? \"session.idle\" : \"session.working\""))
+        XCTAssertTrue(plugin.contains("case \"session.tool.success\":"))
+    }
+
+    func testOpenCodePluginMarksInterruptedExecutionIdle() throws {
+        let fs = InMemoryAgentIntegrationFileSystem()
+        let installer = OpenCodeIntegrationInstaller(
+            fileSystem: fs,
+            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
+        )
+
+        try installer.install()
+
+        let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
+        XCTAssertTrue(plugin.contains("case \"session.execution.interrupted\":"))
+        XCTAssertTrue(plugin.contains("return \"session.idle\";"))
     }
 
     func testSenderTemplateSupportsOptInDebugLog() {
@@ -419,7 +451,7 @@ final class AgentIntegrationManagerTests: XCTestCase {
         try manager.reinstall(.openCode)
 
         let plugin = try XCTUnwrap(fs.readFile(at: InMemoryAgentIntegrationFileSystem.openCodePluginURL))
-        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v2"))
+        XCTAssertTrue(plugin.contains("PULSE_OPENCODE_PLUGIN_VERSION=opencode-plugin-v3"))
         XCTAssertEqual(manager.status(for: .openCode).state, .installedNeedsRestart)
     }
 
@@ -684,7 +716,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         case .outdatedOpenCodeInstall:
             files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v0", senderVersion: "sender-v0")
         case .staleOpenCodePlugin:
-            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v0")
+            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v4")
         case .staleOpenCodeSender:
             files = Self.makeOpenCodeInstall(senderVersion: "sender-v0")
         case .staleCodexHook:
@@ -796,7 +828,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         .appendingPathComponent("hooks.json")
 
     private static func makeOpenCodeInstall(
-        pluginVersion: String = "opencode-plugin-v2",
+        pluginVersion: String = "opencode-plugin-v3",
         senderVersion: String = "sender-v1"
     ) -> [URL: String] {
         [
