@@ -476,6 +476,35 @@ final class AgentUsageStore: ObservableObject {
     }
 
     private static func loadRefreshResult(repository: AgentUsageRepositorying, context: RefreshContext) -> RefreshResult {
+        // The three sources are independent; load them concurrently so a slow
+        // OpenCode scan does not serialize the (cheap) Codex and Claude loads.
+        let collector = RefreshSourceCollector()
+        DispatchQueue.concurrentPerform(iterations: 3) { index in
+            switch index {
+            case 0:
+                collector.setOpenCode(
+                    Self.loadOpenCodeResult(
+                        repository: repository,
+                        enabled: context.enabledSources.contains(.openCode)
+                    )
+                )
+            case 1:
+                collector.setCodex(
+                    Self.loadCodexResult(
+                        repository: repository,
+                        enabled: context.enabledSources.contains(.codex)
+                    )
+                )
+            default:
+                collector.setClaudeCode(
+                    Self.loadClaudeCodeResult(
+                        repository: repository,
+                        enabled: context.enabledSources.contains(.claudeCode)
+                    )
+                )
+            }
+        }
+
         var openCodeSnapshot = context.previousState.openCodeCumulativeSnapshot
         var dailyBuckets = context.previousState.openCodeDailyBuckets
         var codexSnapshot = context.previousState.codexSnapshot
@@ -485,49 +514,38 @@ final class AgentUsageStore: ObservableObject {
         var firstError: LoadError?
         var loadedAnySource = false
 
-        if context.enabledSources.contains(.openCode) {
-            do {
-                openCodeSnapshot = try repository.loadOpenCodeCumulativeSnapshot()
-                dailyBuckets = try repository.loadOpenCodeDailyBuckets()
-                loadedAnySource = true
-            } catch let error as OpenCodeUsageQuery.QueryError {
-                firstError = .openCode(error)
-            } catch {
-                firstError = .openCode(.queryStepFailed(message: error.localizedDescription))
-            }
-        } else {
+        switch collector.openCode {
+        case .success(let result):
+            openCodeSnapshot = result.snapshot
+            dailyBuckets = result.dailyBuckets
+            loadedAnySource = true
+        case .failure(let error):
+            firstError = error
+        case .none:
             openCodeSnapshot = OpenCodeUsageSnapshot(sessions: [])
             dailyBuckets = []
         }
 
-        if context.enabledSources.contains(.codex) {
-            do {
-                codexSnapshot = try repository.loadCodexSnapshot()
-                codexDailyBuckets = try repository.loadCodexDailyBuckets()
-                loadedAnySource = true
-            } catch let error as CodexUsageQuery.QueryError {
-                if firstError == nil { firstError = .codex(error) }
-            } catch {
-                if firstError == nil {
-                    firstError = .codex(.queryStepFailed(message: error.localizedDescription))
-                }
-            }
-        } else {
+        switch collector.codex {
+        case .success(let result):
+            codexSnapshot = result.snapshot
+            codexDailyBuckets = result.dailyBuckets
+            loadedAnySource = true
+        case .failure(let error):
+            if firstError == nil { firstError = error }
+        case .none:
             codexSnapshot = CodexUsageSnapshot(sessions: [])
             codexDailyBuckets = []
         }
 
-        if context.enabledSources.contains(.claudeCode) {
-            do {
-                claudeCodeSnapshot = try repository.loadClaudeCodeSnapshot()
-                claudeCodeDailyBuckets = try repository.loadClaudeCodeDailyBuckets()
-                loadedAnySource = true
-            } catch let error as ClaudeCodeUsageQuery.QueryError {
-                if firstError == nil { firstError = .claudeCode(error) }
-            } catch {
-                if firstError == nil { firstError = .claudeCode(.queryStepFailed(message: error.localizedDescription)) }
-            }
-        } else {
+        switch collector.claudeCode {
+        case .success(let result):
+            claudeCodeSnapshot = result.snapshot
+            claudeCodeDailyBuckets = result.dailyBuckets
+            loadedAnySource = true
+        case .failure(let error):
+            if firstError == nil { firstError = error }
+        case .none:
             claudeCodeSnapshot = ClaudeCodeUsageSnapshot(sessions: [])
             claudeCodeDailyBuckets = []
         }
@@ -543,6 +561,50 @@ final class AgentUsageStore: ObservableObject {
             lastError: firstError,
             loadedAnySource: loadedAnySource
         )
+    }
+
+    private static func loadOpenCodeResult(
+        repository: AgentUsageRepositorying,
+        enabled: Bool
+    ) -> Result<OpenCodeUsageLoadResult, LoadError>? {
+        guard enabled else { return nil }
+        do {
+            return .success(try repository.loadOpenCodeUsage())
+        } catch let error as OpenCodeUsageQuery.QueryError {
+            return .failure(.openCode(error))
+        } catch {
+            return .failure(.openCode(.queryStepFailed(message: error.localizedDescription)))
+        }
+    }
+
+    private static func loadCodexResult(
+        repository: AgentUsageRepositorying,
+        enabled: Bool
+    ) -> Result<(snapshot: CodexUsageSnapshot, dailyBuckets: [CodexDailyBucket]), LoadError>? {
+        guard enabled else { return nil }
+        do {
+            let snapshot = try repository.loadCodexSnapshot()
+            let dailyBuckets = try repository.loadCodexDailyBuckets()
+            return .success((snapshot, dailyBuckets))
+        } catch let error as CodexUsageQuery.QueryError {
+            return .failure(.codex(error))
+        } catch {
+            return .failure(.codex(.queryStepFailed(message: error.localizedDescription)))
+        }
+    }
+
+    private static func loadClaudeCodeResult(
+        repository: AgentUsageRepositorying,
+        enabled: Bool
+    ) -> Result<ClaudeCodeUsageLoadResult, LoadError>? {
+        guard enabled else { return nil }
+        do {
+            return .success(try repository.loadClaudeCodeUsage())
+        } catch let error as ClaudeCodeUsageQuery.QueryError {
+            return .failure(.claudeCode(error))
+        } catch {
+            return .failure(.claudeCode(.queryStepFailed(message: error.localizedDescription)))
+        }
     }
 
     private func applyRefreshResult(_ result: RefreshResult) {
@@ -1875,5 +1937,49 @@ private extension AgentUsageStore {
         }
 
         return filteredRealSources
+    }
+}
+
+/// Thread-safe collection point for the per-source loads dispatched by
+/// `loadRefreshResult`. `nil` means the source was disabled; `.failure` keeps
+/// the previously published data for that source.
+private final class RefreshSourceCollector {
+    typealias OpenCodeResult = Result<OpenCodeUsageLoadResult, AgentUsageStore.LoadError>
+    typealias CodexResult = Result<(snapshot: CodexUsageSnapshot, dailyBuckets: [CodexDailyBucket]), AgentUsageStore.LoadError>
+    typealias ClaudeCodeResult = Result<ClaudeCodeUsageLoadResult, AgentUsageStore.LoadError>
+
+    private let lock = NSLock()
+    private var _openCode: OpenCodeResult?
+    private var _codex: CodexResult?
+    private var _claudeCode: ClaudeCodeResult?
+
+    func setOpenCode(_ result: OpenCodeResult?) {
+        lock.lock(); defer { lock.unlock() }
+        _openCode = result
+    }
+
+    func setCodex(_ result: CodexResult?) {
+        lock.lock(); defer { lock.unlock() }
+        _codex = result
+    }
+
+    func setClaudeCode(_ result: ClaudeCodeResult?) {
+        lock.lock(); defer { lock.unlock() }
+        _claudeCode = result
+    }
+
+    var openCode: OpenCodeResult? {
+        lock.lock(); defer { lock.unlock() }
+        return _openCode
+    }
+
+    var codex: CodexResult? {
+        lock.lock(); defer { lock.unlock() }
+        return _codex
+    }
+
+    var claudeCode: ClaudeCodeResult? {
+        lock.lock(); defer { lock.unlock() }
+        return _claudeCode
     }
 }

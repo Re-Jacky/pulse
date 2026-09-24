@@ -1,5 +1,10 @@
 import Foundation
 
+struct ClaudeCodeUsageLoadResult {
+    let snapshot: ClaudeCodeUsageSnapshot
+    let dailyBuckets: [ClaudeCodeDailyBucket]
+}
+
 enum ClaudeCodeUsageQuery {
     enum QueryError: Error, LocalizedError, Equatable {
         case queryStepFailed(message: String)
@@ -25,33 +30,40 @@ enum ClaudeCodeUsageQuery {
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default
     ) throws -> ClaudeCodeUsageSnapshot {
-        let entries = try loadCachedEntries(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        var sessionsByID: [String: SessionAccumulator] = [:]
-
-        for entry in entries {
-            sessionsByID[entry.sessionID, default: SessionAccumulator()].merge(entry.accumulator)
-        }
-
-        return ClaudeCodeUsageSnapshot(
-            sessions: sessionsByID.compactMap { sessionID, accumulator in
-                accumulator.sessionRecord(id: sessionID)
-            }
-        )
+        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager).snapshot
     }
 
     static func loadDailyBuckets(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default
     ) throws -> [ClaudeCodeDailyBucket] {
-        let entries = try loadCachedEntries(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        var totalsBySessionAndDay: [String: ClaudeCodeDailyBucket] = [:]
+        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager).dailyBuckets
+    }
 
+    /// Loads the session snapshot and the daily buckets from a single pass over
+    /// the cached transcripts, so each transcript is visited once per refresh
+    /// instead of once per view.
+    static func loadUsage(
+        homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default
+    ) throws -> ClaudeCodeUsageLoadResult {
+        let entries = try loadCachedEntries(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+
+        var sessionsByID: [String: SessionAccumulator] = [:]
+        var totalsBySessionAndDay: [String: ClaudeCodeDailyBucket] = [:]
         for entry in entries {
+            sessionsByID[entry.sessionID, default: SessionAccumulator()].merge(entry.accumulator)
             merge(entry.buckets, into: &totalsBySessionAndDay)
         }
 
-        return totalsBySessionAndDay
-            .compactMap { key, bucket in
+        let snapshot = ClaudeCodeUsageSnapshot(
+            sessions: sessionsByID.compactMap { sessionID, accumulator in
+                accumulator.sessionRecord(id: sessionID)
+            }
+        )
+
+        let dailyBuckets = totalsBySessionAndDay
+            .compactMap { key, bucket -> ClaudeCodeDailyBucket? in
                 let parts = key.split(separator: "::", maxSplits: 1).map(String.init)
                 guard parts.count == 2, let day = Int(parts[1]) else { return nil }
                 return ClaudeCodeDailyBucket(
@@ -70,6 +82,8 @@ enum ClaudeCodeUsageQuery {
                 if lhs.day == rhs.day { return lhs.sessionID < rhs.sessionID }
                 return lhs.day < rhs.day
             }
+
+        return ClaudeCodeUsageLoadResult(snapshot: snapshot, dailyBuckets: dailyBuckets)
     }
 
     static func loadTranscript(

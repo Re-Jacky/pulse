@@ -1,6 +1,11 @@
 import Foundation
 import SQLite3
 
+struct OpenCodeUsageLoadResult {
+    let snapshot: OpenCodeUsageSnapshot
+    let dailyBuckets: [OpenCodeDailyBucket]
+}
+
 enum OpenCodeUsageQuery {
 enum QueryError: Error, Equatable, LocalizedError {
 case databaseNotFound(path: String)
@@ -90,129 +95,29 @@ return lhsDate < rhsDate
 }
 
 static func loadSnapshot(databaseURL: URL) throws -> OpenCodeUsageSnapshot {
-guard FileManager.default.fileExists(atPath: databaseURL.path) else {
-throw QueryError.databaseNotFound(path: databaseURL.path)
-}
-
-let uri = "file://\(databaseURL.path)?immutable=1"
-    var db: OpaquePointer?
-    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
-let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-sqlite3_close(db)
-throw QueryError.databaseOpenFailed(message: message)
-}
-defer { sqlite3_close(db) }
-
-let usesV2Schema = tableExists(db: db, table: "session_v2")
-let sessionTable = usesV2Schema ? "session_v2" : "session"
-let messageTable = usesV2Schema ? "session_message" : "message"
-
-// The model/token fields live inside the message `data` JSON. When those
-// json_extract() expressions are used directly as GROUP BY keys, SQLite
-// re-evaluates them while sorting the group keys, which re-parses the (usually
-// large) message blob many times per row. Extracting them once into a
-// materialized CTE keeps the grouped scan roughly 4x faster on multi-GB DBs.
-let messageFilter = usesV2Schema ? "type = 'assistant'" : "json_extract(data, '$.role') = 'assistant'"
-let messageProviderExpr = usesV2Schema
-? "coalesce(nullif(json_extract(data, '$.model.providerID'), ''), '')"
-: "coalesce(nullif(json_extract(data, '$.providerID'), ''), '')"
-let messageModelExpr = usesV2Schema
-? "coalesce(nullif(json_extract(data, '$.model.id'), ''), '')"
-: "coalesce(nullif(json_extract(data, '$.modelID'), ''), '')"
-let messageVariantExpr = usesV2Schema
-? "coalesce(nullif(json_extract(data, '$.model.variant'), ''), '')"
-: "coalesce(nullif(json_extract(data, '$.variant'), ''), '')"
-
-let hasAgentColumn = tableHasColumn(db: db, table: sessionTable, column: "agent")
-let agentExpr = hasAgentColumn ? "coalesce(s.agent, '')" : "''"
-
-let sql = """
-WITH msg AS MATERIALIZED (
-SELECT session_id,
-\(messageProviderExpr) AS provider_id,
-\(messageModelExpr) AS model_id,
-\(messageVariantExpr) AS model_variant,
-json_extract(data, '$.tokens') AS tokens_json,
-json_extract(data, '$.cost') AS cost
-FROM \(messageTable)
-WHERE \(messageFilter)
-)
-select
-s.id,
-s.title,
-s.directory,
-\(agentExpr),
-coalesce(nullif(m.provider_id, ''), coalesce(json_extract(s.model, '$.providerID'), '')),
-coalesce(nullif(m.model_id, ''), coalesce(json_extract(s.model, '$.id'), '')),
-nullif(coalesce(nullif(m.model_variant, ''), json_extract(s.model, '$.variant')), ''),
-SUM(coalesce(json_extract(m.tokens_json, '$.input'), 0)),
-SUM(coalesce(json_extract(m.tokens_json, '$.output'), 0)),
-SUM(coalesce(json_extract(m.tokens_json, '$.reasoning'), 0)),
-SUM(coalesce(json_extract(m.tokens_json, '$.cache.read'), 0)),
-SUM(coalesce(json_extract(m.tokens_json, '$.cache.write'), 0)),
-SUM(CASE WHEN m.session_id IS NOT NULL THEN 1 ELSE 0 END),
-SUM(coalesce(m.cost, 0)),
-MIN(s.time_created),
-MAX(s.time_updated)
-FROM \(sessionTable) s
-LEFT JOIN msg m ON m.session_id = s.id
-GROUP BY s.id, 5, 6, 7
-ORDER BY MAX(s.time_updated) DESC
-"""
-
-var statement: OpaquePointer?
-guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-throw QueryError.queryPrepareFailed(message: String(cString: sqlite3_errmsg(db)))
-}
-defer { sqlite3_finalize(statement) }
-
-var sessions: [OpenCodeSessionRecord] = []
-
-while true {
-let stepResult = sqlite3_step(statement)
-if stepResult == SQLITE_DONE {
-break
-}
-
-guard stepResult == SQLITE_ROW else {
-throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
-}
-
-let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 14)) / 1000)
-let updatedAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 15)) / 1000)
-
-let sessionID = stringColumn(statement, index: 0)
-let providerID = stringColumn(statement, index: 4)
-let modelIDStr = stringColumn(statement, index: 5)
-let variantStr = optionalStringColumn(statement, index: 6) ?? ""
-let compoundID = [sessionID, providerID, modelIDStr, variantStr].joined(separator: "::")
-
-sessions.append(
-OpenCodeSessionRecord(
-id: compoundID,
-title: stringColumn(statement, index: 1),
-directory: stringColumn(statement, index: 2),
-agent: stringColumn(statement, index: 3),
-modelProviderID: providerID,
-modelID: modelIDStr,
-modelVariant: optionalStringColumn(statement, index: 6),
-inputTokens: Int(sqlite3_column_int64(statement, 7)),
-outputTokens: Int(sqlite3_column_int64(statement, 8)),
-reasoningTokens: Int(sqlite3_column_int64(statement, 9)),
-cacheReadTokens: Int(sqlite3_column_int64(statement, 10)),
-            cacheWriteTokens: Int(sqlite3_column_int64(statement, 11)),
-            requestCount: Int(sqlite3_column_int64(statement, 12)),
-            cost: sqlite3_column_double(statement, 13),
-createdAt: createdAt,
-updatedAt: updatedAt
-)
-)
-}
-
-    return OpenCodeUsageSnapshot(sessions: sessions)
+    try loadUsage(databaseURL: databaseURL).snapshot
 }
 
 static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
+    try loadUsage(databaseURL: databaseURL).dailyBuckets
+}
+
+private struct OpenCodeSessionMetadata {
+    let title: String
+    let directory: String
+    let agent: String
+    let modelProviderID: String
+    let modelID: String
+    let modelVariant: String?
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+// Loads the cumulative per-model snapshot and the per-day buckets from a single
+// scan of the message table. Both views are derived from the same per-message
+// rows, so the (potentially multi-GB) message JSON is read and parsed exactly
+// once per refresh instead of once per view.
+static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
     guard FileManager.default.fileExists(atPath: databaseURL.path) else {
         throw QueryError.databaseNotFound(path: databaseURL.path)
     }
@@ -229,32 +134,46 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
     let usesV2Schema = tableExists(db: db, table: "session_v2")
     let sessionTable = usesV2Schema ? "session_v2" : "session"
     let messageTable = usesV2Schema ? "session_message" : "message"
-    let roleWhereExpr = usesV2Schema ? "m.type = 'assistant'" : "json_extract(m.data, '$.role') = 'assistant'"
-    let providerExpr = usesV2Schema
-        ? "coalesce(nullif(json_extract(m.data, '$.model.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
-        : "coalesce(nullif(json_extract(m.data, '$.providerID'), ''), coalesce(json_extract(s.model, '$.providerID'), ''))"
-    let modelExpr = usesV2Schema
-        ? "coalesce(nullif(json_extract(m.data, '$.model.id'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
-        : "coalesce(nullif(json_extract(m.data, '$.modelID'), ''), coalesce(json_extract(s.model, '$.id'), ''))"
-    let variantExpr = usesV2Schema
-        ? "nullif(coalesce(json_extract(m.data, '$.model.variant'), json_extract(s.model, '$.variant')), '')"
-        : "nullif(coalesce(json_extract(m.data, '$.variant'), json_extract(s.model, '$.variant')), '')"
+
+    // The model/token fields live inside the message `data` JSON. Extracting them
+    // once into a materialized CTE (rather than inline at every projection site)
+    // keeps SQLite from re-parsing the large message blob many times per row.
+    let messageFilter = usesV2Schema ? "type = 'assistant'" : "json_extract(data, '$.role') = 'assistant'"
+    let messageProviderExpr = usesV2Schema
+        ? "coalesce(nullif(json_extract(data, '$.model.providerID'), ''), '')"
+        : "coalesce(nullif(json_extract(data, '$.providerID'), ''), '')"
+    let messageModelExpr = usesV2Schema
+        ? "coalesce(nullif(json_extract(data, '$.model.id'), ''), '')"
+        : "coalesce(nullif(json_extract(data, '$.modelID'), ''), '')"
+    let messageVariantExpr = usesV2Schema
+        ? "json_extract(data, '$.model.variant')"
+        : "json_extract(data, '$.variant')"
 
     let sql = """
+    WITH msg AS MATERIALIZED (
+    SELECT session_id,
+           time_created,
+           \(messageProviderExpr) AS provider_id,
+           \(messageModelExpr) AS model_id,
+           \(messageVariantExpr) AS model_variant,
+           json_extract(data, '$.tokens') AS tokens_json,
+           json_extract(data, '$.cost') AS cost
+    FROM \(messageTable)
+    WHERE \(messageFilter)
+    )
     SELECT m.session_id,
            m.time_created,
-           \(providerExpr),
-           \(modelExpr),
-           \(variantExpr),
-           coalesce(json_extract(m.data, '$.tokens.input'), 0),
-           coalesce(json_extract(m.data, '$.tokens.output'), 0),
-           coalesce(json_extract(m.data, '$.tokens.reasoning'), 0),
-           coalesce(json_extract(m.data, '$.tokens.cache.read'), 0),
-           coalesce(json_extract(m.data, '$.tokens.cache.write'), 0),
-           coalesce(json_extract(m.data, '$.cost'), 0)
-    FROM \(messageTable) m
+           coalesce(nullif(m.provider_id, ''), coalesce(json_extract(s.model, '$.providerID'), '')),
+           coalesce(nullif(m.model_id, ''), coalesce(json_extract(s.model, '$.id'), '')),
+           nullif(coalesce(nullif(m.model_variant, ''), json_extract(s.model, '$.variant')), ''),
+           coalesce(json_extract(m.tokens_json, '$.input'), 0),
+           coalesce(json_extract(m.tokens_json, '$.output'), 0),
+           coalesce(json_extract(m.tokens_json, '$.reasoning'), 0),
+           coalesce(json_extract(m.tokens_json, '$.cache.read'), 0),
+           coalesce(json_extract(m.tokens_json, '$.cache.write'), 0),
+           coalesce(m.cost, 0)
+    FROM msg m
     JOIN \(sessionTable) s ON s.id = m.session_id
-    WHERE \(roleWhereExpr)
     ORDER BY m.session_id, m.time_created
     """
 
@@ -278,62 +197,180 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
         let day = agentUsageDayIdentifier(for: createdAt)
         let modelProviderID = stringColumn(statement, index: 2)
         let modelID = stringColumn(statement, index: 3)
-        let modelVariant = optionalStringColumn(statement, index: 4) ?? ""
-        let modelKey = [modelProviderID, modelID, modelVariant].joined(separator: "::")
+        let modelVariant = optionalStringColumn(statement, index: 4)
+        let modelKey = [modelProviderID, modelID, modelVariant ?? ""].joined(separator: "::")
         let key = "\(sessionID)::\(modelKey)::\(day)"
-
-        let bucket = OpenCodeDailyBucket(
-            sessionID: sessionID,
-            day: day,
-            modelProviderID: stringColumn(statement, index: 2),
-            modelID: stringColumn(statement, index: 3),
-            modelVariant: optionalStringColumn(statement, index: 4),
-            inputTokens: Int(sqlite3_column_int64(statement, 5)),
-            outputTokens: Int(sqlite3_column_int64(statement, 6)),
-            reasoningTokens: Int(sqlite3_column_int64(statement, 7)),
-            cacheReadTokens: Int(sqlite3_column_int64(statement, 8)),
-            cacheWriteTokens: Int(sqlite3_column_int64(statement, 9)),
-            requestCount: 1,
-            cost: sqlite3_column_double(statement, 10),
-            latestActivityAt: createdAt
-        )
-
         let existing = bucketsBySessionAndDay[key]
-        let latestActivityAt: Date?
-        switch (existing?.latestActivityAt, bucket.latestActivityAt) {
-        case let (lhs?, rhs?):
-            latestActivityAt = max(lhs, rhs)
-        case let (lhs?, nil):
-            latestActivityAt = lhs
-        case let (nil, rhs?):
-            latestActivityAt = rhs
-        case (nil, nil):
-            latestActivityAt = nil
-        }
 
         bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
             sessionID: sessionID,
             day: day,
-            modelProviderID: bucket.modelProviderID,
-            modelID: bucket.modelID,
-            modelVariant: bucket.modelVariant,
-            inputTokens: (existing?.inputTokens ?? 0) + bucket.inputTokens,
-            outputTokens: (existing?.outputTokens ?? 0) + bucket.outputTokens,
-            reasoningTokens: (existing?.reasoningTokens ?? 0) + bucket.reasoningTokens,
-            cacheReadTokens: (existing?.cacheReadTokens ?? 0) + bucket.cacheReadTokens,
-            cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + bucket.cacheWriteTokens,
+            modelProviderID: modelProviderID,
+            modelID: modelID,
+            modelVariant: modelVariant,
+            inputTokens: (existing?.inputTokens ?? 0) + Int(sqlite3_column_int64(statement, 5)),
+            outputTokens: (existing?.outputTokens ?? 0) + Int(sqlite3_column_int64(statement, 6)),
+            reasoningTokens: (existing?.reasoningTokens ?? 0) + Int(sqlite3_column_int64(statement, 7)),
+            cacheReadTokens: (existing?.cacheReadTokens ?? 0) + Int(sqlite3_column_int64(statement, 8)),
+            cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + Int(sqlite3_column_int64(statement, 9)),
             requestCount: (existing?.requestCount ?? 0) + 1,
-            cost: (existing?.cost ?? 0) + bucket.cost,
-            latestActivityAt: latestActivityAt
+            cost: (existing?.cost ?? 0) + sqlite3_column_double(statement, 10),
+            latestActivityAt: max(existing?.latestActivityAt ?? createdAt, createdAt)
         )
     }
 
-    return bucketsBySessionAndDay.values.sorted { lhs, rhs in
+    let dailyBuckets = bucketsBySessionAndDay.values.sorted { lhs, rhs in
         if lhs.sessionID == rhs.sessionID {
             return lhs.day < rhs.day
         }
         return lhs.sessionID < rhs.sessionID
     }
+
+    let metadata = try loadSessionMetadata(db: db, sessionTable: sessionTable)
+    let snapshot = makeSnapshot(dailyBuckets: dailyBuckets, metadata: metadata)
+    return OpenCodeUsageLoadResult(snapshot: snapshot, dailyBuckets: dailyBuckets)
+}
+
+private static func loadSessionMetadata(
+    db: OpaquePointer?,
+    sessionTable: String
+) throws -> [String: OpenCodeSessionMetadata] {
+    let hasAgentColumn = tableHasColumn(db: db, table: sessionTable, column: "agent")
+    let agentExpr = hasAgentColumn ? "coalesce(agent, '')" : "''"
+    let sql = """
+    SELECT id,
+           coalesce(title, ''),
+           coalesce(directory, ''),
+           \(agentExpr),
+           coalesce(json_extract(model, '$.providerID'), ''),
+           coalesce(json_extract(model, '$.id'), ''),
+           json_extract(model, '$.variant'),
+           time_created,
+           time_updated
+    FROM \(sessionTable)
+    """
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw QueryError.queryPrepareFailed(message: String(cString: sqlite3_errmsg(db)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    var metadata: [String: OpenCodeSessionMetadata] = [:]
+    while true {
+        let stepResult = sqlite3_step(statement)
+        if stepResult == SQLITE_DONE { break }
+        guard stepResult == SQLITE_ROW else {
+            throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+        }
+
+        let id = stringColumn(statement, index: 0)
+        metadata[id] = OpenCodeSessionMetadata(
+            title: stringColumn(statement, index: 1),
+            directory: stringColumn(statement, index: 2),
+            agent: stringColumn(statement, index: 3),
+            modelProviderID: stringColumn(statement, index: 4),
+            modelID: stringColumn(statement, index: 5),
+            modelVariant: optionalStringColumn(statement, index: 6),
+            createdAt: Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 7)) / 1000),
+            updatedAt: Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 8)) / 1000)
+        )
+    }
+    return metadata
+}
+
+private static func makeSnapshot(
+    dailyBuckets: [OpenCodeDailyBucket],
+    metadata: [String: OpenCodeSessionMetadata]
+) -> OpenCodeUsageSnapshot {
+    struct Accumulator {
+        let sessionID: String
+        let providerID: String
+        let modelID: String
+        let variant: String?
+        var inputTokens = 0
+        var outputTokens = 0
+        var reasoningTokens = 0
+        var cacheReadTokens = 0
+        var cacheWriteTokens = 0
+        var requestCount = 0
+        var cost = 0.0
+    }
+
+    var accumulators: [String: Accumulator] = [:]
+    var sessionsWithBuckets = Set<String>()
+
+    for bucket in dailyBuckets {
+        sessionsWithBuckets.insert(bucket.sessionID)
+        let key = [bucket.sessionID, bucket.modelProviderID, bucket.modelID, bucket.modelVariant ?? ""].joined(separator: "::")
+        var accumulator = accumulators[key] ?? Accumulator(
+            sessionID: bucket.sessionID,
+            providerID: bucket.modelProviderID,
+            modelID: bucket.modelID,
+            variant: bucket.modelVariant
+        )
+        accumulator.inputTokens += bucket.inputTokens
+        accumulator.outputTokens += bucket.outputTokens
+        accumulator.reasoningTokens += bucket.reasoningTokens
+        accumulator.cacheReadTokens += bucket.cacheReadTokens
+        accumulator.cacheWriteTokens += bucket.cacheWriteTokens
+        accumulator.requestCount += bucket.requestCount
+        accumulator.cost += bucket.cost
+        accumulators[key] = accumulator
+    }
+
+    var records: [OpenCodeSessionRecord] = []
+    for (key, accumulator) in accumulators {
+        guard let session = metadata[accumulator.sessionID] else { continue }
+        records.append(
+            OpenCodeSessionRecord(
+                id: key,
+                title: session.title,
+                directory: session.directory,
+                agent: session.agent,
+                modelProviderID: accumulator.providerID,
+                modelID: accumulator.modelID,
+                modelVariant: accumulator.variant,
+                inputTokens: accumulator.inputTokens,
+                outputTokens: accumulator.outputTokens,
+                reasoningTokens: accumulator.reasoningTokens,
+                cacheReadTokens: accumulator.cacheReadTokens,
+                cacheWriteTokens: accumulator.cacheWriteTokens,
+                requestCount: accumulator.requestCount,
+                cost: accumulator.cost,
+                createdAt: session.createdAt,
+                updatedAt: session.updatedAt
+            )
+        )
+    }
+
+    // Sessions with no assistant messages still surface with zero tokens and the
+    // session-level model, mirroring the previous LEFT JOIN behavior.
+    for (sessionID, session) in metadata where sessionsWithBuckets.contains(sessionID) == false {
+        let key = [sessionID, session.modelProviderID, session.modelID, session.modelVariant ?? ""].joined(separator: "::")
+        records.append(
+            OpenCodeSessionRecord(
+                id: key,
+                title: session.title,
+                directory: session.directory,
+                agent: session.agent,
+                modelProviderID: session.modelProviderID,
+                modelID: session.modelID,
+                modelVariant: session.modelVariant,
+                inputTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                requestCount: 0,
+                cost: 0,
+                createdAt: session.createdAt,
+                updatedAt: session.updatedAt
+            )
+        )
+    }
+
+    return OpenCodeUsageSnapshot(sessions: records)
 }
 
 static func loadTranscript(databaseURL: URL, sessionID: String) throws -> [TranscriptTurn] {

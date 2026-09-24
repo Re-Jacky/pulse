@@ -915,6 +915,28 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertTrue(store.state.openCodeDailyBuckets.isEmpty)
     }
 
+    func testRefreshAllSkipsDeselectedTranscriptSources() {
+        let repository = StubAgentUsageRepository()
+        repository.openCodeCumulativeSnapshot = OpenCodeUsageSnapshot(sessions: [makeOpenCodeSession(id: "oc_1", tokens: 100)])
+        repository.codexSnapshot = CodexUsageSnapshot(sessions: [makeCodexSession(id: "cx_1", tokens: 200)])
+        repository.claudeCodeSnapshot = ClaudeCodeUsageSnapshot(sessions: [makeClaudeCodeSession(id: "cc_1", tokens: 300)])
+
+        let store = AgentUsageStore(repository: repository)
+        store.setEnabledSources([.openCode])
+        store.refreshAll()
+
+        // Codex and Claude daily buckets come from transcript (.jsonl) scans; a
+        // disabled source must not touch them at all.
+        XCTAssertEqual(repository.codexLoadCount, 0)
+        XCTAssertEqual(repository.codexBucketLoadCount, 0)
+        XCTAssertEqual(repository.claudeCodeLoadCount, 0)
+        XCTAssertEqual(repository.claudeCodeBucketLoadCount, 0)
+        XCTAssertEqual(repository.openCodeLoadCount, 1)
+        XCTAssertEqual(repository.openCodeBucketLoadCount, 1)
+        XCTAssertTrue(store.state.codexSnapshot.sessions.isEmpty)
+        XCTAssertTrue(store.state.claudeCodeSnapshot.sessions.isEmpty)
+    }
+
     func testEnsureCodexDetailLoadedUsesCacheWithinSameRefreshGeneration() {
         let repository = StubAgentUsageRepository()
         repository.codexDetail = CodexSessionDetail(threadID: "thread_1", edges: [], goals: [])
