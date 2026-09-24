@@ -89,9 +89,17 @@ struct OpenCodeIntegrationInstaller {
         }
 
         // Maps both OpenCode V2 lifecycle events and legacy V1 event names onto Pulse kinds.
-        function resolveKind(eventType, properties = undefined) {
+        const pendingQuestionWithoutCallID = "__pending_question_without_call_id__";
+
+        function readToolCallID(properties) {
+          const value = properties?.id ?? properties?.toolCallID ?? properties?.toolCallId ?? properties?.callID ?? properties?.callId;
+          return typeof value === "string" ? value : "";
+        }
+
+        function resolveKind(eventType, properties = undefined, pendingQuestionCallIDs = undefined) {
           const toolName = properties?.toolName ?? properties?.tool ?? properties?.name ?? properties?.part?.name ?? properties?.part?.tool;
           const isQuestionToolCall = toolName === "question" || Array.isArray(properties?.input?.questions);
+          const toolCallID = readToolCallID(properties);
 
           switch (eventType) {
           case "session.created":
@@ -104,9 +112,16 @@ struct OpenCodeIntegrationInstaller {
           case "session.step.started":
             return "session.working";
           case "session.tool.called":
-            return isQuestionToolCall ? "session.idle" : "session.working";
+            if (isQuestionToolCall) {
+              pendingQuestionCallIDs?.add(toolCallID || pendingQuestionWithoutCallID);
+              return "session.idle";
+            }
+            return pendingQuestionCallIDs?.size ? "session.idle" : "session.working";
           case "session.tool.success":
-            return "session.working";
+            if (toolCallID) {
+              pendingQuestionCallIDs?.delete(toolCallID);
+            }
+            return pendingQuestionCallIDs?.size ? "session.idle" : "session.working";
           case "session.execution.succeeded":
           case "session.execution.interrupted":
           case "session.idle":
@@ -127,6 +142,7 @@ struct OpenCodeIntegrationInstaller {
           const fallbackProjectPath = ctx?.location?.directory ?? process.cwd();
           const sessionInfoByID = new Map();
           const lastKindBySession = new Map();
+          const pendingQuestionCallIDsBySession = new Map();
 
           function readSessionID(event) {
             const data = event?.data ?? {};
@@ -223,7 +239,29 @@ struct OpenCodeIntegrationInstaller {
               title,
             });
 
-            let kind = resolveKind(type, event?.data);
+            const pendingQuestionCallIDs = pendingQuestionCallIDsBySession.get(sessionID) ?? new Set();
+            if ([
+              "session.execution.started",
+              "session.execution.succeeded",
+              "session.execution.interrupted",
+              "session.execution.failed",
+              "session.error",
+              "session.closed",
+              "session.deleted",
+            ].includes(type)) {
+              pendingQuestionCallIDs.clear();
+            }
+
+            let kind = resolveKind(type, event?.data, pendingQuestionCallIDs);
+            if (pendingQuestionCallIDs.size > 0 && kind === "session.working") {
+              kind = "session.idle";
+            }
+            if (pendingQuestionCallIDs.size > 0) {
+              pendingQuestionCallIDsBySession.set(sessionID, pendingQuestionCallIDs);
+            } else {
+              pendingQuestionCallIDsBySession.delete(sessionID);
+            }
+
             if (kind === null && type === "session.renamed") {
               kind = lastKindBySession.get(sessionID) ?? null;
             }
@@ -281,6 +319,7 @@ struct OpenCodeIntegrationInstaller {
           const fallbackProjectPath = input?.directory ?? process.cwd();
           const sessionInfoByID = new Map();
           const lastKindBySession = new Map();
+          const pendingQuestionCallIDsBySession = new Map();
 
           function readSessionID(properties) {
             if (typeof properties?.sessionID === "string" && properties.sessionID.length > 0) {
@@ -387,7 +426,29 @@ struct OpenCodeIntegrationInstaller {
               title,
             });
 
-            let kind = resolveKind(type, properties);
+            const pendingQuestionCallIDs = pendingQuestionCallIDsBySession.get(sessionID) ?? new Set();
+            if ([
+              "session.execution.started",
+              "session.execution.succeeded",
+              "session.execution.interrupted",
+              "session.execution.failed",
+              "session.error",
+              "session.closed",
+              "session.deleted",
+            ].includes(type)) {
+              pendingQuestionCallIDs.clear();
+            }
+
+            let kind = resolveKind(type, properties, pendingQuestionCallIDs);
+            if (pendingQuestionCallIDs.size > 0 && kind === "session.working") {
+              kind = "session.idle";
+            }
+            if (pendingQuestionCallIDs.size > 0) {
+              pendingQuestionCallIDsBySession.set(sessionID, pendingQuestionCallIDs);
+            } else {
+              pendingQuestionCallIDsBySession.delete(sessionID);
+            }
+
             if (kind === null && type === "session.updated") {
               kind = lastKindBySession.get(sessionID) ?? null;
             }
