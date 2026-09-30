@@ -1802,6 +1802,74 @@ final class AgentUsageStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: root)
     }
 
+    func testCodexLoadDailyBucketsPreservesUsageAcrossUnicodeAndLineEndings() throws {
+        try withTimeZone("UTC") {
+            for lineEnding in ["\n", "\r\n", "\r", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}"] {
+                let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                defer { try? FileManager.default.removeItem(at: root) }
+                let sessionDir = root.appendingPathComponent(".codex/sessions/2026/06/16")
+                let transcriptURL = sessionDir.appendingPathComponent("unicode-usage.jsonl")
+                try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+                let lines = [
+                    #"{"type":"session_meta","payload":{"session_id":"thread_🌊","cwd":"/projects/测试"}}"#,
+                    #"{"type":"response_item","payload":{"text":"你好 👩🏽‍💻 café é\nquoted \"token_count\" and \"session_meta\" are not usage"}}"#,
+                    "",
+                    #"{"timestamp":"2026-06-16T12:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}"#,
+                    #"{"timestamp":"2026-06-16T12:01:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":40,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}"#,
+                    #"{"type":"token_count", malformed JSON"#,
+                    #"{"timestamp":"2026-06-16T12:02:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":190,"cached_input_tokens":80,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":220}}}}"#,
+                    #"{"timestamp":"2026-06-16T12:03:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":10,"cached_input_tokens":5,"output_tokens":5,"reasoning_output_tokens":2,"total_tokens":15}}}}"#
+                ]
+                // The last usage event has no trailing newline.
+                try lines.joined(separator: lineEnding).write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+                let buckets = try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root)
+                XCTAssertEqual(buckets, [
+                    CodexDailyBucket(
+                        sessionID: "thread_🌊", day: 20620,
+                        inputTokens: 200, outputTokens: 35, reasoningTokens: 10,
+                        cacheReadTokens: 85, totalTokens: 235, requestCount: 3,
+                        latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T12:03:00Z")
+                    )
+                ])
+                XCTAssertEqual(try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root), buckets)
+
+                let appendedEvent = #"{"timestamp":"2026-06-16T12:04:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":200,"cached_input_tokens":85,"output_tokens":40,"reasoning_output_tokens":10,"total_tokens":240}}}}"#
+                try (lines.joined(separator: lineEnding) + lineEnding + appendedEvent)
+                    .write(to: transcriptURL, atomically: true, encoding: .utf8)
+                let updated = try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root)
+                XCTAssertEqual(updated, [
+                    CodexDailyBucket(
+                        sessionID: "thread_🌊", day: 20620,
+                        inputTokens: 210, outputTokens: 45, reasoningTokens: 12,
+                        cacheReadTokens: 90, totalTokens: 255, requestCount: 4,
+                        latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T12:04:00Z")
+                    )
+                ])
+            }
+        }
+    }
+
+    func testCodexLoadDailyBucketsSkipsInvalidUTF8Transcript() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sessionDir = root.appendingPathComponent(".codex/sessions/2026/06/16")
+        let transcriptURL = sessionDir.appendingPathComponent("invalid-utf8.jsonl")
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let transcript = """
+        {"type":"session_meta","payload":{"id":"thread_1"}}
+        {"timestamp":"2026-06-16T12:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"output_tokens":20,"total_tokens":120}}}}
+
+        """
+        var data = Data(transcript.utf8)
+        data.append(0xFF)
+        try data.write(to: transcriptURL)
+
+        XCTAssertEqual(try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root), [])
+    }
+
     func testDerivedDataUsesCodexBucketsForTodayInsteadOfSessionUpdatedAt() {
         let todayDay = agentUsageDayIdentifier(for: Date())
 

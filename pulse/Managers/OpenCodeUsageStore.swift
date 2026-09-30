@@ -184,6 +184,8 @@ static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
     defer { sqlite3_finalize(statement) }
 
     var bucketsBySessionAndDay: [String: OpenCodeDailyBucket] = [:]
+    let calendar = Calendar.current
+    var lastDay: (interval: DateInterval, identifier: Int)?
 
     while true {
         let stepResult = sqlite3_step(statement)
@@ -194,7 +196,15 @@ static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
 
         let sessionID = stringColumn(statement, index: 0)
         let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 1)) / 1000)
-        let day = agentUsageDayIdentifier(for: createdAt)
+        let day: Int
+        // Reuse the actual local-day bounds only within this refresh. The lower
+        // bound handles earlier dates in later sessions; the end is exclusive.
+        if let lastDay, createdAt >= lastDay.interval.start, createdAt < lastDay.interval.end {
+            day = lastDay.identifier
+        } else {
+            day = agentUsageDayIdentifier(for: createdAt, calendar: calendar)
+            lastDay = calendar.dateInterval(of: .day, for: createdAt).map { ($0, day) }
+        }
         let modelProviderID = stringColumn(statement, index: 2)
         let modelID = stringColumn(statement, index: 3)
         let modelVariant = optionalStringColumn(statement, index: 4)

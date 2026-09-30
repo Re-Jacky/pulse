@@ -539,6 +539,109 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions[0].requestCount, 1)
     }
 
+    func testLoadDailyBucketsPreservesLocalDaysAcrossDSTTransitions() throws {
+        let cases: [(name: String, timestamps: [String], inputs: [Int], days: [Int], totals: [Int], requests: [Int])] = [
+            (
+                "spring", ["2026-03-08T08:00:00Z", "2026-03-09T06:59:59Z", "2026-03-09T07:00:00Z"],
+                [100, 200, 300], [20520, 20521], [300, 300], [2, 1]
+            ),
+            (
+                "fall", ["2026-11-01T07:00:00Z", "2026-11-01T08:30:00Z", "2026-11-01T09:30:00Z", "2026-11-02T07:59:59Z", "2026-11-02T08:00:00Z"],
+                [100, 20, 30, 200, 300], [20758, 20759], [350, 300], [4, 1]
+            )
+        ]
+        try withTimeZone("America/Los_Angeles") {
+            for fixture in cases {
+                let databaseURL = try makeDatabase(named: "DSTDays-\(UUID().uuidString).sqlite")
+                defer { try? FileManager.default.removeItem(at: databaseURL) }
+                let db = try openWritableDatabase(databaseURL)
+                defer { sqlite3_close(db) }
+                try createV2Schema(in: db)
+                try execute(db, sql: """
+                insert into session_v2 (id, project_id, title, directory, time_created, time_updated)
+                values ('ses_dst', 'p1', 'DST', '/test', 0, 0);
+                """)
+                let formatter = ISO8601DateFormatter()
+                for (index, timestamp) in fixture.timestamps.enumerated() {
+                    let millis = Int64(try XCTUnwrap(formatter.date(from: timestamp)).timeIntervalSince1970 * 1000)
+                    try execute(db, sql: """
+                    insert into session_message (id, session_id, type, seq, time_created, time_updated, data)
+                    values ('msg_\(index)', 'ses_dst', 'assistant', \(index), \(millis), \(millis),
+                        '{"tokens":{"input":\(fixture.inputs[index])}}');
+                    """)
+                }
+
+                let buckets = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL).dailyBuckets
+                XCTAssertEqual(buckets.map(\.day), fixture.days, fixture.name)
+                XCTAssertEqual(buckets.map(\.inputTokens), fixture.totals, fixture.name)
+                XCTAssertEqual(buckets.map(\.requestCount), fixture.requests, fixture.name)
+                XCTAssertEqual(buckets.map(\.latestActivityAt), [
+                    formatter.date(from: fixture.timestamps[fixture.timestamps.count - 2]),
+                    formatter.date(from: fixture.timestamps.last!)
+                ], fixture.name)
+            }
+        }
+    }
+
+    func testLoadDailyBucketsHandlesEarlierDaysWhenSessionChanges() throws {
+        try withTimeZone("UTC") {
+            let databaseURL = try makeDatabase(named: "EarlierSessionDays-\(UUID().uuidString).sqlite")
+            defer { try? FileManager.default.removeItem(at: databaseURL) }
+            let db = try openWritableDatabase(databaseURL)
+            defer { sqlite3_close(db) }
+            try createV2Schema(in: db)
+            try execute(db, sql: """
+            insert into session_v2 (id, project_id, title, directory, time_created, time_updated) values
+                ('ses_a', 'p1', 'Later days', '/test', 0, 0),
+                ('ses_b', 'p1', 'Earlier days', '/test', 0, 0);
+            """)
+            let messages: [(sessionID: String, timestamp: String, input: Int)] = [
+                ("ses_a", "2026-01-03T12:00:00Z", 100),
+                ("ses_b", "2026-01-01T00:00:00Z", 20),
+                ("ses_b", "2026-01-01T00:01:00Z", 30),
+                ("ses_b", "2026-01-02T00:00:00Z", 40)
+            ]
+            let formatter = ISO8601DateFormatter()
+            for (index, message) in messages.enumerated() {
+                let millis = Int64(try XCTUnwrap(formatter.date(from: message.timestamp)).timeIntervalSince1970 * 1000)
+                try execute(db, sql: """
+                insert into session_message (id, session_id, type, seq, time_created, time_updated, data)
+                values ('msg_\(index)', '\(message.sessionID)', 'assistant', \(index), \(millis), \(millis),
+                    '{"tokens":{"input":\(message.input)}}');
+                """)
+            }
+
+            let buckets = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL).dailyBuckets
+            XCTAssertEqual(buckets.map(\.sessionID), ["ses_a", "ses_b", "ses_b"])
+            XCTAssertEqual(buckets.map(\.day), [20456, 20454, 20455])
+            XCTAssertEqual(buckets.map(\.inputTokens), [100, 50, 40])
+            XCTAssertEqual(buckets.map(\.requestCount), [1, 2, 1])
+        }
+    }
+
+    func testLoadDailyBucketsRecomputesLocalDayAfterTimeZoneChanges() throws {
+        let databaseURL = try makeDatabase(named: "RefreshTimeZone-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: databaseURL) }
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+        try createV2Schema(in: db)
+        let millis = Int64(try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-01-01T00:30:00Z")).timeIntervalSince1970 * 1000)
+        try execute(db, sql: """
+        insert into session_v2 (id, project_id, title, directory, time_created, time_updated)
+        values ('ses_timezone', 'p1', 'Time zone', '/test', 0, 0);
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data)
+        values ('msg_timezone', 'ses_timezone', 'assistant', 1, \(millis), \(millis), '{"tokens":{"input":100}}');
+        """)
+
+        for (zone, expectedDay) in [("UTC", 20454), ("America/Los_Angeles", 20453), ("UTC", 20454)] {
+            try withTimeZone(zone) {
+                let buckets = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL).dailyBuckets
+                XCTAssertEqual(buckets.map(\.day), [expectedDay], zone)
+                XCTAssertEqual(buckets.map(\.inputTokens), [100], zone)
+            }
+        }
+    }
+
     private func createV2Schema(in db: OpaquePointer?) throws {
         try execute(db, sql: """
         create table session_v2 (

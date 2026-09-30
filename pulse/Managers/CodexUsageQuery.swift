@@ -563,20 +563,35 @@ private func accumulateDailyBuckets(
     }
     defer { try? handle.close() }
 
-    guard let contents = String(data: handle.readDataToEndOfFile(), encoding: .utf8) else {
+    let fileData = handle.readDataToEndOfFile()
+    // Preserve the existing whole-transcript invalid-UTF8 behavior, without
+    // using String's character-level splitting/searching for the hot path.
+    guard let contents = String(data: fileData, encoding: .utf8) else {
         return
     }
 
+    // Character.isNewline also supported these multibyte separators. Keep that
+    // behavior for nonstandard transcripts; normal JSONL takes the byte path.
+    let unicodeNewlineMarkers = [Data([0xC2, 0x85]), Data([0xE2, 0x80, 0xA8]), Data([0xE2, 0x80, 0xA9])]
+    let lines: [Data]
+    if unicodeNewlineMarkers.contains(where: { fileData.range(of: $0) != nil }) {
+        lines = contents.split(whereSeparator: \.isNewline).map { Data($0.utf8) }
+    } else {
+        // LF, VT, FF, and CR; adjacent CR/LF bytes omit the empty slice.
+        lines = fileData.split(whereSeparator: { (0x0A...0x0D).contains($0) })
+    }
+
+    let sessionMetadataMarker = Data("\"session_meta\"".utf8)
+    let tokenCountMarker = Data("\"token_count\"".utf8)
     var sessionID: String?
     var previousUsage: CodexUsageQuery.CumulativeUsage?
 
-    for line in contents.split(whereSeparator: \.isNewline) {
-        guard line.contains("\"session_meta\"") || line.contains("\"token_count\"") else {
+    for line in lines {
+        guard line.range(of: sessionMetadataMarker) != nil || line.range(of: tokenCountMarker) != nil else {
             continue
         }
 
-        guard let data = line.data(using: .utf8),
-              let rawObject = try? JSONSerialization.jsonObject(with: data),
+        guard let rawObject = try? JSONSerialization.jsonObject(with: line),
               let object = rawObject as? [String: Any],
               let type = object["type"] as? String else {
             continue
