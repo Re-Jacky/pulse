@@ -28,16 +28,18 @@ enum ClaudeCodeUsageQuery {
 
     static func loadSnapshot(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        indexDatabaseURL: URL? = nil
     ) throws -> ClaudeCodeUsageSnapshot {
-        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager).snapshot
+        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager, indexDatabaseURL: indexDatabaseURL).snapshot
     }
 
     static func loadDailyBuckets(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        indexDatabaseURL: URL? = nil
     ) throws -> [ClaudeCodeDailyBucket] {
-        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager).dailyBuckets
+        try loadUsage(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager, indexDatabaseURL: indexDatabaseURL).dailyBuckets
     }
 
     /// Loads the session snapshot and the daily buckets from a single pass over
@@ -45,9 +47,14 @@ enum ClaudeCodeUsageQuery {
     /// instead of once per view.
     static func loadUsage(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        indexDatabaseURL: URL? = nil
     ) throws -> ClaudeCodeUsageLoadResult {
-        let entries = try loadCachedEntries(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        let entries = try loadCachedEntries(
+            homeDirectoryURL: homeDirectoryURL,
+            fileManager: fileManager,
+            indexDatabaseURL: indexDatabaseURL
+        )
 
         var sessionsByID: [String: SessionAccumulator] = [:]
         var totalsBySessionAndDay: [String: ClaudeCodeDailyBucket] = [:]
@@ -158,6 +165,7 @@ enum ClaudeCodeUsageQuery {
         let sessionID: String
         let accumulator: SessionAccumulator
         let buckets: [ClaudeCodeDailyBucket]
+        let cachedTranscript: CachedTranscript?
     }
 
     // Single-pass design: each changed transcript is fully parsed exactly once per
@@ -165,47 +173,55 @@ enum ClaudeCodeUsageQuery {
     // are cached together keyed by size+mtime. Unchanged transcripts are metadata-only.
     private static func loadCachedEntries(
         homeDirectoryURL: URL,
-        fileManager: FileManager
+        fileManager: FileManager,
+        indexDatabaseURL: URL?
     ) throws -> [ParsedTranscript] {
         let transcriptURLs = candidateTranscriptURLs(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        var cache = DailyBucketCache.load(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        var didUpdateCache = false
+        let store = try AgentUsageIndexStore(databaseURL: indexDatabaseURL ?? AgentUsageIndexStore.defaultDatabaseURL())
+        let sourceKey = "claude:\(homeDirectoryURL.standardizedFileURL.path)"
+        let storedRecords = try store.records(source: sourceKey)
+        var cachedByPath: [String: CachedTranscript] = [:]
+        for (path, record) in storedRecords {
+            if let entry = try? JSONDecoder().decode(CachedTranscript.self, from: record.payload) {
+                cachedByPath[path] = entry
+            }
+        }
+        var upserts: [String: AgentUsageIndexRecord] = [:]
         var parsed: [ParsedTranscript] = []
 
         for url in transcriptURLs {
             guard let metadata = TranscriptCacheMetadata(url: url) else {
-                if let entry = try parseTranscript(transcriptURL: url) {
+                if let entry = try parseTranscript(transcriptURL: url, prior: nil) {
                     parsed.append(entry)
                 }
                 continue
             }
 
-            if let cached = cache.entry(for: metadata) {
-                if let sessionID = cached.sessionID, let session = cached.session {
-                    parsed.append(ParsedTranscript(sessionID: sessionID, accumulator: session, buckets: cached.buckets))
-                }
+            if let cached = cachedByPath[metadata.path], cached.metadata == metadata {
+                parsed.append(cached.parsedTranscript)
                 continue
             }
 
-            guard let entry = try parseTranscript(transcriptURL: url) else { continue }
+            let previous = cachedByPath[metadata.path]
+            let canResume = previous.map { cached in
+                metadata.size > cached.metadata.size
+                    && metadata.size >= cached.byteOffset
+                    && metadata.fileNumber == cached.metadata.fileNumber
+                    && metadata.calendarIdentity == cached.metadata.calendarIdentity
+                    && tailFingerprint(at: url, endingAt: cached.byteOffset) == cached.tailFingerprint
+            } ?? false
+            guard let entry = try parseTranscript(transcriptURL: url, prior: canResume ? previous : nil) else { continue }
             parsed.append(entry)
-            cache.setEntry(
-                DailyBucketCache.Entry(
-                    metadata: metadata,
-                    buckets: entry.buckets,
-                    sessionID: entry.sessionID,
-                    session: entry.accumulator
-                ),
-                for: metadata.path
-            )
-            didUpdateCache = true
+            if let cachedTranscript = entry.cachedTranscript {
+                let payload = try JSONEncoder().encode(cachedTranscript)
+                upserts[metadata.path] = AgentUsageIndexRecord(metadata: Data(), payload: payload)
+            }
         }
 
-        if cache.removeEntries(excluding: Set(transcriptURLs.map(\.path))) {
-            didUpdateCache = true
-        }
-        if didUpdateCache {
-            cache.save(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        let currentPaths = Set(transcriptURLs.map(\.path))
+        let removedPaths = Set(storedRecords.keys).subtracting(currentPaths)
+        if upserts.isEmpty == false || removedPaths.isEmpty == false {
+            try store.apply(source: sourceKey, upserts: upserts, removals: removedPaths, cursor: nil)
         }
 
         return parsed
@@ -217,6 +233,7 @@ enum ClaudeCodeUsageQuery {
         var cwd = ""
         var title: String?
         var lastPrompt: String?
+        var titleFromLastPrompt = false
         var modelCounts: [String: Int] = [:]
         var createdAt: Date?
         var updatedAt: Date?
@@ -231,7 +248,11 @@ enum ClaudeCodeUsageQuery {
         mutating func merge(_ other: SessionAccumulator) {
             if cwd.isEmpty { cwd = other.cwd }
             if transcriptURL == nil { transcriptURL = other.transcriptURL }
-            if other.title?.isEmpty == false { title = other.title }
+            if other.title?.isEmpty == false,
+               other.titleFromLastPrompt == false || title == nil || titleFromLastPrompt {
+                title = other.title
+                titleFromLastPrompt = other.titleFromLastPrompt
+            }
             if other.lastPrompt?.isEmpty == false { lastPrompt = other.lastPrompt }
             for (model, count) in other.modelCounts {
                 modelCounts[model, default: 0] += count
@@ -252,9 +273,7 @@ enum ClaudeCodeUsageQuery {
 
         func sessionRecord(id: String) -> ClaudeCodeSessionRecord? {
             guard hasConversation else { return nil }
-            let resolvedTitle = title?.isEmpty == false
-                ? title!
-                : (lastPrompt?.isEmpty == false ? lastPrompt! : URL(fileURLWithPath: cwd).lastPathComponent)
+            let resolvedTitle = title?.isEmpty == false ? title! : URL(fileURLWithPath: cwd).lastPathComponent
             let resolvedModel = modelCounts.max { lhs, rhs in
                 if lhs.value == rhs.value { return lhs.key > rhs.key }
                 return lhs.value < rhs.value
@@ -278,19 +297,54 @@ enum ClaudeCodeUsageQuery {
         }
     }
 
-    private static func parseTranscript(transcriptURL: URL) throws -> ParsedTranscript? {
+    private struct CachedTranscript: Codable {
+        let metadata: TranscriptCacheMetadata
+        let byteOffset: UInt64
+        let tailFingerprint: Data
+        let sessionID: String
+        let accumulator: SessionAccumulator
+        let buckets: [ClaudeCodeDailyBucket]
+
+        var parsedTranscript: ParsedTranscript {
+            ParsedTranscript(
+                sessionID: sessionID,
+                accumulator: accumulator,
+                buckets: buckets,
+                cachedTranscript: self
+            )
+        }
+    }
+
+    private static func parseTranscript(transcriptURL: URL, prior: CachedTranscript?) throws -> ParsedTranscript? {
         guard let handle = try? FileHandle(forReadingFrom: transcriptURL) else {
             throw QueryError.queryStepFailed(message: "Failed to read transcript at \(transcriptURL.path)")
         }
         defer { try? handle.close() }
 
-        let fileData = handle.readDataToEndOfFile()
+        let startOffset = prior?.byteOffset ?? 0
+        try handle.seek(toOffset: startOffset)
+        let appendedData = handle.readDataToEndOfFile()
+        var completedByteCount = appendedData.lastIndex(of: UInt8(ascii: "\n")).map {
+            appendedData.distance(from: appendedData.startIndex, to: $0) + 1
+        } ?? 0
+        if completedByteCount < appendedData.count {
+            let trailingData = appendedData[completedByteCount...]
+            if let value = try? JSONSerialization.jsonObject(with: trailingData), value is [String: Any] {
+                // JSONL producers may omit the final delimiter for a complete
+                // record. Only leave it pending when it is not yet valid JSON.
+                completedByteCount = appendedData.count
+            }
+        }
+        let completeData = appendedData.prefix(completedByteCount)
 
-        var sessionID: String?
-        var accumulator = SessionAccumulator()
+        var sessionID: String? = prior?.sessionID
+        var accumulator = prior?.accumulator ?? SessionAccumulator()
         var bucketsByKey: [String: ClaudeCodeDailyBucket] = [:]
+        for bucket in prior?.buckets ?? [] {
+            bucketsByKey["\(bucket.sessionID)::\(bucket.day)"] = bucket
+        }
 
-        for lineData in fileData.split(separator: UInt8(ascii: "\n")) {
+        for lineData in completeData.split(separator: UInt8(ascii: "\n")) {
             guard let rawObject = try? JSONSerialization.jsonObject(with: lineData),
                   let object = rawObject as? [String: Any],
                   let type = object["type"] as? String else {
@@ -304,11 +358,16 @@ enum ClaudeCodeUsageQuery {
 
             if type == "ai-title", let aiTitle = object["aiTitle"] as? String, aiTitle.isEmpty == false {
                 accumulator.title = aiTitle
+                accumulator.titleFromLastPrompt = false
                 continue
             }
 
             if type == "last-prompt", let lastPrompt = object["lastPrompt"] as? String, lastPrompt.isEmpty == false {
                 accumulator.lastPrompt = lastPrompt
+                if accumulator.title == nil || accumulator.titleFromLastPrompt {
+                    accumulator.title = lastPrompt
+                    accumulator.titleFromLastPrompt = true
+                }
                 continue
             }
 
@@ -388,11 +447,36 @@ enum ClaudeCodeUsageQuery {
         if transcriptURL.lastPathComponent == "\(sessionID).jsonl" {
             accumulator.transcriptURL = transcriptURL
         }
+        let currentMetadata = TranscriptCacheMetadata(url: transcriptURL)
+        let byteOffset = startOffset + UInt64(completedByteCount)
+        var persistedAccumulator = accumulator
+        // `lastPrompt` is only needed while parsing to derive the visible session
+        // title. Persist the title metadata, not a second copy of the prompt field.
+        persistedAccumulator.lastPrompt = nil
+        let cached = currentMetadata.map {
+            CachedTranscript(
+                metadata: $0,
+                byteOffset: byteOffset,
+                tailFingerprint: tailFingerprint(at: transcriptURL, endingAt: byteOffset),
+                sessionID: sessionID,
+                accumulator: persistedAccumulator,
+                buckets: Array(bucketsByKey.values)
+            )
+        }
         return ParsedTranscript(
             sessionID: sessionID,
             accumulator: accumulator,
-            buckets: Array(bucketsByKey.values)
+            buckets: Array(bucketsByKey.values),
+            cachedTranscript: cached
         )
+    }
+
+    private static func tailFingerprint(at url: URL, endingAt offset: UInt64) -> Data {
+        guard offset > 0, let handle = try? FileHandle(forReadingFrom: url) else { return Data() }
+        defer { try? handle.close() }
+        let length = min(UInt64(128), offset)
+        try? handle.seek(toOffset: offset - length)
+        return handle.readData(ofLength: Int(length))
     }
 
     private static func merge(
@@ -462,8 +546,10 @@ enum ClaudeCodeUsageQuery {
 
     private struct TranscriptCacheMetadata: Codable, Equatable {
         let path: String
+        let fileNumber: UInt64
         let size: Int
         let modificationTime: TimeInterval
+        let calendarIdentity: String
 
         init?(url: URL) {
             guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
@@ -472,75 +558,15 @@ enum ClaudeCodeUsageQuery {
                 return nil
             }
             self.path = url.path
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+            self.fileNumber = (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
             self.size = size
             self.modificationTime = modificationDate.timeIntervalSince1970
+            let calendar = Calendar.current
+            self.calendarIdentity = "\(calendar.identifier)|\(calendar.timeZone.identifier)"
         }
     }
 
-    private struct DailyBucketCache: Codable {
-        struct Entry: Codable {
-            let metadata: TranscriptCacheMetadata
-            let buckets: [ClaudeCodeDailyBucket]
-            let sessionID: String?
-            let session: SessionAccumulator?
-        }
-
-        private static let version = 2
-        private var version: Int
-        private var entriesByPath: [String: Entry]
-
-        static func load(homeDirectoryURL: URL, fileManager: FileManager) -> DailyBucketCache {
-            guard let data = try? Data(contentsOf: cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)),
-                  let cache = try? JSONDecoder().decode(DailyBucketCache.self, from: data),
-                  cache.version == version else {
-                return DailyBucketCache(version: version, entriesByPath: [:])
-            }
-            return cache
-        }
-
-        func entry(for metadata: TranscriptCacheMetadata) -> Entry? {
-            guard let entry = entriesByPath[metadata.path], entry.metadata == metadata else { return nil }
-            return entry
-        }
-
-        mutating func setEntry(_ entry: Entry, for path: String) {
-            entriesByPath[path] = entry
-        }
-
-        mutating func removeEntries(excluding paths: Set<String>) -> Bool {
-            let originalCount = entriesByPath.count
-            entriesByPath = entriesByPath.filter { paths.contains($0.key) }
-            return entriesByPath.count != originalCount
-        }
-
-        func save(homeDirectoryURL: URL, fileManager: FileManager) {
-            let url = Self.cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-            guard let data = try? JSONEncoder().encode(self) else { return }
-            try? fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: url, options: [.atomic])
-            // Sweep the legacy -v1 cache for the same hash so stale files from
-            // before the version-1→2 bump never linger.
-            let v1URL = URL(fileURLWithPath: url.path.replacingOccurrences(of: "-v\(version).json", with: "-v1.json"))
-            try? fileManager.removeItem(at: v1URL)
-        }
-
-        private static func cacheURL(homeDirectoryURL: URL, fileManager: FileManager) -> URL {
-            let baseURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-                ?? fileManager.temporaryDirectory
-            return baseURL
-                .appendingPathComponent("Pulse", isDirectory: true)
-                .appendingPathComponent("claude-code-transcript-cache-\(stableHash(homeDirectoryURL.path))-v\(version).json")
-        }
-
-        private static func stableHash(_ value: String) -> String {
-            var hash: UInt64 = 14_695_981_039_346_656_037
-            for byte in value.utf8 {
-                hash ^= UInt64(byte)
-                hash &*= 1_099_511_628_211
-            }
-            return String(hash, radix: 16)
-        }
-    }
 }
 
 private extension ISO8601DateFormatter {

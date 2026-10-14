@@ -24,7 +24,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 ## AgentUsageStore Performance (DO NOT REGRESS)
 
 - SQL queries only run in `loadRefreshResult`; **range switching is purely in-memory** — no database access
-- `OpenCodeUsageQuery.loadUsage` is the refresh entry point: it derives **both** the cumulative snapshot and the daily buckets from a **single** `session_message` scan (per-message JSON extracted once into the `WITH msg AS MATERIALIZED` CTE). `loadSnapshot`/`loadDailyBuckets` are thin wrappers over it. Do not reintroduce a second full scan of the OpenCode DB — on multi-GB DBs that doubled refresh time
+- `OpenCodeUsageQuery.loadUsage` is the refresh entry point: it derives **both** the cumulative snapshot and daily buckets. After DB/WAL mtime checks, it scans session/message watermarks and reads assistant message JSON only for new or advanced sessions; per-message JSON is extracted once into the `WITH msg AS MATERIALIZED` CTE. `loadSnapshot`/`loadDailyBuckets` are thin wrappers over it. Do not reintroduce a second full scan of OpenCode message JSON on multi-GB DBs
 - `AgentUsageStore.loadRefreshResult` loads OpenCode, Codex, and Claude Code **concurrently** (`DispatchQueue.concurrentPerform` + `RefreshSourceCollector`); keep sources independent so a slow OpenCode scan does not serialize the others
 - `OpenCodeUsageQuery.loadSnapshot` must keep its per-message JSON extraction in a `WITH msg AS MATERIALIZED (...)` CTE. Using inline `json_extract(m.data, '$.model...')` expressions as `GROUP BY` keys makes SQLite re-parse the message `data` blobs while sorting the group keys (measured ~4x slower on a multi-GB OpenCode DB); the materialized CTE must stay for both v1 and v2 schemas
 - `derivedDataCache` keyed by `selection + refreshGeneration` — same range twice hits cache; different range recomputes everything
@@ -51,14 +51,15 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 
 ## SQLite Database Open Pattern (DO NOT REGRESS)
 
-All read-only SQLite opens must use the URI form with `immutable=1`:
+Read-only SQLite opens should use the URI form with `immutable=1` by default:
 ```swift
 let uri = "file://\(databaseURL.path)?immutable=1"
 sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 ```
 - `immutable=1` tells SQLite the file is static, avoiding attempts to create/lock WAL/SHM files on read-only filesystems
 - Using a plain path (`sqlite3_open_v2(path, ...)`) breaks DB opens when WAL-mode databases are present on disk
-- Both `CodexUsageQuery.openReadOnlyDatabase` and all `OpenCodeUsageStore` open sites must follow this pattern
+- Codex and non-WAL OpenCode reads use this pattern
+- If `opencode.db-wal` is newer than `opencode.db`, OpenCode must use a read-only URI with `mode=ro` and without `immutable=1` so SQLite can see committed WAL pages. Keep `SQLITE_OPEN_READONLY | SQLITE_OPEN_URI`; never write or checkpoint the source DB
 - This has regressed twice; do NOT "simplify" it back to a plain path
 
 ## High-Signal File Map
@@ -66,6 +67,7 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - `pulse/App/AppDelegate.swift` - status item, panel lifecycle, settings window, theme/app activation, updater wiring
 - `pulse/Views/PopoverView.swift` - main tab switcher and panel sizing trigger
 - `pulse/Managers/AgentUsageStore.swift` - refresh logic and derived agent-usage view data
+- `pulse/Managers/AgentUsageIndexStore.swift` - unified Pulse-owned SQLite cache for OpenCode, Codex, and Claude Code derived usage and sync metadata
 - `pulse/Managers/OpenCodeUsageStore.swift` - OpenCode SQLite discovery and reads (supports both v1 and v2 storage schemas)
 - `pulse/Managers/OpenCodeIntegrationInstaller.swift` - generates the OpenCode agent-light plugin (V1 `server` + V2 `setup` entrypoints)
 - `pulse/Managers/CodexUsageQuery.swift` - Codex mixed data loading: SQLite state DB for session/detail metadata, transcript `.jsonl` files under `~/.codex` for daily token buckets
@@ -87,6 +89,9 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - OpenCode storage is schema-versioned in place: v2 writes sessions to `session_v2` and messages to `session_message` (assistant tokens/model/content embedded as JSON in `data`, message role in the `type` column), while v1 wrote `session`/`message`/`part`. `OpenCodeUsageQuery` detects the `session_v2` table and prefers it, falling back to v1 tables for unmigrated DBs
 - The OpenCode snapshot query joins only `type='assistant'` rows (`LEFT JOIN ... AND type='assistant'`); without that filter, non-assistant rows with no model fall into their own zero-token model group when `session_v2.model` omits the variant
 - OpenCode should normally have one real database file plus SQLite sidecars (`-wal`, `-shm`); do not treat sidecars as separate history sources
+- OpenCode incremental sync compares main DB and WAL nanosecond mtimes and per-session `max(session.time_updated, message.time_updated)` watermarks; Pulse-owned derived usage lives in the shared Application Support SQLite index
+- The `immutable=1` OpenCode read path can return a pre-WAL snapshot; when the WAL mtime is newer, use read-only `mode=ro` to read current committed WAL content without modifying the source DB
+- Codex and Claude Code per-file derived usage and sync checkpoints use the same Pulse-owned SQLite index; Codex replays/replaces changed transcript aggregates, while Claude resumes at committed JSONL byte boundaries
 - Codex is different: it may have multiple `state_*.sqlite` files with overlapping but non-identical thread history
 - Codex can also have invalid higher-version files that exist on disk but do not contain a `threads` table; those must be ignored
 - Codex session/detail metadata should be built from the union of all valid state DBs, keyed by `thread.id`, keeping the row with the newest `updated_at_ms`
@@ -97,6 +102,6 @@ sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
 - Claude Code has NO database: transcripts are the only source, stored as per-line JSON under `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl` (directory names are an encoded form of cwd, e.g. `/Users/zyao` → `-Users-zyao`; the query never computes encoded-cwd — it scans `~/.claude/projects` recursively for `.jsonl` files, keys in the query's candidate list, not a single preferred dir)
 - Claude Code token usage comes from per-assistant-message `message.usage` dicts (`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`); `requestCount` = 1 per assistant message carrying a `usage` dict (including all-zero), matching OpenCode's `SUM(role='assistant' THEN 1)`; snapshot `requestCount` is 0 by design and the store enriches it from buckets in the derived path
 - `modelProvider` is the constant `"Claude"` for every Claude Code record (`ClaudeCodeUsageQuery.defaultModelProvider`); model attribution is session-level (most frequent `message.model`) and documented as a known limitation
-- `ClaudeCodeUsageQuery.loadUsage` is the refresh entry point: it calls `loadCachedEntries` once and derives both the snapshot and the daily buckets from that single pass; `loadSnapshot`/`loadDailyBuckets` are thin wrappers. The size+mtime `DailyBucketCache` stores both daily buckets and the per-session accumulator, so each changed transcript is parsed exactly once per refresh and unchanged transcripts are metadata-only
+- `ClaudeCodeUsageQuery.loadUsage` is the refresh entry point: it calls `loadCachedEntries` once and derives both the snapshot and daily buckets from that single pass; `loadSnapshot`/`loadDailyBuckets` are thin wrappers. The shared SQLite index stores per-file accumulators/buckets and complete-line byte cursors, so changed transcripts parse only appended bytes when the cursor fingerprint remains valid; unchanged transcripts are metadata-only
 - Sessions with ≥1 user OR assistant message are kept (tokens may be 0), matching the 0-coalesced OpenCode LEFT JOIN and Codex `threads` table; only phantom transcript files (no conversation) are dropped; `createdAt` = earliest timestamp across all transcript lines (session start)
 - Availability: `makeAvailableSources` exposes `.claudeCode` only when `~/.claude/projects` exists (dir-exists, mirroring the OpenCode/Codex file-exists predicate); the no-source fallback is `[.openCode, .codex, .claudeCode]`

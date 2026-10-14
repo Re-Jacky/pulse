@@ -196,51 +196,53 @@ enum CodexUsageQuery {
 
     static func loadDailyBuckets(
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        indexDatabaseURL: URL? = nil
     ) throws -> [CodexDailyBucket] {
         let transcriptURLs = candidateTranscriptURLs(
             homeDirectoryURL: homeDirectoryURL,
             fileManager: fileManager
         )
-
-        var cache = CodexDailyBucketCache.load(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        var didUpdateCache = false
+        let store = try AgentUsageIndexStore(databaseURL: indexDatabaseURL ?? AgentUsageIndexStore.defaultDatabaseURL())
+        let sourceKey = "codex:\(homeDirectoryURL.standardizedFileURL.path)"
+        let storedRecords = try store.records(source: sourceKey)
+        var cachedEntries: [String: CodexCachedTranscript] = [:]
+        for (path, record) in storedRecords {
+            if let entry = try? JSONDecoder().decode(CodexCachedTranscript.self, from: record.payload) {
+                cachedEntries[path] = entry
+            }
+        }
+        var upserts: [String: AgentUsageIndexRecord] = [:]
         var totalsBySessionAndDay: [String: CodexDailyBucket] = [:]
-        var cacheHitCount = 0
-        var cacheMissCount = 0
-        var parsedTranscriptCount = 0
 
         for url in transcriptURLs {
             guard let metadata = TranscriptCacheMetadata(url: url) else {
-                cacheMissCount += 1
-                parsedTranscriptCount += 1
                 try accumulateDailyBuckets(transcriptURL: url, into: &totalsBySessionAndDay)
                 continue
             }
 
-            if let cached = cache.entry(for: metadata) {
-                cacheHitCount += 1
+            if let cached = cachedEntries[metadata.path], cached.metadata == metadata {
                 merge(cached.buckets, into: &totalsBySessionAndDay)
                 continue
             }
 
-            cacheMissCount += 1
-            parsedTranscriptCount += 1
             var transcriptBuckets: [String: CodexDailyBucket] = [:]
             try accumulateDailyBuckets(transcriptURL: url, into: &transcriptBuckets)
             merge(transcriptBuckets.values, into: &totalsBySessionAndDay)
-            cache.setEntry(
-                CodexDailyBucketCache.Entry(metadata: metadata, buckets: Array(transcriptBuckets.values)),
-                for: metadata.path
+            let entry = CodexCachedTranscript(metadata: metadata, buckets: Array(transcriptBuckets.values))
+            guard let payload = try? JSONEncoder().encode(entry) else {
+                throw QueryError.queryStepFailed(message: "Failed to encode cached Codex usage for \(url.path)")
+            }
+            upserts[metadata.path] = AgentUsageIndexRecord(
+                metadata: Data(),
+                payload: payload
             )
-            didUpdateCache = true
         }
 
-        if cache.removeEntries(excluding: Set(transcriptURLs.map(\.path))) {
-            didUpdateCache = true
-        }
-        if didUpdateCache {
-            cache.save(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
+        let currentPaths = Set(transcriptURLs.map(\.path))
+        let removedPaths = Set(storedRecords.keys).subtracting(currentPaths)
+        if upserts.isEmpty == false || removedPaths.isEmpty == false {
+            try store.apply(source: sourceKey, upserts: upserts, removals: removedPaths, cursor: nil)
         }
 
         return totalsBySessionAndDay
@@ -672,8 +674,10 @@ private func merge(
 
 private struct TranscriptCacheMetadata: Codable, Equatable {
     let path: String
+    let fileNumber: UInt64
     let size: Int
     let modificationTime: TimeInterval
+    let calendarIdentity: String
 
     init?(url: URL) {
         guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
@@ -683,77 +687,18 @@ private struct TranscriptCacheMetadata: Codable, Equatable {
         }
 
         self.path = url.path
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        self.fileNumber = (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
         self.size = size
         self.modificationTime = modificationDate.timeIntervalSince1970
+        let calendar = Calendar.current
+        self.calendarIdentity = "\(calendar.identifier)|\(calendar.timeZone.identifier)"
     }
 }
 
-private struct CodexDailyBucketCache: Codable {
-    struct Entry: Codable {
-        let metadata: TranscriptCacheMetadata
-        let buckets: [CodexDailyBucket]
-    }
-
-    private static let version = 1
-    private var version: Int
-    private var entriesByPath: [String: Entry]
-
-    static func load(homeDirectoryURL: URL, fileManager: FileManager) -> CodexDailyBucketCache {
-        guard let data = try? Data(contentsOf: cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)),
-              let cache = try? JSONDecoder().decode(CodexDailyBucketCache.self, from: data),
-              cache.version == version else {
-            return CodexDailyBucketCache(version: version, entriesByPath: [:])
-        }
-
-        return cache
-    }
-
-    func entry(for metadata: TranscriptCacheMetadata) -> Entry? {
-        guard let entry = entriesByPath[metadata.path],
-              entry.metadata == metadata else {
-            return nil
-        }
-
-        return entry
-    }
-
-    mutating func setEntry(_ entry: Entry, for path: String) {
-        entriesByPath[path] = entry
-    }
-
-    mutating func removeEntries(excluding paths: Set<String>) -> Bool {
-        let originalCount = entriesByPath.count
-        entriesByPath = entriesByPath.filter { paths.contains($0.key) }
-        return entriesByPath.count != originalCount
-    }
-
-    func save(homeDirectoryURL: URL, fileManager: FileManager) {
-        let url = Self.cacheURL(homeDirectoryURL: homeDirectoryURL, fileManager: fileManager)
-        guard let data = try? JSONEncoder().encode(self) else { return }
-
-        try? fileManager.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? data.write(to: url, options: [.atomic])
-    }
-
-    private static func cacheURL(homeDirectoryURL: URL, fileManager: FileManager) -> URL {
-        let baseURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
-        return baseURL
-            .appendingPathComponent("Pulse", isDirectory: true)
-            .appendingPathComponent("codex-daily-buckets-\(stableHash(homeDirectoryURL.path))-v\(version).json")
-    }
-
-    private static func stableHash(_ value: String) -> String {
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1_099_511_628_211
-        }
-        return String(hash, radix: 16)
-    }
+private struct CodexCachedTranscript: Codable {
+    let metadata: TranscriptCacheMetadata
+    let buckets: [CodexDailyBucket]
 }
 
 private struct TranscriptCandidate {

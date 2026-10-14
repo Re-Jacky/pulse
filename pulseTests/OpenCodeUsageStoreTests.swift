@@ -4,6 +4,103 @@ import Darwin
 @testable import Pulse
 
 final class OpenCodeUsageQueryTests: XCTestCase {
+    func testIncrementalCacheRefreshesWhenMessageTimestampAdvancesWithoutSessionChange() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeMessageWatermarkTests.sqlite")
+        let cacheDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(at: cacheDirectoryURL)
+        }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+        try execute(db, sql: """
+        create table session (
+            id text primary key, project_id text not null, title text not null,
+            directory text not null, agent text, model text, cost real default 0 not null,
+            tokens_input integer default 0 not null, tokens_output integer default 0 not null,
+            tokens_reasoning integer default 0 not null, tokens_cache_read integer default 0 not null,
+            tokens_cache_write integer default 0 not null, time_created integer not null, time_updated integer not null
+        );
+        create table message (
+            id text primary key, session_id text not null, time_created integer not null,
+            time_updated integer not null, data text not null
+        );
+        insert into session (id, project_id, title, directory, time_created, time_updated)
+        values ('session-1', 'project-1', 'Test', '/tmp/test', 1000, 2000);
+        insert into message (id, session_id, time_created, time_updated, data)
+        values ('message-1', 'session-1', 172800000, 2000,
+            '{"role":"assistant","tokens":{"input":10},"time":{"created":172800000}}');
+        """)
+
+        let first = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL, cacheDirectoryURL: cacheDirectoryURL)
+        XCTAssertEqual(first.dailyBuckets.reduce(0) { $0 + $1.inputTokens }, 10)
+
+        try execute(db, sql: """
+        update message set time_updated = 3000,
+            data = '{"role":"assistant","tokens":{"input":200},"time":{"created":172800000}}'
+        where id = 'message-1';
+        """)
+
+        let refreshed = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL, cacheDirectoryURL: cacheDirectoryURL)
+
+        XCTAssertEqual(refreshed.dailyBuckets.reduce(0) { $0 + $1.inputTokens }, 200)
+    }
+
+    func testWalOnlyChangeRefreshesAdvancedMessageWatermark() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeWALWatermarkTests.sqlite")
+        let cacheDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+            try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+            try? FileManager.default.removeItem(at: cacheDirectoryURL)
+        }
+
+        let db = try openWritableDatabase(databaseURL)
+        defer { sqlite3_close(db) }
+        try execute(db, sql: """
+        pragma journal_mode = wal;
+        create table session (
+            id text primary key, project_id text not null, title text not null,
+            directory text not null, agent text, model text, cost real default 0 not null,
+            tokens_input integer default 0 not null, tokens_output integer default 0 not null,
+            tokens_reasoning integer default 0 not null, tokens_cache_read integer default 0 not null,
+            tokens_cache_write integer default 0 not null, time_created integer not null, time_updated integer not null
+        );
+        create table message (
+            id text primary key, session_id text not null, time_created integer not null,
+            time_updated integer not null, data text not null
+        );
+        insert into session (id, project_id, title, directory, time_created, time_updated)
+        values ('session-wal', 'project-wal', 'WAL', '/tmp/wal', 1000, 2000);
+        insert into message (id, session_id, time_created, time_updated, data)
+        values ('message-wal', 'session-wal', 172800000, 2000,
+            '{"role":"assistant","tokens":{"input":10},"time":{"created":172800000}}');
+        """)
+        XCTAssertEqual(sqlite3_wal_checkpoint_v2(db, nil, SQLITE_CHECKPOINT_TRUNCATE, nil, nil), SQLITE_OK)
+        let initial = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL, cacheDirectoryURL: cacheDirectoryURL)
+        XCTAssertEqual(initial.dailyBuckets.reduce(0) { $0 + $1.inputTokens }, 10)
+
+        let mainModificationBefore = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: databaseURL.path)[.modificationDate] as? Date
+        )
+        try execute(db, sql: """
+        update message set time_updated = 3000,
+            data = '{"role":"assistant","tokens":{"input":25},"time":{"created":172800000}}'
+        where id = 'message-wal';
+        """)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: databaseURL.path + "-wal"))
+        let mainModificationAfter = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: databaseURL.path)[.modificationDate] as? Date
+        )
+        XCTAssertEqual(mainModificationAfter, mainModificationBefore)
+
+        let refreshed = try OpenCodeUsageQuery.loadUsage(databaseURL: databaseURL, cacheDirectoryURL: cacheDirectoryURL)
+
+        XCTAssertEqual(refreshed.dailyBuckets.reduce(0) { $0 + $1.inputTokens }, 25)
+    }
+
     func testLoadSnapshotReadsSessionRowsAndParsesModelJSON() throws {
         let databaseURL = try makeDatabase(named: "OpenCodeUsageStoreTests.sqlite")
         defer { try? FileManager.default.removeItem(at: databaseURL) }
@@ -407,6 +504,80 @@ final class OpenCodeUsageQueryTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions[0].modelVariant, "default")
         XCTAssertEqual(snapshot.sessions[0].requestCount, 1)
         XCTAssertEqual(snapshot.summary(for: .allProjects).totalTokens, 1164)
+    }
+
+    func testLoadUsageReusesUnchangedSessionsAndRefreshesChangedSession() throws {
+        let databaseURL = try makeDatabase(named: "OpenCodeIncrementalUsageTests.sqlite")
+        let cacheDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodeUsageCache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: databaseURL)
+            try? FileManager.default.removeItem(at: cacheDirectoryURL)
+        }
+
+        let db = try openWritableDatabase(databaseURL)
+        try createV2Schema(in: db)
+        try execute(db, sql: """
+        insert into session_v2 (
+            id, project_id, title, directory, agent, model, cost,
+            tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated
+        ) values
+            ('ses_changed', 'p1', 'Changed', '/tmp/changed', 'build',
+             '{"id":"gpt-5.4","providerID":"openai"}', 0, 0, 0, 0, 0, 0, 1000, 2000),
+            ('ses_steady', 'p1', 'Steady', '/tmp/steady', 'build',
+             '{"id":"gpt-5.4","providerID":"openai"}', 0, 0, 0, 0, 0, 0, 1000, 2000);
+
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data) values
+            ('changed_msg', 'ses_changed', 'assistant', 1, 1500, 2000,
+             '{"model":{"id":"gpt-5.4","providerID":"openai"},"tokens":{"input":100,"output":10},"cost":0.1}'),
+            ('steady_msg', 'ses_steady', 'assistant', 1, 1500, 2000,
+             '{"model":{"id":"gpt-5.4","providerID":"openai"},"tokens":{"input":7,"output":3},"cost":0.01}');
+        """)
+        sqlite3_close(db)
+
+        let initial = try OpenCodeUsageQuery.loadUsage(
+            databaseURL: databaseURL,
+            cacheDirectoryURL: cacheDirectoryURL
+        )
+        XCTAssertEqual(initial.snapshot.sessions.reduce(0) { $0 + $1.inputTokens }, 107)
+
+        let updatedDB = try openWritableDatabase(databaseURL)
+        try execute(updatedDB, sql: """
+        update session_v2 set time_updated = 3000 where id = 'ses_changed';
+        update session_message
+            set data = '{"model":{"id":"gpt-5.4","providerID":"openai"},"tokens":{"input":200,"output":20},"cost":0.2}'
+            where id = 'changed_msg';
+        insert into session_message (id, session_id, type, seq, time_created, time_updated, data)
+            values ('steady_sentinel', 'ses_steady', 'user', 2, 2500, 2500, 'not-json');
+        """)
+        sqlite3_close(updatedDB)
+
+        let refreshed = try OpenCodeUsageQuery.loadUsage(
+            databaseURL: databaseURL,
+            cacheDirectoryURL: cacheDirectoryURL
+        )
+
+        XCTAssertEqual(refreshed.snapshot.sessions.reduce(0) { $0 + $1.inputTokens }, 207)
+        XCTAssertEqual(
+            refreshed.dailyBuckets.filter { $0.sessionID == "ses_changed" }.reduce(0) { $0 + $1.inputTokens },
+            200
+        )
+        XCTAssertEqual(
+            refreshed.dailyBuckets.filter { $0.sessionID == "ses_steady" }.reduce(0) { $0 + $1.inputTokens },
+            7
+        )
+
+        let cleanupDB = try openWritableDatabase(databaseURL)
+        try execute(cleanupDB, sql: "delete from session_v2 where id = 'ses_steady';")
+        sqlite3_close(cleanupDB)
+
+        let afterDeletion = try OpenCodeUsageQuery.loadUsage(
+            databaseURL: databaseURL,
+            cacheDirectoryURL: cacheDirectoryURL
+        )
+        XCTAssertEqual(afterDeletion.snapshot.sessions.count, 1)
+        XCTAssertEqual(afterDeletion.dailyBuckets.map(\.sessionID), ["ses_changed"])
     }
 
     func testLoadSnapshotV2FallsBackToSessionModelWhenMessageOmitsIt() throws {
