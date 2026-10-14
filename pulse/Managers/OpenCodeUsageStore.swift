@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SQLite3
 
 struct OpenCodeUsageLoadResult {
@@ -102,7 +103,7 @@ static func loadDailyBuckets(databaseURL: URL) throws -> [OpenCodeDailyBucket] {
     try loadUsage(databaseURL: databaseURL).dailyBuckets
 }
 
-private struct OpenCodeSessionMetadata {
+private struct OpenCodeSessionMetadata: Codable, Equatable {
     let title: String
     let directory: String
     let agent: String
@@ -111,29 +112,202 @@ private struct OpenCodeSessionMetadata {
     let modelVariant: String?
     let createdAt: Date
     let updatedAt: Date
+    let updatedAtMilliseconds: Int64
+    let watermarkMilliseconds: Int64
 }
 
-// Loads the cumulative per-model snapshot and the per-day buckets from a single
-// scan of the message table. Both views are derived from the same per-message
-// rows, so the (potentially multi-GB) message JSON is read and parsed exactly
-// once per refresh instead of once per view.
-static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
+private struct OpenCodeUsageIndexEntry: Codable {
+    let watermarkMilliseconds: Int64
+    let metadata: OpenCodeSessionMetadata
+    let dailyBuckets: [OpenCodeDailyBucket]
+
+    func needsUsageRefresh(for session: OpenCodeSessionMetadata) -> Bool {
+        watermarkMilliseconds != session.watermarkMilliseconds
+            || metadata.modelProviderID != session.modelProviderID
+            || metadata.modelID != session.modelID
+            || metadata.modelVariant != session.modelVariant
+    }
+}
+
+private struct OpenCodeSourceCursor: Codable, Equatable {
+    let databaseIdentity: String
+    let schemaVersion: Int
+    let calendarIdentity: String
+    let mainModificationNanoseconds: Int64
+    let walModificationNanoseconds: Int64
+}
+
+// Loads usage from the Pulse-owned SQLite index and reparses only sessions
+// whose source watermark has advanced.
+static func loadUsage(
+    databaseURL: URL,
+    cacheDirectoryURL: URL? = nil,
+    indexDatabaseURL: URL? = nil
+) throws -> OpenCodeUsageLoadResult {
     guard FileManager.default.fileExists(atPath: databaseURL.path) else {
         throw QueryError.databaseNotFound(path: databaseURL.path)
     }
 
-    let uri = "file://\(databaseURL.path)?immutable=1"
-    var db: OpaquePointer?
-    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
-        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
-        sqlite3_close(db)
-        throw QueryError.databaseOpenFailed(message: message)
+    let resolvedIndexURL = indexDatabaseURL
+        ?? cacheDirectoryURL?.appendingPathComponent("agent-usage-index.sqlite")
+        ?? AgentUsageIndexStore.defaultDatabaseURL()
+    let store = try AgentUsageIndexStore(databaseURL: resolvedIndexURL)
+    let databaseIdentity = databaseIdentity(for: databaseURL)
+    let calendarIdentity = currentCalendarIdentity()
+    let mainModificationNanoseconds = modificationTimeNanoseconds(at: databaseURL)
+    let walURL = URL(fileURLWithPath: databaseURL.path + "-wal")
+    let walModificationNanoseconds = modificationTimeNanoseconds(at: walURL)
+    let sourceKey = "opencode-\(stableHash(databaseURL.standardizedFileURL.path))"
+    let savedCursor = try store.cursor(source: sourceKey).flatMap { try? JSONDecoder().decode(OpenCodeSourceCursor.self, from: $0) }
+    var entries: [String: OpenCodeUsageIndexEntry] = [:]
+    let storedRecords = try store.records(source: sourceKey)
+    for (sessionID, record) in storedRecords {
+        if let entry = try? JSONDecoder().decode(OpenCodeUsageIndexEntry.self, from: record.payload) {
+            entries[sessionID] = entry
+        }
     }
+
+    if let savedCursor,
+       savedCursor.databaseIdentity == databaseIdentity,
+       savedCursor.mainModificationNanoseconds == mainModificationNanoseconds,
+       savedCursor.walModificationNanoseconds == walModificationNanoseconds,
+       savedCursor.calendarIdentity == calendarIdentity,
+       entries.count == storedRecords.count {
+        let metadata = entries.mapValues(\.metadata)
+        let dailyBuckets = sortedBuckets(from: entries)
+        return OpenCodeUsageLoadResult(
+            snapshot: makeSnapshot(dailyBuckets: dailyBuckets, metadata: metadata),
+            dailyBuckets: dailyBuckets
+        )
+    }
+
+    let db = try openReadOnlyDatabase(
+        databaseURL: databaseURL,
+        includeWAL: walModificationNanoseconds > mainModificationNanoseconds
+    )
     defer { sqlite3_close(db) }
 
     let usesV2Schema = tableExists(db: db, table: "session_v2")
     let sessionTable = usesV2Schema ? "session_v2" : "session"
     let messageTable = usesV2Schema ? "session_message" : "message"
+    let schemaVersion = usesV2Schema ? 2 : 1
+
+    let metadata = try loadSessionMetadata(
+        db: db,
+        sessionTable: sessionTable,
+        messageTable: messageTable
+    )
+    let isCalendarInvalidated = savedCursor?.calendarIdentity != calendarIdentity
+    let isCacheCompatible = savedCursor?.databaseIdentity == databaseIdentity
+        && savedCursor?.schemaVersion == schemaVersion
+        && isCalendarInvalidated == false
+    if isCacheCompatible == false {
+        entries.removeAll(keepingCapacity: true)
+    }
+
+    let currentSessionIDs = Set(metadata.keys)
+    let removedSessionIDs = Set(storedRecords.keys).subtracting(currentSessionIDs)
+    for sessionID in removedSessionIDs {
+        entries.removeValue(forKey: sessionID)
+    }
+
+    let changedSessionIDs = metadata.compactMap { sessionID, session -> String? in
+        guard let cached = entries[sessionID],
+              cached.needsUsageRefresh(for: session) == false else {
+            return sessionID
+        }
+        return nil
+    }.sorted()
+
+    let bucketsToRefresh: [OpenCodeDailyBucket]
+    let refreshedSessionIDs: [String]
+    if entries.isEmpty && metadata.isEmpty == false {
+        bucketsToRefresh = try loadMessageBuckets(
+            db: db,
+            sessionTable: sessionTable,
+            messageTable: messageTable,
+            usesV2Schema: usesV2Schema,
+            sessionIDs: nil
+        )
+        refreshedSessionIDs = Array(metadata.keys)
+    } else if changedSessionIDs.isEmpty {
+        bucketsToRefresh = []
+        refreshedSessionIDs = []
+    } else {
+        bucketsToRefresh = try loadMessageBuckets(
+            db: db,
+            sessionTable: sessionTable,
+            messageTable: messageTable,
+            usesV2Schema: usesV2Schema,
+            sessionIDs: changedSessionIDs
+        )
+        refreshedSessionIDs = changedSessionIDs
+    }
+
+    let refreshedBucketsBySessionID = Dictionary(grouping: bucketsToRefresh, by: \.sessionID)
+    for sessionID in refreshedSessionIDs {
+        guard let session = metadata[sessionID] else { continue }
+        entries[sessionID] = OpenCodeUsageIndexEntry(
+            watermarkMilliseconds: session.watermarkMilliseconds,
+            metadata: session,
+            dailyBuckets: refreshedBucketsBySessionID[sessionID] ?? []
+        )
+    }
+
+    // Refresh lightweight session metadata even when the message watermark stayed
+    // stable; this keeps titles/directories current without parsing message JSON.
+    var upserts: [String: AgentUsageIndexRecord] = [:]
+    for (sessionID, session) in metadata {
+        var entry = entries[sessionID] ?? OpenCodeUsageIndexEntry(
+            watermarkMilliseconds: session.watermarkMilliseconds,
+            metadata: session,
+            dailyBuckets: []
+        )
+        if entry.metadata != session {
+            entry = OpenCodeUsageIndexEntry(
+                watermarkMilliseconds: session.watermarkMilliseconds,
+                metadata: session,
+                dailyBuckets: entry.dailyBuckets
+            )
+        }
+        entries[sessionID] = entry
+        let payload = try JSONEncoder().encode(entry)
+        upserts[sessionID] = AgentUsageIndexRecord(metadata: Data(), payload: payload)
+    }
+
+    let cursor = OpenCodeSourceCursor(
+        databaseIdentity: databaseIdentity,
+        schemaVersion: schemaVersion,
+        calendarIdentity: calendarIdentity,
+        mainModificationNanoseconds: mainModificationNanoseconds,
+        walModificationNanoseconds: walModificationNanoseconds
+    )
+    try store.apply(
+        source: sourceKey,
+        upserts: upserts,
+        removals: removedSessionIDs,
+        cursor: try JSONEncoder().encode(cursor)
+    )
+
+    let dailyBuckets = sortedBuckets(from: entries)
+    let snapshot = makeSnapshot(dailyBuckets: dailyBuckets, metadata: metadata)
+    return OpenCodeUsageLoadResult(snapshot: snapshot, dailyBuckets: dailyBuckets)
+}
+
+private static func sortedBuckets(from entries: [String: OpenCodeUsageIndexEntry]) -> [OpenCodeDailyBucket] {
+    entries.values.flatMap(\.dailyBuckets).sorted { lhs, rhs in
+        if lhs.sessionID == rhs.sessionID { return lhs.day < rhs.day }
+        return lhs.sessionID < rhs.sessionID
+    }
+}
+
+private static func loadMessageBuckets(
+    db: OpaquePointer?,
+    sessionTable: String,
+    messageTable: String,
+    usesV2Schema: Bool,
+    sessionIDs: [String]?
+) throws -> [OpenCodeDailyBucket] {
 
     // The model/token fields live inside the message `data` JSON. Extracting them
     // once into a materialized CTE (rather than inline at every projection site)
@@ -148,6 +322,7 @@ static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
     let messageVariantExpr = usesV2Schema
         ? "json_extract(data, '$.model.variant')"
         : "json_extract(data, '$.variant')"
+    let sessionPredicate = sessionIDs == nil ? "" : " AND session_id = ?"
 
     let sql = """
     WITH msg AS MATERIALIZED (
@@ -159,7 +334,7 @@ static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
            json_extract(data, '$.tokens') AS tokens_json,
            json_extract(data, '$.cost') AS cost
     FROM \(messageTable)
-    WHERE \(messageFilter)
+    WHERE \(messageFilter)\(sessionPredicate)
     )
     SELECT m.session_id,
            m.time_created,
@@ -187,77 +362,142 @@ static func loadUsage(databaseURL: URL) throws -> OpenCodeUsageLoadResult {
     let calendar = Calendar.current
     var lastDay: (interval: DateInterval, identifier: Int)?
 
-    while true {
-        let stepResult = sqlite3_step(statement)
-        if stepResult == SQLITE_DONE { break }
-        guard stepResult == SQLITE_ROW else {
-            throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
-        }
+    func consumeRows() throws {
+        while true {
+            let stepResult = sqlite3_step(statement)
+            if stepResult == SQLITE_DONE { break }
+            guard stepResult == SQLITE_ROW else {
+                throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+            }
 
-        let sessionID = stringColumn(statement, index: 0)
-        let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 1)) / 1000)
-        let day: Int
-        // Reuse the actual local-day bounds only within this refresh. The lower
-        // bound handles earlier dates in later sessions; the end is exclusive.
-        if let lastDay, createdAt >= lastDay.interval.start, createdAt < lastDay.interval.end {
-            day = lastDay.identifier
-        } else {
-            day = agentUsageDayIdentifier(for: createdAt, calendar: calendar)
-            lastDay = calendar.dateInterval(of: .day, for: createdAt).map { ($0, day) }
-        }
-        let modelProviderID = stringColumn(statement, index: 2)
-        let modelID = stringColumn(statement, index: 3)
-        let modelVariant = optionalStringColumn(statement, index: 4)
-        let modelKey = [modelProviderID, modelID, modelVariant ?? ""].joined(separator: "::")
-        let key = "\(sessionID)::\(modelKey)::\(day)"
-        let existing = bucketsBySessionAndDay[key]
+            let sessionID = stringColumn(statement, index: 0)
+            let createdAt = Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 1)) / 1000)
+            let day: Int
+            // Reuse the actual local-day bounds only within this refresh. The lower
+            // bound handles earlier dates in later sessions; the end is exclusive.
+            if let lastDay, createdAt >= lastDay.interval.start, createdAt < lastDay.interval.end {
+                day = lastDay.identifier
+            } else {
+                day = agentUsageDayIdentifier(for: createdAt, calendar: calendar)
+                lastDay = calendar.dateInterval(of: .day, for: createdAt).map { ($0, day) }
+            }
+            let modelProviderID = stringColumn(statement, index: 2)
+            let modelID = stringColumn(statement, index: 3)
+            let modelVariant = optionalStringColumn(statement, index: 4)
+            let modelKey = [modelProviderID, modelID, modelVariant ?? ""].joined(separator: "::")
+            let key = "\(sessionID)::\(modelKey)::\(day)"
+            let existing = bucketsBySessionAndDay[key]
 
-        bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
-            sessionID: sessionID,
-            day: day,
-            modelProviderID: modelProviderID,
-            modelID: modelID,
-            modelVariant: modelVariant,
-            inputTokens: (existing?.inputTokens ?? 0) + Int(sqlite3_column_int64(statement, 5)),
-            outputTokens: (existing?.outputTokens ?? 0) + Int(sqlite3_column_int64(statement, 6)),
-            reasoningTokens: (existing?.reasoningTokens ?? 0) + Int(sqlite3_column_int64(statement, 7)),
-            cacheReadTokens: (existing?.cacheReadTokens ?? 0) + Int(sqlite3_column_int64(statement, 8)),
-            cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + Int(sqlite3_column_int64(statement, 9)),
-            requestCount: (existing?.requestCount ?? 0) + 1,
-            cost: (existing?.cost ?? 0) + sqlite3_column_double(statement, 10),
-            latestActivityAt: max(existing?.latestActivityAt ?? createdAt, createdAt)
-        )
+            bucketsBySessionAndDay[key] = OpenCodeDailyBucket(
+                sessionID: sessionID,
+                day: day,
+                modelProviderID: modelProviderID,
+                modelID: modelID,
+                modelVariant: modelVariant,
+                inputTokens: (existing?.inputTokens ?? 0) + Int(sqlite3_column_int64(statement, 5)),
+                outputTokens: (existing?.outputTokens ?? 0) + Int(sqlite3_column_int64(statement, 6)),
+                reasoningTokens: (existing?.reasoningTokens ?? 0) + Int(sqlite3_column_int64(statement, 7)),
+                cacheReadTokens: (existing?.cacheReadTokens ?? 0) + Int(sqlite3_column_int64(statement, 8)),
+                cacheWriteTokens: (existing?.cacheWriteTokens ?? 0) + Int(sqlite3_column_int64(statement, 9)),
+                requestCount: (existing?.requestCount ?? 0) + 1,
+                cost: (existing?.cost ?? 0) + sqlite3_column_double(statement, 10),
+                latestActivityAt: max(existing?.latestActivityAt ?? createdAt, createdAt)
+            )
+        }
     }
 
-    let dailyBuckets = bucketsBySessionAndDay.values.sorted { lhs, rhs in
+    if let sessionIDs {
+        for sessionID in sessionIDs {
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
+            let bindResult = sessionID.withCString { value in
+                sqlite3_bind_text(statement, 1, value, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            }
+            guard bindResult == SQLITE_OK else {
+                throw QueryError.queryStepFailed(message: String(cString: sqlite3_errmsg(db)))
+            }
+            try consumeRows()
+        }
+    } else {
+        try consumeRows()
+    }
+
+    return bucketsBySessionAndDay.values.sorted { lhs, rhs in
         if lhs.sessionID == rhs.sessionID {
             return lhs.day < rhs.day
         }
         return lhs.sessionID < rhs.sessionID
     }
+}
 
-    let metadata = try loadSessionMetadata(db: db, sessionTable: sessionTable)
-    let snapshot = makeSnapshot(dailyBuckets: dailyBuckets, metadata: metadata)
-    return OpenCodeUsageLoadResult(snapshot: snapshot, dailyBuckets: dailyBuckets)
+private static func databaseIdentity(for databaseURL: URL) -> String {
+    let attributes = try? FileManager.default.attributesOfItem(atPath: databaseURL.path)
+    let fileNumber = (attributes?[.systemFileNumber] as? NSNumber)?.stringValue ?? "unknown"
+    let creationTime = (attributes?[.creationDate] as? Date)?.timeIntervalSince1970 ?? 0
+    return "\(databaseURL.standardizedFileURL.path)|\(fileNumber)|\(creationTime)"
+}
+
+private static func modificationTimeNanoseconds(at url: URL) -> Int64 {
+    url.withUnsafeFileSystemRepresentation { path in
+        guard let path else { return -1 }
+        var attributes = stat()
+        guard lstat(path, &attributes) == 0 else { return -1 }
+        return Int64(attributes.st_mtimespec.tv_sec) * 1_000_000_000
+            + Int64(attributes.st_mtimespec.tv_nsec)
+    }
+}
+
+private static func openReadOnlyDatabase(databaseURL: URL, includeWAL: Bool) throws -> OpaquePointer? {
+    // immutable=1 is the normal path and avoids creating WAL/SHM sidecars. When
+    // the WAL is newer than the main file, SQLite must consult it for the latest
+    // committed rows; use a read-only mode=ro URI for that case. The source DB
+    // and WAL are never opened for writing.
+    let readOnlyOptions = includeWAL ? "mode=ro" : "immutable=1"
+    let uri = "file://\(databaseURL.path)?\(readOnlyOptions)"
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
+        let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+        sqlite3_close(db)
+        throw QueryError.databaseOpenFailed(message: message)
+    }
+    return db
+}
+
+private static func currentCalendarIdentity() -> String {
+    let calendar = Calendar.current
+    return "\(calendar.identifier)|\(calendar.timeZone.identifier)"
+}
+
+private static func stableHash(_ value: String) -> String {
+    var hash: UInt64 = 14_695_981_039_346_656_037
+    for byte in value.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 1_099_511_628_211
+    }
+    return String(hash, radix: 16)
 }
 
 private static func loadSessionMetadata(
     db: OpaquePointer?,
-    sessionTable: String
+    sessionTable: String,
+    messageTable: String
 ) throws -> [String: OpenCodeSessionMetadata] {
     let hasAgentColumn = tableHasColumn(db: db, table: sessionTable, column: "agent")
     let agentExpr = hasAgentColumn ? "coalesce(agent, '')" : "''"
     let sql = """
-    SELECT id,
-           coalesce(title, ''),
-           coalesce(directory, ''),
+    SELECT s.id,
+           coalesce(s.title, ''),
+           coalesce(s.directory, ''),
            \(agentExpr),
-           coalesce(json_extract(model, '$.providerID'), ''),
-           coalesce(json_extract(model, '$.id'), ''),
-           json_extract(model, '$.variant'),
-           time_created,
-           time_updated
-    FROM \(sessionTable)
+           coalesce(json_extract(s.model, '$.providerID'), ''),
+           coalesce(json_extract(s.model, '$.id'), ''),
+           json_extract(s.model, '$.variant'),
+           s.time_created,
+           s.time_updated,
+           max(s.time_updated, coalesce(max(m.time_updated), 0))
+    FROM \(sessionTable) s
+    LEFT JOIN \(messageTable) m ON m.session_id = s.id
+    GROUP BY s.id
     """
 
     var statement: OpaquePointer?
@@ -283,7 +523,9 @@ private static func loadSessionMetadata(
             modelID: stringColumn(statement, index: 5),
             modelVariant: optionalStringColumn(statement, index: 6),
             createdAt: Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 7)) / 1000),
-            updatedAt: Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 8)) / 1000)
+            updatedAt: Date(timeIntervalSince1970: Double(sqlite3_column_int64(statement, 8)) / 1000),
+            updatedAtMilliseconds: sqlite3_column_int64(statement, 8),
+            watermarkMilliseconds: sqlite3_column_int64(statement, 9)
         )
     }
     return metadata

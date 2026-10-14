@@ -14,6 +14,8 @@
 		100000000000000000000014 /* AgentUsageSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* AgentUsageSettings.swift */; };
 		100000000000000000000016 /* OpenCodeUsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* OpenCodeUsageModels.swift */; };
 		100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* OpenCodeUsageStoreTests.swift */; };
+		100000000000000000000090 /* AgentUsageIndexStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000092 /* AgentUsageIndexStoreTests.swift */; };
+		100000000000000000000093 /* AgentUsageIndexStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000094 /* AgentUsageIndexStore.swift */; };
 		100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000021 /* OpenCodeUsageStore.swift */; };
 		100000000000000000000023 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 100000000000000000000022 /* libsqlite3.tbd */; };
 		100000000000000000000024 /* SearchableSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000025 /* SearchableSelectorView.swift */; };
@@ -140,6 +142,8 @@
 		100000000000000000000015 /* AgentUsageSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageSettings.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* OpenCodeUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageModels.swift; sourceTree = "<group>"; };
 		100000000000000000000019 /* OpenCodeUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000092 /* AgentUsageIndexStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageIndexStoreTests.swift; sourceTree = "<group>"; };
+		100000000000000000000094 /* AgentUsageIndexStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/AgentUsageIndexStore.swift; sourceTree = "<group>"; };
 		100000000000000000000021 /* OpenCodeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers/OpenCodeUsageStore.swift; sourceTree = "<group>"; };
 		100000000000000000000022 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		100000000000000000000025 /* SearchableSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableSelectorView.swift; sourceTree = "<group>"; };
@@ -277,6 +281,7 @@
 				100000000000000000000076 /* OpenCodeSessionTranscriptTests.swift */,
 				100000000000000000000078 /* CodexSessionTranscriptTests.swift */,
 				100000000000000000000019 /* OpenCodeUsageStoreTests.swift */,
+				100000000000000000000092 /* AgentUsageIndexStoreTests.swift */,
 				1000000000000000000000E5 /* ClaudeCodeUsageModelsTests.swift */,
 				1000000000000000000000E7 /* ClaudeCodeTranscriptTests.swift */,
 				1000000000000000000000F1 /* ClaudeCodeSessionManagementTests.swift */,
@@ -324,6 +329,7 @@
 				10000000000000000000007C /* SessionManagementStore.swift */,
 				10000000000000000000007A /* SessionManagementRepository.swift */,
 				100000000000000000000021 /* OpenCodeUsageStore.swift */,
+				100000000000000000000094 /* AgentUsageIndexStore.swift */,
 				3FB397EBE240C8353EC016DA /* ThemeManager.swift */,
 				A555DA5BBA52686079843F84 /* CodexUsageModels.swift */,
 				8C9E7FA5E6B5FCE1782E6A79 /* AgentUsageModels.swift */,
@@ -564,6 +570,7 @@
 				100000000000000000000075 /* OpenCodeSessionTranscriptTests.swift in Sources */,
 				100000000000000000000077 /* CodexSessionTranscriptTests.swift in Sources */,
 				100000000000000000000018 /* OpenCodeUsageStoreTests.swift in Sources */,
+				100000000000000000000090 /* AgentUsageIndexStoreTests.swift in Sources */,
 				1000000000000000000000E4 /* ClaudeCodeUsageModelsTests.swift in Sources */,
 				1000000000000000000000E6 /* ClaudeCodeTranscriptTests.swift in Sources */,
 				1000000000000000000000F0 /* ClaudeCodeSessionManagementTests.swift in Sources */,
@@ -630,6 +637,7 @@
 				100000000000000000000084 /* SessionTranscriptDetailView.swift in Sources */,
 				100000000000000000000080 /* SessionManagementWindowView.swift in Sources */,
 				100000000000000000000020 /* OpenCodeUsageStore.swift in Sources */,
+				100000000000000000000093 /* AgentUsageIndexStore.swift in Sources */,
 				5A719041E1765C36567D7A11 /* ThemeManager.swift in Sources */,
 				8B7C4D9E2F5A8C1B3E9D7F2A /* SettingsView.swift in Sources */,
 				BE927B2A06123921C62EE3A0 /* CodexUsageModels.swift in Sources */,

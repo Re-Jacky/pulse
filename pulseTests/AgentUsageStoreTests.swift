@@ -1657,6 +1657,7 @@ final class AgentUsageStoreTests: XCTestCase {
         try withTimeZone("UTC") {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let home = root.appendingPathComponent("home")
+            let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
             let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
             let transcriptURL = sessionDir.appendingPathComponent("rollout-test.jsonl")
             try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1671,7 +1672,8 @@ final class AgentUsageStoreTests: XCTestCase {
 
             let buckets = try CodexUsageQuery.loadDailyBuckets(
                 homeDirectoryURL: home,
-                fileManager: .default
+                fileManager: .default,
+                indexDatabaseURL: indexDatabaseURL
             )
 
             XCTAssertEqual(
@@ -1710,6 +1712,7 @@ final class AgentUsageStoreTests: XCTestCase {
         try withTimeZone("America/Los_Angeles") {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let home = root.appendingPathComponent("home")
+            let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
             let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/17")
             let transcriptURL = sessionDir.appendingPathComponent("local-day-test.jsonl")
             try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1723,7 +1726,8 @@ final class AgentUsageStoreTests: XCTestCase {
 
             let buckets = try CodexUsageQuery.loadDailyBuckets(
                 homeDirectoryURL: home,
-                fileManager: .default
+                fileManager: .default,
+                indexDatabaseURL: indexDatabaseURL
             )
 
             XCTAssertEqual(
@@ -1743,6 +1747,15 @@ final class AgentUsageStoreTests: XCTestCase {
                 ]
             )
 
+            try withTimeZone("UTC") {
+                let refreshedForUTC = try CodexUsageQuery.loadDailyBuckets(
+                    homeDirectoryURL: home,
+                    fileManager: .default,
+                    indexDatabaseURL: indexDatabaseURL
+                )
+                XCTAssertEqual(refreshedForUTC.map(\.day), [20621, 20622])
+            }
+
             try? FileManager.default.removeItem(at: root)
         }
     }
@@ -1750,6 +1763,7 @@ final class AgentUsageStoreTests: XCTestCase {
     func testCodexLoadDailyBucketsPreservesNativeTotalTokens() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
+        let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
         let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
         let transcriptURL = sessionDir.appendingPathComponent("native-total-test.jsonl")
         try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1762,7 +1776,8 @@ final class AgentUsageStoreTests: XCTestCase {
 
         let buckets = try CodexUsageQuery.loadDailyBuckets(
             homeDirectoryURL: home,
-            fileManager: .default
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
         )
 
         XCTAssertEqual(buckets.count, 1)
@@ -1778,6 +1793,7 @@ final class AgentUsageStoreTests: XCTestCase {
     func testCodexLoadDailyBucketsIgnoresNonUsageTranscriptLines() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let home = root.appendingPathComponent("home")
+        let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
         let sessionDir = home.appendingPathComponent(".codex/sessions/2026/06/16")
         let transcriptURL = sessionDir.appendingPathComponent("non-usage-lines-test.jsonl")
         try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1792,7 +1808,8 @@ final class AgentUsageStoreTests: XCTestCase {
 
         let buckets = try CodexUsageQuery.loadDailyBuckets(
             homeDirectoryURL: home,
-            fileManager: .default
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
         )
 
         XCTAssertEqual(buckets.count, 1)
@@ -1807,6 +1824,7 @@ final class AgentUsageStoreTests: XCTestCase {
             for lineEnding in ["\n", "\r\n", "\r", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}"] {
                 let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                 defer { try? FileManager.default.removeItem(at: root) }
+                let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
                 let sessionDir = root.appendingPathComponent(".codex/sessions/2026/06/16")
                 let transcriptURL = sessionDir.appendingPathComponent("unicode-usage.jsonl")
                 try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1824,7 +1842,10 @@ final class AgentUsageStoreTests: XCTestCase {
                 // The last usage event has no trailing newline.
                 try lines.joined(separator: lineEnding).write(to: transcriptURL, atomically: true, encoding: .utf8)
 
-                let buckets = try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root)
+                let buckets = try CodexUsageQuery.loadDailyBuckets(
+                    homeDirectoryURL: root,
+                    indexDatabaseURL: indexDatabaseURL
+                )
                 XCTAssertEqual(buckets, [
                     CodexDailyBucket(
                         sessionID: "thread_🌊", day: 20620,
@@ -1833,12 +1854,18 @@ final class AgentUsageStoreTests: XCTestCase {
                         latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T12:03:00Z")
                     )
                 ])
-                XCTAssertEqual(try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root), buckets)
+                XCTAssertEqual(
+                    try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root, indexDatabaseURL: indexDatabaseURL),
+                    buckets
+                )
 
                 let appendedEvent = #"{"timestamp":"2026-06-16T12:04:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":200,"cached_input_tokens":85,"output_tokens":40,"reasoning_output_tokens":10,"total_tokens":240}}}}"#
                 try (lines.joined(separator: lineEnding) + lineEnding + appendedEvent)
                     .write(to: transcriptURL, atomically: true, encoding: .utf8)
-                let updated = try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root)
+                let updated = try CodexUsageQuery.loadDailyBuckets(
+                    homeDirectoryURL: root,
+                    indexDatabaseURL: indexDatabaseURL
+                )
                 XCTAssertEqual(updated, [
                     CodexDailyBucket(
                         sessionID: "thread_🌊", day: 20620,
@@ -1847,6 +1874,11 @@ final class AgentUsageStoreTests: XCTestCase {
                         latestActivityAt: ISO8601DateFormatter().date(from: "2026-06-16T12:04:00Z")
                     )
                 ])
+
+                try FileManager.default.removeItem(at: transcriptURL)
+                XCTAssertTrue(
+                    try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root, indexDatabaseURL: indexDatabaseURL).isEmpty
+                )
             }
         }
     }
@@ -1854,6 +1886,7 @@ final class AgentUsageStoreTests: XCTestCase {
     func testCodexLoadDailyBucketsSkipsInvalidUTF8Transcript() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
+        let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
         let sessionDir = root.appendingPathComponent(".codex/sessions/2026/06/16")
         let transcriptURL = sessionDir.appendingPathComponent("invalid-utf8.jsonl")
         try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
@@ -1867,7 +1900,7 @@ final class AgentUsageStoreTests: XCTestCase {
         data.append(0xFF)
         try data.write(to: transcriptURL)
 
-        XCTAssertEqual(try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root), [])
+        XCTAssertEqual(try CodexUsageQuery.loadDailyBuckets(homeDirectoryURL: root, indexDatabaseURL: indexDatabaseURL), [])
     }
 
     func testDerivedDataUsesCodexBucketsForTodayInsteadOfSessionUpdatedAt() {

@@ -1,6 +1,6 @@
 import Foundation
 
-struct OpenCodeDailyBucket: Equatable {
+struct OpenCodeDailyBucket: Codable, Equatable {
     let sessionID: String
     let day: Int
     let modelProviderID: String

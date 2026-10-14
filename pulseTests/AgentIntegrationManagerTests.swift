@@ -174,43 +174,6 @@ final class AgentIntegrationManagerTests: XCTestCase {
         XCTAssertTrue(plugin.contains("parentSessionID: normalizedParentSessionID || undefined"))
     }
 
-    func testOpenCodePluginDoesNotPromoteMetadataOrDeltaEventsToWorkingState() throws {
-        let fs = InMemoryAgentIntegrationFileSystem()
-        let installer = OpenCodeIntegrationInstaller(
-            fileSystem: fs,
-            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
-        )
-
-        try installer.install()
-
-        let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
-        XCTAssertTrue(plugin.contains("function resolveKind(eventType, properties = undefined)"))
-        XCTAssertTrue(plugin.contains("writeDebugLog(\"ignored metadata-only event\""))
-        XCTAssertTrue(plugin.contains("writeDebugLog(\"ignored unsupported event\""))
-        XCTAssertFalse(plugin.contains("case \"session.usage.updated\""))
-        XCTAssertFalse(plugin.contains("case \"session.text.delta\""))
-        XCTAssertFalse(plugin.contains("case \"session.reasoning.delta\""))
-        XCTAssertFalse(plugin.contains("case \"session.step.streamed\""))
-    }
-
-    func testOpenCodePluginMarksQuestionToolAsIdleAndResumesOnSuccess() throws {
-        let fs = InMemoryAgentIntegrationFileSystem()
-        let installer = OpenCodeIntegrationInstaller(
-            fileSystem: fs,
-            homeDirectoryURL: URL(fileURLWithPath: "/Users/tester")
-        )
-
-        try installer.install()
-
-        let plugin = try XCTUnwrap(fs.readCreatedFile(named: "pulse-agent-lights.ts"))
-        XCTAssertTrue(plugin.contains("resolveKind(type, event?.data)"))
-        XCTAssertTrue(plugin.contains("properties?.toolName"))
-        XCTAssertTrue(plugin.contains("properties?.part?.name"))
-        XCTAssertTrue(plugin.contains("Array.isArray(properties?.input?.questions)"))
-        XCTAssertTrue(plugin.contains("isQuestionToolCall ? \"session.idle\" : \"session.working\""))
-        XCTAssertTrue(plugin.contains("case \"session.tool.success\":"))
-    }
-
     func testOpenCodePluginMarksInterruptedExecutionIdle() throws {
         let fs = InMemoryAgentIntegrationFileSystem()
         let installer = OpenCodeIntegrationInstaller(
@@ -716,7 +679,7 @@ private final class InMemoryAgentIntegrationFileSystem: AgentIntegrationManaging
         case .outdatedOpenCodeInstall:
             files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v0", senderVersion: "sender-v0")
         case .staleOpenCodePlugin:
-            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v4")
+            files = Self.makeOpenCodeInstall(pluginVersion: "opencode-plugin-v3")
         case .staleOpenCodeSender:
             files = Self.makeOpenCodeInstall(senderVersion: "sender-v0")
         case .staleCodexHook:

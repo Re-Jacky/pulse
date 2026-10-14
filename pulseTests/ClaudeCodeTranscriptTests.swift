@@ -5,6 +5,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
     private var root: URL!
     private var home: URL!
     private var projectsDir: URL!
+    private var indexDatabaseURL: URL { root.appendingPathComponent("Pulse/agent-usage-index.sqlite") }
 
     override func setUpWithError() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -15,28 +16,6 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: root)
-        // ClaudeCodeUsageQuery persists its size+mtime transcript cache to the
-        // real ~/Library/Caches/Pulse keyed by a stable hash of the (temp) home
-        // directory. Remove exactly the file this test run wrote so we do not
-        // leak cache files into the user's caches.
-        try? FileManager.default.removeItem(at: claudeCacheFileURL())
-    }
-
-    private func claudeCacheFileURL() -> URL {
-        let baseURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return baseURL
-            .appendingPathComponent("Pulse", isDirectory: true)
-            .appendingPathComponent("claude-code-transcript-cache-\(stableHash(home.path))-v2.json")
-    }
-
-    private func stableHash(_ value: String) -> String {
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in value.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1_099_511_628_211
-        }
-        return String(hash, radix: 16)
     }
 
     private func writeTranscript(_ contents: String, id: String) throws {
@@ -52,7 +31,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"last-prompt","lastPrompt":"fix the crash","leafUuid":"a1","sessionId":"ses_1"}
         """, id: "ses_1")
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
 
         XCTAssertEqual(snapshot.sessions.count, 1)
         let session = try XCTUnwrap(snapshot.sessions.first)
@@ -76,8 +55,19 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"last-prompt","lastPrompt":"do the thing","leafUuid":"a1","sessionId":"ses_2"}
         """, id: "ses_2")
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
-        XCTAssertEqual(snapshot.sessions.first?.title, "do the thing")
+        let initialSnapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
+        XCTAssertEqual(initialSnapshot.sessions.first?.title, "do the thing")
+
+        let cachedSnapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
+        XCTAssertEqual(cachedSnapshot.sessions.first?.title, "do the thing")
+
+        let store = try AgentUsageIndexStore(databaseURL: indexDatabaseURL)
+        let records = try store.records(source: "claude:\(home.standardizedFileURL.path)")
+        XCTAssertEqual(records.count, 1)
+        let record = try XCTUnwrap(records.values.first)
+        let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: record.payload) as? [String: Any])
+        let accumulator = try XCTUnwrap(payload["accumulator"] as? [String: Any])
+        XCTAssertNil(accumulator["lastPrompt"])
     }
 
     func testLoadDailyBucketsAggregatesAcrossDaysAndSessions() throws {
@@ -87,7 +77,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"assistant","message":{"id":"m3","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":5,"output_tokens":1}},"uuid":"a3","timestamp":"2026-07-23T09:00:00.000Z","cwd":"/tmp/project","sessionId":"ses_4"}
         """, id: "ses_3")
 
-        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
+        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
 
         XCTAssertEqual(buckets.count, 2)
         let day = agentUsageDayIdentifier(for: ISO8601DateFormatter().date(from: "2026-07-22T00:00:00Z")!)
@@ -109,7 +99,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"assistant","message":{"id": "m2", "truncated
         """, id: "ses_5")
 
-        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
+        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         XCTAssertEqual(buckets.count, 1)
         XCTAssertEqual(buckets.first?.requestCount, 1)
     }
@@ -121,7 +111,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"last-prompt","lastPrompt":"never answered","leafUuid":"u1","sessionId":"ses_6"}
         """, id: "ses_6")
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         let session = try XCTUnwrap(snapshot.sessions.first)
         XCTAssertEqual(session.id, "ses_6")
         XCTAssertEqual(session.tokensUsed, 0)
@@ -134,7 +124,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"permission-mode","permissionMode":"default","sessionId":"ses_7"}
         """, id: "ses_7")
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         XCTAssertTrue(snapshot.sessions.isEmpty)
     }
 
@@ -145,7 +135,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":1,"output_tokens":1}},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_8"}
         """, id: "ses_8")
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         let session = try XCTUnwrap(snapshot.sessions.first)
         XCTAssertEqual(session.createdAt.timeIntervalSince1970, ISO8601DateFormatter().date(from: "2026-07-22T08:00:00Z")!.timeIntervalSince1970, accuracy: 0.001)
         XCTAssertEqual(session.updatedAt.timeIntervalSince1970, ISO8601DateFormatter().date(from: "2026-07-22T09:00:05Z")!.timeIntervalSince1970, accuracy: 0.001)
@@ -156,11 +146,137 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         {"type":"assistant","message":{"id":"m1","type":"message","role":"assistant","model":"opus","usage":{"input_tokens":10,"output_tokens":2}},"uuid":"a1","timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_9"}
         """, id: "ses_9")
 
-        _ = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
-        _ = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
+        _ = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
+        _ = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         XCTAssertEqual(snapshot.sessions.map(\.id), ["ses_9"])
+    }
+
+    func testAppendedUsageCommitsOnlyCompleteLinesToTheSharedIndex() throws {
+        let indexDatabaseURL = root.appendingPathComponent("Pulse/agent-usage-index.sqlite")
+        let transcriptURL = projectsDir.appendingPathComponent("ses_incremental.jsonl")
+        let firstLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":10,"output_tokens":0}},"timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_incremental"}"#
+        let secondLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":20,"output_tokens":0}},"timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_incremental"}"#
+        let thirdLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":30,"output_tokens":0}},"timestamp":"2026-07-22T09:02:05.000Z","cwd":"/tmp/project","sessionId":"ses_incremental"}"#
+        let incompleteThirdLine = String(thirdLine.dropLast(12))
+        let thirdLineRemainder = String(thirdLine.suffix(12))
+        try (firstLine + "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        let initial = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(initial.dailyBuckets.first?.inputTokens, 10)
+
+        let handle = try FileHandle(forWritingTo: transcriptURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data((secondLine + "\n" + incompleteThirdLine).utf8))
+        try handle.close()
+
+        let withIncompleteTail = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(withIncompleteTail.dailyBuckets.first?.inputTokens, 30)
+        XCTAssertEqual(withIncompleteTail.dailyBuckets.first?.requestCount, 2)
+
+        let appendHandle = try FileHandle(forWritingTo: transcriptURL)
+        try appendHandle.seekToEnd()
+        try appendHandle.write(contentsOf: Data((thirdLineRemainder + "\n").utf8))
+        try appendHandle.close()
+
+        let completed = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(completed.dailyBuckets.first?.inputTokens, 60)
+        XCTAssertEqual(completed.dailyBuckets.first?.requestCount, 3)
+    }
+
+    func testReplacingAndRemovingTranscriptReplacesItsIndexedContribution() throws {
+        try writeTranscript(#"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":10,"output_tokens":0}},"timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_replaced"}"#, id: "ses_replaced")
+        let initial = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(initial.dailyBuckets.first?.inputTokens, 10)
+
+        try writeTranscript(#"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":3,"output_tokens":0}},"timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_replaced"}"#, id: "ses_replaced")
+        let replaced = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(replaced.dailyBuckets.first?.inputTokens, 3)
+        XCTAssertEqual(replaced.dailyBuckets.first?.requestCount, 1)
+
+        try FileManager.default.removeItem(at: projectsDir.appendingPathComponent("ses_replaced.jsonl"))
+        let removed = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertTrue(removed.snapshot.sessions.isEmpty)
+        XCTAssertTrue(removed.dailyBuckets.isEmpty)
+    }
+
+    func testTimezoneChangeRebucketsCachedTranscriptUsage() throws {
+        let timestamp = "2026-07-22T01:00:00Z"
+        let usageDate = try XCTUnwrap(ISO8601DateFormatter().date(from: timestamp))
+        try writeTranscript(#"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":10,"output_tokens":0}},"timestamp":"2026-07-22T01:00:00.000Z","cwd":"/tmp/project","sessionId":"ses_timezone"}"#, id: "ses_timezone")
+
+        try withTimeZone("UTC") {
+            let utcBuckets = try ClaudeCodeUsageQuery.loadDailyBuckets(
+                homeDirectoryURL: home,
+                fileManager: .default,
+                indexDatabaseURL: indexDatabaseURL
+            )
+            XCTAssertEqual(utcBuckets.map(\.day), [agentUsageDayIdentifier(for: usageDate)])
+        }
+
+        try withTimeZone("America/Los_Angeles") {
+            let localBuckets = try ClaudeCodeUsageQuery.loadDailyBuckets(
+                homeDirectoryURL: home,
+                fileManager: .default,
+                indexDatabaseURL: indexDatabaseURL
+            )
+            XCTAssertEqual(localBuckets.map(\.day), [agentUsageDayIdentifier(for: usageDate)])
+        }
+    }
+
+    func testReplacingTranscriptIdentityForcesClaudeFullReplay() throws {
+        let transcriptURL = projectsDir.appendingPathComponent("ses_identity.jsonl")
+        let initialLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":10,"output_tokens":0}},"timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_identity"}"#
+        let replacementFirstLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":3,"output_tokens":0}},"timestamp":"2026-07-22T09:00:05.000Z","cwd":"/tmp/project","sessionId":"ses_identity"} "#
+        let boundaryLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":20,"output_tokens":0}},"timestamp":"2026-07-22T09:01:05.000Z","cwd":"/tmp/project","sessionId":"ses_identity","padding":"boundary-preserving-rewrite-abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz"}"#
+        let appendedLine = #"{"type":"assistant","message":{"model":"opus","usage":{"input_tokens":30,"output_tokens":0}},"timestamp":"2026-07-22T09:02:05.000Z","cwd":"/tmp/project","sessionId":"ses_identity"}"#
+        XCTAssertEqual(initialLine.utf8.count, replacementFirstLine.utf8.count)
+        try (initialLine + "\n" + boundaryLine).write(to: transcriptURL, atomically: true, encoding: .utf8)
+
+        _ = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        let originalFileNumber = (try FileManager.default.attributesOfItem(atPath: transcriptURL.path)[.systemFileNumber] as? NSNumber)?.uint64Value
+
+        try (replacementFirstLine + "\n" + boundaryLine + "\n" + appendedLine)
+            .write(to: transcriptURL, atomically: true, encoding: .utf8)
+        let replacementFileNumber = (try FileManager.default.attributesOfItem(atPath: transcriptURL.path)[.systemFileNumber] as? NSNumber)?.uint64Value
+        XCTAssertNotEqual(replacementFileNumber, originalFileNumber)
+
+        let replaced = try ClaudeCodeUsageQuery.loadUsage(
+            homeDirectoryURL: home,
+            fileManager: .default,
+            indexDatabaseURL: indexDatabaseURL
+        )
+        XCTAssertEqual(replaced.dailyBuckets.first?.inputTokens, 53)
+        XCTAssertEqual(replaced.dailyBuckets.first?.requestCount, 3)
     }
 
     func testLoadSnapshotIncludesSubagentTranscriptsUnderSubagentsDirectory() throws {
@@ -181,7 +297,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         """
         try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
 
         XCTAssertEqual(snapshot.sessions.count, 1)
         let session = try XCTUnwrap(snapshot.sessions.first)
@@ -204,7 +320,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         """
         try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
 
-        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default)
+        let buckets = try ClaudeCodeUsageQuery.loadDailyBuckets(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
 
         let day = agentUsageDayIdentifier(for: ISO8601DateFormatter().date(from: "2026-07-22T00:00:00Z")!)
         let bucket = try XCTUnwrap(buckets.first { $0.sessionID == "ses_11" && $0.day == day })
@@ -230,7 +346,7 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         """
         try subagent.write(to: subagentsDir.appendingPathComponent("agent-x.jsonl"), atomically: true, encoding: .utf8)
 
-        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default)
+        let snapshot = try ClaudeCodeUsageQuery.loadSnapshot(homeDirectoryURL: home, fileManager: .default, indexDatabaseURL: indexDatabaseURL)
         let session = try XCTUnwrap(snapshot.sessions.first)
         XCTAssertEqual(session.transcriptURL?.standardizedFileURL, mainURL.standardizedFileURL)
         XCTAssertEqual(session.tokensUsed, 18)
@@ -260,5 +376,22 @@ final class ClaudeCodeTranscriptTests: XCTestCase {
         XCTAssertThrowsError(
             try ClaudeCodeUsageQuery.loadTranscript(sessionID: "missing", transcriptURL: nil, homeDirectoryURL: home, fileManager: .default)
         )
+    }
+
+    private func withTimeZone(_ identifier: String, perform work: () throws -> Void) throws {
+        let previous = ProcessInfo.processInfo.environment["TZ"]
+        setenv("TZ", identifier, 1)
+        tzset()
+        NSTimeZone.resetSystemTimeZone()
+        defer {
+            if let previous {
+                setenv("TZ", previous, 1)
+            } else {
+                unsetenv("TZ")
+            }
+            tzset()
+            NSTimeZone.resetSystemTimeZone()
+        }
+        try work()
     }
 }
