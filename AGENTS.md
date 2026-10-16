@@ -17,7 +17,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 - Because tab content stays mounted behind `.opacity` + `.allowsHitTesting`, `onAppear` is not a reliable hook for "panel reopened" behavior; use the `pulsePanelDidOpen` notification from `AppDelegate.openPanel()` for Agent-tab refresh-on-open behavior
 - `SystemMonitor` is the single source of truth for CPU, memory, GPU, and process data and refreshes every 2 seconds
 - Agent Usage is optional and off by default; `All` mode merges OpenCode and Codex summaries in memory and hides session/model sections
-- Agent usage refresh is intentionally event-driven, not scheduled: refresh when the panel opens onto the Agent tab, and when switching onto the Agent tab during an open session; do not refresh just because the source picker changes between `OpenCode`, `Codex`, and `All`
+- Agent usage refreshes when the panel opens onto the Agent tab, when switching onto the Agent tab during an open session, and every 30 minutes while Agent Usage is enabled (including while the panel is closed); do not refresh just because the source picker changes between `OpenCode`, `Codex`, and `All`
 - `pulseUpdater` is a separate helper app bundled into `Contents/Helpers/PulseUpdater.app` for installs
 - The OpenCode agent-light plugin is a local file with NO imports; it exports `{ id, server, setup }` (V2 `setup(ctx)` via `ctx.event.subscribe`, V1 `server(input)`). Local plugin files cannot resolve `@opencode/plugin`, so never add that import. V2 lifecycle events map to light kinds through `session.execution.*`, `session.inbox.*`, `session.created`, and `session.renamed`; metadata/usage/text/reasoning delta events are intentionally ignored
 

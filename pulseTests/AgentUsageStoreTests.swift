@@ -2160,6 +2160,36 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertTrue(today.tokenFlowData.isEmpty)
         XCTAssertFalse(today.showsTokenFlow)
     }
+
+    @MainActor
+    func testAgentUsageRefreshSchedulerRunsOnItsConfiguredIntervalAndStopsWhenDisabled() {
+        var scheduledInterval: TimeInterval?
+        var scheduledAction: (() -> Void)?
+        var scheduleCount = 0
+        var cancellationCount = 0
+        var refreshCount = 0
+        let scheduler = AgentUsageRefreshScheduler(
+            scheduleRepeating: { interval, action in
+                scheduleCount += 1
+                scheduledInterval = interval
+                scheduledAction = action
+                return { cancellationCount += 1 }
+            },
+            refresh: { refreshCount += 1 }
+        )
+
+        scheduler.setEnabled(true)
+        scheduler.setEnabled(true)
+        XCTAssertEqual(scheduleCount, 1)
+        XCTAssertEqual(scheduledInterval, 30 * 60)
+        scheduledAction?()
+        XCTAssertEqual(refreshCount, 1)
+
+        scheduler.setEnabled(false)
+        XCTAssertEqual(cancellationCount, 1)
+        scheduledAction?()
+        XCTAssertEqual(refreshCount, 1)
+    }
 }
 
 private func openWritableDatabase(_ url: URL) throws -> OpaquePointer? {

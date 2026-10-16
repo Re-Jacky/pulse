@@ -72,6 +72,57 @@ private final class InputPanel: NSPanel {
 }
 
 @MainActor
+final class AgentUsageRefreshScheduler {
+    typealias CancelSchedule = @MainActor () -> Void
+    typealias ScheduleRepeating = @MainActor (
+        TimeInterval,
+        @escaping @MainActor () -> Void
+    ) -> CancelSchedule
+
+    private let interval: TimeInterval
+    private let scheduleRepeating: ScheduleRepeating
+    private let refresh: @MainActor () -> Void
+    private var cancelScheduledRefresh: CancelSchedule?
+    private var isEnabled = false
+
+    init(
+        interval: TimeInterval = 30 * 60,
+        scheduleRepeating: ScheduleRepeating? = nil,
+        refresh: @escaping @MainActor () -> Void
+    ) {
+        self.interval = interval
+        self.scheduleRepeating = scheduleRepeating ?? Self.scheduleTimer
+        self.refresh = refresh
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+
+        if enabled {
+            cancelScheduledRefresh = scheduleRepeating(interval) { [weak self] in
+                guard let self, self.isEnabled else { return }
+                self.refresh()
+            }
+        } else {
+            cancelScheduledRefresh?()
+            cancelScheduledRefresh = nil
+        }
+    }
+
+    private static func scheduleTimer(
+        interval: TimeInterval,
+        action: @escaping @MainActor () -> Void
+    ) -> CancelSchedule {
+        let timer = Timer(timeInterval: interval, repeats: true) { _ in
+            Task { @MainActor in action() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        return { timer.invalidate() }
+    }
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var agentStatusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: MenuBarStatusItemView.defaultWidth)
@@ -90,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let sessionManagerThemeManager = SessionManagerThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
+    private lazy var agentUsageRefreshScheduler = AgentUsageRefreshScheduler { [weak self] in
+        self?.agentUsageStore.refreshAllAsync()
+    }
     private let sessionManagementStore = SessionManagementStore()
     private let agentLightsSettings = AgentLightsSettings()
     private let agentStatusStore = AgentStatusStore(enabledAgents: AgentStatusAgent.allCases)
@@ -407,6 +461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .sink { [weak self] _, _ in
                 guard let self else { return }
                 agentUsageStore.setEnabledSources(agentUsageSettings.enabledSources)
+                agentUsageRefreshScheduler.setEnabled(agentUsageSettings.effectiveEnabled)
                 updatePanelLayout(agentEnabled: agentUsageSettings.effectiveEnabled, selectedTab: currentSelectedTab, animated: true)
             }
             .store(in: &cancellables)
