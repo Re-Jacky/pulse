@@ -2161,6 +2161,90 @@ final class AgentUsageStoreTests: XCTestCase {
         XCTAssertFalse(today.showsTokenFlow)
     }
 
+    func testAgentUsageRefreshIntervalDefaultsToThirtyMinutesForMissingAndMalformedValues() {
+        let (defaults, suiteName) = makeAgentUsageSettingsDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settingsWithoutSavedInterval = AgentUsageSettings(userDefaults: defaults)
+
+        XCTAssertEqual(settingsWithoutSavedInterval.autoRefreshInterval.choice, .minutes30)
+        XCTAssertEqual(settingsWithoutSavedInterval.autoRefreshInterval.resolvedTimeInterval, 30 * 60)
+
+        defaults.set(Data("invalid".utf8), forKey: AgentUsageSettings.autoRefreshIntervalUserDefaultsKey)
+        let settingsWithMalformedInterval = AgentUsageSettings(userDefaults: defaults)
+
+        XCTAssertEqual(settingsWithMalformedInterval.autoRefreshInterval.choice, .minutes30)
+        XCTAssertEqual(settingsWithMalformedInterval.autoRefreshInterval.resolvedTimeInterval, 30 * 60)
+    }
+
+    func testAgentUsageRefreshIntervalPresetsResolveToTheirConfiguredDurations() {
+        let intervals: [(AgentUsageRefreshIntervalChoice, TimeInterval)] = [
+            (.seconds30, 30),
+            (.minute1, 60),
+            (.minutes10, 600),
+            (.minutes30, 1_800)
+        ]
+
+        for (choice, expectedSeconds) in intervals {
+            let interval = AgentUsageRefreshInterval(
+                choice: choice,
+                customAmount: 5,
+                customUnit: .hours
+            )
+
+            XCTAssertEqual(interval.resolvedTimeInterval, expectedSeconds)
+        }
+    }
+
+    func testAgentUsageRefreshIntervalCustomUnitsResolveToSeconds() {
+        let intervals: [(Int, AgentUsageRefreshIntervalUnit, TimeInterval)] = [
+            (45, .seconds, 45),
+            (2, .minutes, 120),
+            (3, .hours, 10_800)
+        ]
+
+        for (amount, unit, expectedSeconds) in intervals {
+            let interval = AgentUsageRefreshInterval(
+                choice: .custom,
+                customAmount: amount,
+                customUnit: unit
+            )
+
+            XCTAssertEqual(interval.resolvedTimeInterval, expectedSeconds)
+        }
+    }
+
+    func testAgentUsageRefreshIntervalCustomSelectionPersistsAcrossSettingsInstances() {
+        let (defaults, suiteName) = makeAgentUsageSettingsDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AgentUsageSettings(userDefaults: defaults)
+        settings.autoRefreshInterval = AgentUsageRefreshInterval(
+            choice: .custom,
+            customAmount: 45,
+            customUnit: .seconds
+        )
+
+        let reloadedSettings = AgentUsageSettings(userDefaults: defaults)
+
+        XCTAssertEqual(reloadedSettings.autoRefreshInterval.choice, .custom)
+        XCTAssertEqual(reloadedSettings.autoRefreshInterval.customAmount, 45)
+        XCTAssertEqual(reloadedSettings.autoRefreshInterval.customUnit, .seconds)
+        XCTAssertEqual(reloadedSettings.autoRefreshInterval.resolvedTimeInterval, 45)
+    }
+
+    func testAgentUsageRefreshIntervalRejectsNonpositiveCustomAmounts() {
+        for amount in [0, -1] {
+            let interval = AgentUsageRefreshInterval(
+                choice: .custom,
+                customAmount: amount,
+                customUnit: .seconds
+            )
+
+            XCTAssertNil(interval.resolvedTimeInterval)
+        }
+    }
+
     @MainActor
     func testAgentUsageRefreshSchedulerRunsOnItsConfiguredIntervalAndStopsWhenDisabled() {
         var scheduledInterval: TimeInterval?
@@ -2190,6 +2274,12 @@ final class AgentUsageStoreTests: XCTestCase {
         scheduledAction?()
         XCTAssertEqual(refreshCount, 1)
     }
+}
+
+private func makeAgentUsageSettingsDefaults() -> (defaults: UserDefaults, suiteName: String) {
+    let suiteName = "AgentUsageSettingsTests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    return (defaults, suiteName)
 }
 
 private func openWritableDatabase(_ url: URL) throws -> OpaquePointer? {

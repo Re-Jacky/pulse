@@ -1,9 +1,78 @@
 import Foundation
 import Combine
 
+enum AgentUsageRefreshIntervalChoice: String, CaseIterable, Identifiable, Codable {
+    case seconds30
+    case minute1
+    case minutes10
+    case minutes30
+    case custom
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .seconds30: return "30 seconds"
+        case .minute1: return "1 minute"
+        case .minutes10: return "10 minutes"
+        case .minutes30: return "30 minutes"
+        case .custom: return "Custom"
+        }
+    }
+}
+
+enum AgentUsageRefreshIntervalUnit: String, CaseIterable, Identifiable, Codable {
+    case seconds
+    case minutes
+    case hours
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .seconds: return "Seconds"
+        case .minutes: return "Minutes"
+        case .hours: return "Hours"
+        }
+    }
+
+    var secondsPerUnit: TimeInterval {
+        switch self {
+        case .seconds: return 1
+        case .minutes: return 60
+        case .hours: return 60 * 60
+        }
+    }
+}
+
+struct AgentUsageRefreshInterval: Codable, Equatable {
+    var choice: AgentUsageRefreshIntervalChoice
+    var customAmount: Int
+    var customUnit: AgentUsageRefreshIntervalUnit
+
+    static let defaultValue = AgentUsageRefreshInterval(
+        choice: .minutes30,
+        customAmount: 1,
+        customUnit: .minutes
+    )
+
+    var resolvedTimeInterval: TimeInterval? {
+        switch choice {
+        case .seconds30: return 30
+        case .minute1: return 60
+        case .minutes10: return 10 * 60
+        case .minutes30: return 30 * 60
+        case .custom:
+            guard customAmount > 0 else { return nil }
+            return TimeInterval(customAmount) * customUnit.secondsPerUnit
+        }
+    }
+}
+
 final class AgentUsageSettings: ObservableObject {
     static let userDefaultsKey = "agentUsageEnabled"
     static let selectedSourcesUserDefaultsKey = "agentUsageSelectedSources"
+    static let autoRefreshIntervalUserDefaultsKey = "agentUsageAutoRefreshInterval"
 
     private let userDefaults: UserDefaults
 
@@ -22,6 +91,13 @@ final class AgentUsageSettings: ObservableObject {
         }
     }
 
+    @Published var autoRefreshInterval: AgentUsageRefreshInterval {
+        didSet {
+            guard let data = try? JSONEncoder().encode(autoRefreshInterval) else { return }
+            userDefaults.set(data, forKey: Self.autoRefreshIntervalUserDefaultsKey)
+        }
+    }
+
     var enabledSources: Set<AgentSource> {
         isEnabled ? selectedSources : []
     }
@@ -37,6 +113,14 @@ final class AgentUsageSettings: ObservableObject {
             selectedSources = Set(savedRawValues.compactMap(AgentSource.init(rawValue:)))
         } else {
             selectedSources = Set(AgentSource.selectableCases)
+        }
+
+        if let data = userDefaults.data(forKey: Self.autoRefreshIntervalUserDefaultsKey),
+           let savedInterval = try? JSONDecoder().decode(AgentUsageRefreshInterval.self, from: data),
+           savedInterval.resolvedTimeInterval != nil {
+            autoRefreshInterval = savedInterval
+        } else {
+            autoRefreshInterval = .defaultValue
         }
     }
 
