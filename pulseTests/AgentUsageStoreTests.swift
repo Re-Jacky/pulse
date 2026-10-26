@@ -2246,6 +2246,39 @@ final class AgentUsageStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testAgentUsageRefreshSchedulerReplacesIntervalWithoutImmediateRefresh() {
+        var scheduledIntervals: [TimeInterval] = []
+        var scheduledActions: [() -> Void] = []
+        var cancellationCount = 0
+        var refreshCount = 0
+        let scheduler = AgentUsageRefreshScheduler(
+            interval: 30 * 60,
+            scheduleRepeating: { interval, action in
+                scheduledIntervals.append(interval)
+                scheduledActions.append(action)
+                return { cancellationCount += 1 }
+            },
+            refresh: { refreshCount += 1 }
+        )
+
+        scheduler.setEnabled(true)
+        scheduler.setInterval(30)
+
+        XCTAssertEqual(cancellationCount, 1)
+        XCTAssertEqual(scheduledIntervals, [30 * 60, 30])
+        XCTAssertEqual(refreshCount, 0)
+
+        scheduler.setInterval(0)
+
+        XCTAssertEqual(cancellationCount, 1)
+        XCTAssertEqual(scheduledIntervals, [30 * 60, 30])
+
+        scheduledActions[1]()
+
+        XCTAssertEqual(refreshCount, 1)
+    }
+
+    @MainActor
     func testAgentUsageRefreshSchedulerRunsOnItsConfiguredIntervalAndStopsWhenDisabled() {
         var scheduledInterval: TimeInterval?
         var scheduledAction: (() -> Void)?

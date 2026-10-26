@@ -79,7 +79,7 @@ final class AgentUsageRefreshScheduler {
         @escaping @MainActor () -> Void
     ) -> CancelSchedule
 
-    private let interval: TimeInterval
+    private var interval: TimeInterval
     private let scheduleRepeating: ScheduleRepeating
     private let refresh: @MainActor () -> Void
     private var cancelScheduledRefresh: CancelSchedule?
@@ -100,13 +100,27 @@ final class AgentUsageRefreshScheduler {
         isEnabled = enabled
 
         if enabled {
-            cancelScheduledRefresh = scheduleRepeating(interval) { [weak self] in
-                guard let self, self.isEnabled else { return }
-                self.refresh()
-            }
+            scheduleRefresh()
         } else {
             cancelScheduledRefresh?()
             cancelScheduledRefresh = nil
+        }
+    }
+
+    func setInterval(_ interval: TimeInterval) {
+        guard interval.isFinite, interval > 0, interval != self.interval else { return }
+        self.interval = interval
+
+        guard isEnabled else { return }
+        cancelScheduledRefresh?()
+        cancelScheduledRefresh = nil
+        scheduleRefresh()
+    }
+
+    private func scheduleRefresh() {
+        cancelScheduledRefresh = scheduleRepeating(interval) { [weak self] in
+            guard let self, self.isEnabled else { return }
+            self.refresh()
         }
     }
 
