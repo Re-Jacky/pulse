@@ -155,7 +155,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let sessionManagerThemeManager = SessionManagerThemeManager()
     private let agentUsageSettings = AgentUsageSettings()
     private let agentUsageStore = AgentUsageStore()
-    private lazy var agentUsageRefreshScheduler = AgentUsageRefreshScheduler { [weak self] in
+    private lazy var agentUsageRefreshScheduler = AgentUsageRefreshScheduler(
+        interval: agentUsageSettings.autoRefreshInterval.resolvedTimeInterval ?? 30 * 60
+    ) { [weak self] in
         self?.agentUsageStore.refreshAllAsync()
     }
     private let sessionManagementStore = SessionManagementStore()
@@ -469,6 +471,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func setupFeatureObservation() {
+        agentUsageSettings.$autoRefreshInterval
+            .compactMap(\.resolvedTimeInterval)
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] interval in
+                self?.agentUsageRefreshScheduler.setInterval(interval)
+            }
+            .store(in: &cancellables)
+
         agentUsageSettings.$isEnabled
             .combineLatest(agentUsageSettings.$selectedSources)
             .receive(on: RunLoop.main)

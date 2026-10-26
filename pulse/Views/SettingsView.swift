@@ -201,6 +201,46 @@ struct SettingsView: View {
             Toggle("Enable Agent Usage", isOn: $agentUsageSettings.isEnabled)
                 .toggleStyle(.switch)
 
+            if agentUsageSettings.isEnabled {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Auto-refresh")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.appPrimaryText)
+
+                    Text("Refresh Agent Usage automatically in the background.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.appSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Picker("Interval", selection: $agentUsageSettings.autoRefreshInterval.choice) {
+                        ForEach(AgentUsageRefreshIntervalChoice.allCases) { choice in
+                            Text(choice.label).tag(choice)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 320, alignment: .leading)
+
+                    if agentUsageSettings.autoRefreshInterval.choice == .custom {
+                        HStack(spacing: 8) {
+                            TextField(
+                                "Amount",
+                                value: customAgentUsageRefreshAmountBinding,
+                                format: .number
+                            )
+                            .frame(width: 80)
+
+                            Picker("Unit", selection: $agentUsageSettings.autoRefreshInterval.customUnit) {
+                                ForEach(AgentUsageRefreshIntervalUnit.allCases) { unit in
+                                    Text(unit.label).tag(unit)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                    }
+                }
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 Text("Sources")
                     .font(.system(size: 12, weight: .semibold))
@@ -375,6 +415,18 @@ struct SettingsView: View {
                     next.remove(source)
                 }
                 agentUsageSettings.selectedSources = next
+            }
+        )
+    }
+
+    private var customAgentUsageRefreshAmountBinding: Binding<Int> {
+        Binding(
+            get: { agentUsageSettings.autoRefreshInterval.customAmount },
+            set: { amount in
+                guard amount > 0 else { return }
+                var interval = agentUsageSettings.autoRefreshInterval
+                interval.customAmount = amount
+                agentUsageSettings.autoRefreshInterval = interval
             }
         )
     }
